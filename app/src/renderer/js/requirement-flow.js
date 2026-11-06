@@ -3,14 +3,14 @@ import { $, el } from './dom.js';
 
 /**
  * Requirement 流程（參考 feature/flow.pptx）：
- *   Pending → Implement + Manager understand（並行，各自一欄）→ Test deploy → Test → Prod deploy → Release recap
+ *   Pending → Implement + Manager understand（並行，同一欄上下兩格）→ Test deploy → Test → Prod deploy → Release recap
  *
  * - Pending / Implement 由 ADO 資料判斷（有沒有展開子項目、子項目是否都已完成）。
  * - 其他人工步驟先以 checkbox 記錄在本機（data/requirement_flow_state.json），之後再串接實際動作。
  */
 const STAGES = [
   { key: 'pending', label: 'Pending' },
-  { key: 'implement', label: 'Implement / Manager understand' },
+  { key: 'implement', label: 'Implement' },
   { key: 'testDeploy', label: 'Test deploy', checks: [['testDeploy.saas', 'SaaS'], ['testDeploy.local', 'Local']] },
   { key: 'test', label: 'Test', checks: [['test', '測試完成']] },
   { key: 'prodDeploy', label: 'Prod deploy', checks: [['prodDeploy.saas', 'SaaS'], ['prodDeploy.local', 'Local']] },
@@ -117,20 +117,28 @@ export function createRequirementFlowView() {
   }
 
   /** done=true 的格子在進行中階段也顯示為綠色（例：Implement 的 Task 都已 Tested by Dev） */
+  function progressClass(idx, curIdx, done = false) {
+    return idx < curIdx || (idx === curIdx && done) ? 'past' : idx === curIdx ? 'current' : 'future';
+  }
+
   function cell(idx, curIdx, done = false) {
     const td = el('td', 'stage');
-    td.classList.add(idx < curIdx || (idx === curIdx && done) ? 'past' : idx === curIdx ? 'current' : 'future');
+    td.classList.add(progressClass(idx, curIdx, done));
     return td;
   }
 
-  /** Implement 與 Manager understand 同屬一個階段，但分成兩欄 */
+  /** Implement 與 Manager understand 同屬一個階段：同一欄，分成上下兩格 */
   function stageCells(req, stage, idx, curIdx) {
     if (stage.key === 'implement') {
-      const impl = cell(idx, curIdx, allDevDone(req));
+      const impl = el('div', `stage ${progressClass(idx, curIdx, allDevDone(req))}`);
       impl.append(implementCell(req));
-      const mgr = cell(idx, curIdx, !!state[req.id]?.[UNDERSTAND_KEY]);
-      mgr.append(checkbox(req, UNDERSTAND_KEY, '已理解需求 / 確認驗收方式'));
-      return [impl, mgr];
+      const mgr = el('div', `stage ${progressClass(idx, curIdx, !!state[req.id]?.[UNDERSTAND_KEY])}`);
+      mgr.append(el('div', 'sub-head', 'Manager understand'), checkbox(req, UNDERSTAND_KEY, '已理解需求 / 確認驗收方式'));
+      const box = el('div', 'split-box');
+      box.append(impl, mgr);
+      const td = el('td', 'stage-split');
+      td.append(box);
+      return [td];
     }
     const td = cell(idx, curIdx);
     if (stage.key === 'pending') {

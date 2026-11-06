@@ -54,7 +54,7 @@ There is no test suite, linter, or build step configured.
 - **Adding a feature**: implement logic in `main/services/` (and a Python script if it needs ADO) → register the channel in `main/ipc.js` → add the method in `preload/index.js` → call via `api` in the renderer.
 
 ### Requirement 流程 (based on `feature/flow.pptx`)
-- Stages: Pending → Implement + Manager understand (parallel, separate columns) → Test deploy (SaaS/Local) → Test → Prod deploy (SaaS/Local) → Release recap (meeting/record). The current stage cell is highlighted; past = green, future = dimmed.
+- Stages: Pending → Implement + Manager understand (parallel; one "Implement" column split into top/bottom cells) → Test deploy (SaaS/Local) → Test → Prod deploy (SaaS/Local) → Release recap (meeting/record). The current stage cell is highlighted; past = green, future = dimmed.
 - Requirements are selected by **their own** iteration (`get_requirement_flow.py`); children (Task/Bug) come via parent-child relations even if they sit in another iteration. Tasks without a parent are anomalies — ignore them.
 - Pending = no non-Removed children. Implement is done when all children are Tested by Dev / Resolved / Closed (that cell turns green even while the stage is current). The stage advances only when Implement and Manager understand are both done.
 - Steps other than Pending/Implement are not wired to real actions yet: they are checkboxes stored locally in `data/requirement_flow_state.json` (`{ "<reqId>": { "<checkKey>": true } }`, via `flow:loadState` / `flow:setCheck`; writes are serialized). Nothing is written back to ADO.

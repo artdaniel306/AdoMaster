@@ -100,8 +100,7 @@ td.path { color: var(--muted); font-size: 12px; }
 table.flow { table-layout: fixed; min-width: 1100px; }
 table.flow th { text-align: center; }
 table.flow th.req-col, table.flow td.req-col { width: 240px; text-align: left; }
-table.flow th[data-stage="implement"] { width: 240px; }
-table.flow th[data-stage="understand"] { width: 150px; }
+table.flow th[data-stage="implement"] { width: 260px; }
 table.flow td { border-left: 1px solid var(--border); }
 table.flow tbody tr:hover { background: none; }
 .req-top { display: flex; align-items: center; gap: 6px; }
@@ -109,13 +108,18 @@ table.flow tbody tr:hover { background: none; }
 .req-meta { margin: 0; }
 tr.all-done .req-title { color: var(--ok); }
 
-td.stage { font-size: 12px; }
-td.stage.past { background: var(--past); }
-td.stage.future { opacity: .45; }
-td.stage.current { background: var(--cur); box-shadow: inset 0 0 0 2px var(--cur-border); opacity: 1; }
+.stage { font-size: 12px; }
+.stage.past { background: var(--past); }
+.stage.future { opacity: .45; }
+.stage.current { background: var(--cur); box-shadow: inset 0 0 0 2px var(--cur-border); opacity: 1; }
 .stage-mark { color: var(--muted); }
-td.stage.past .stage-mark { color: var(--ok); }
-td.stage.current .stage-mark { color: var(--fg); font-weight: 600; }
+.stage.past .stage-mark { color: var(--ok); }
+.stage.current .stage-mark { color: var(--fg); font-weight: 600; }
+/* Implement 欄：上下兩格（Implement / Manager understand），各自顯示進度色 */
+td.stage-split { padding: 0; height: 1px; }
+.split-box { display: flex; flex-direction: column; height: 100%; }
+.split-box > .stage { padding: 6px 10px; }
+.split-box > .stage + .stage { border-top: 1px dashed var(--border); flex: 1; }
 
 .sub-head { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 4px; }
 .count { color: var(--muted); font-weight: normal; }
