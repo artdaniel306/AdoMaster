@@ -100,7 +100,8 @@ td.path { color: var(--muted); font-size: 12px; }
 table.flow { table-layout: fixed; min-width: 1100px; }
 table.flow th { text-align: center; }
 table.flow th.req-col, table.flow td.req-col { width: 240px; text-align: left; }
-table.flow th[data-stage="implement"] { width: 260px; }
+table.flow th[data-stage="implement"] { width: 240px; }
+table.flow th[data-stage="understand"] { width: 150px; }
 table.flow td { border-left: 1px solid var(--border); }
 table.flow tbody tr:hover { background: none; }
 .req-top { display: flex; align-items: center; gap: 6px; }
@@ -122,7 +123,6 @@ td.stage.current .stage-mark { color: var(--fg); font-weight: 600; }
 .task-list { display: flex; flex-direction: column; gap: 3px; }
 .task { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
 .task.dev-done .link { color: var(--ok); }
-.mgr { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--border); }
 .checks { display: flex; flex-direction: column; gap: 4px; }
 .flow-check { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .state-tested-by-dev { border-color: var(--ok); color: var(--ok); }

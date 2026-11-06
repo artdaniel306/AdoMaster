@@ -3,7 +3,7 @@ import { $, el } from './dom.js';
 
 /**
  * Requirement 流程（參考 feature/flow.pptx）：
- *   Pending → Implement + Manager understand（並行）→ Test deploy → Test → Prod deploy → Release recap
+ *   Pending → Implement + Manager understand（並行，各自一欄）→ Test deploy → Test → Prod deploy → Release recap
  *
  * - Pending / Implement 由 ADO 資料判斷（有沒有展開子項目、子項目是否都已完成）。
  * - 其他人工步驟先以 checkbox 記錄在本機（data/requirement_flow_state.json），之後再串接實際動作。
@@ -23,13 +23,14 @@ const UNDERSTAND_KEY = 'understand';
 const DEV_DONE_STATES = new Set(['tested by dev', 'resolved', 'closed', 'done', 'completed']);
 const isRemoved = (c) => String(c.state).toLowerCase() === 'removed';
 const isDevDone = (c) => DEV_DONE_STATES.has(String(c.state).toLowerCase());
+const activeKids = (req) => req.children.filter((c) => !isRemoved(c));
+const allDevDone = (req) => activeKids(req).length > 0 && activeKids(req).every(isDevDone);
 const stateClass = (s) => `state state-${String(s).toLowerCase().replace(/\s+/g, '-')}`;
 
 /** 依子項目與 checkbox 計算 Requirement 目前所在階段 */
 function computeStage(req, checks) {
-  const kids = req.children.filter((c) => !isRemoved(c));
-  if (!kids.length) return 'pending';
-  if (!(kids.every(isDevDone) && checks[UNDERSTAND_KEY])) return 'implement';
+  if (!activeKids(req).length) return 'pending';
+  if (!(allDevDone(req) && checks[UNDERSTAND_KEY])) return 'implement';
   for (const s of STAGES.slice(2)) {
     if (!s.checks.every(([k]) => checks[k])) return s.key;
   }
@@ -95,7 +96,7 @@ export function createRequirementFlowView() {
   }
 
   function implementCell(req) {
-    const kids = req.children.filter((c) => !isRemoved(c));
+    const kids = activeKids(req);
     const box = el('div', 'impl');
     const doneCount = kids.filter(isDevDone).length;
     const head = el('div', 'sub-head');
@@ -111,25 +112,35 @@ export function createRequirementFlowView() {
       t.append(openLink(`${c.type === 'Task' ? '' : `${c.type} `}#${c.id}`, c.webUrl), el('span', stateClass(c.state), c.state));
       list.append(t);
     }
-    const mgr = el('div', 'mgr');
-    mgr.append(el('div', 'sub-head', 'Manager understand'), checkbox(req, UNDERSTAND_KEY, '已理解需求 / 確認驗收方式'));
-    box.append(head, list, mgr);
+    box.append(head, list);
     return box;
   }
 
-  function stageCell(req, stage, idx, curIdx) {
+  /** done=true 的格子在進行中階段也顯示為綠色（例：Implement 的 Task 都已 Tested by Dev） */
+  function cell(idx, curIdx, done = false) {
     const td = el('td', 'stage');
-    td.classList.add(idx < curIdx ? 'past' : idx === curIdx ? 'current' : 'future');
+    td.classList.add(idx < curIdx || (idx === curIdx && done) ? 'past' : idx === curIdx ? 'current' : 'future');
+    return td;
+  }
+
+  /** Implement 與 Manager understand 同屬一個階段，但分成兩欄 */
+  function stageCells(req, stage, idx, curIdx) {
+    if (stage.key === 'implement') {
+      const impl = cell(idx, curIdx, allDevDone(req));
+      impl.append(implementCell(req));
+      const mgr = cell(idx, curIdx, !!state[req.id]?.[UNDERSTAND_KEY]);
+      mgr.append(checkbox(req, UNDERSTAND_KEY, '已理解需求 / 確認驗收方式'));
+      return [impl, mgr];
+    }
+    const td = cell(idx, curIdx);
     if (stage.key === 'pending') {
       td.append(el('span', 'stage-mark', idx < curIdx ? '✓ 已展開' : '待指派 / 展開 Task'));
-    } else if (stage.key === 'implement') {
-      td.append(implementCell(req));
     } else {
       const box = el('div', 'checks');
       box.append(...stage.checks.map(([k, label]) => checkbox(req, k, label)));
       td.append(box);
     }
-    return td;
+    return [td];
   }
 
   function renderRow(req) {
@@ -146,7 +157,7 @@ export function createRequirementFlowView() {
     head.append(top, el('div', 'req-title', req.title), el('div', 'req-meta muted', `${req.assignedTo || '未指派'} · ${stageName}`));
     head.title = req.description ? req.description.slice(0, 300) : '';
 
-    tr.append(head, ...STAGES.map((s, i) => stageCell(req, s, i, curIdx)));
+    tr.append(head, ...STAGES.flatMap((s, i) => stageCells(req, s, i, curIdx)));
     return tr;
   }
 
