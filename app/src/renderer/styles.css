@@ -186,3 +186,30 @@ td.stage-split { padding: 0; height: 1px; }
 .state-proposed, .state-ready-for-dev { color: var(--muted); }
 .node-row .pin-btn { margin-left: auto; }
 .node-row .node-date + .pin-btn { margin-left: 0; }
+
+/* ---- Manager understand dialog ---- */
+#understand-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(560px, 90vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#understand-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+.und-body { padding: 0 14px 8px; }
+.und-req { margin: 0 0 4px; font-weight: 600; word-break: break-word; }
+.und-repos { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.und-repo { display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 10px; }
+.und-repo select {
+  padding: 5px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit;
+}
+.und-repo select:disabled { opacity: .5; }
+.und-repo .muted { margin: 0; grid-column: 2; }
+.dlg-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.spacer { flex: 1; }
+.btn-primary { background: var(--accent); border: 1px solid var(--accent); color: #fff; border-radius: 6px; padding: 4px 14px; }
+.btn-primary:hover { filter: brightness(1.1); }
+.btn-danger { color: var(--err); }
+.btn-ghost[hidden] { display: none; }
+/* 流程表中顯示已確認的 repository / branch */
+.und-summary { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.und-summary .repo-line { display: flex; gap: 6px; font-size: 11px; }
+.und-summary .repo-name { font-weight: 600; }
+.und-summary .repo-branch { color: var(--muted); word-break: break-all; }

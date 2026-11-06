@@ -32,6 +32,27 @@
     </div>
   </dialog>
 
+  <dialog id="understand-dialog">
+    <form id="und-form" class="dlg-box" method="dialog">
+      <header class="dlg-head">
+        <h3>Manager understand</h3>
+        <button type="button" id="und-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="und-body">
+        <p id="und-req" class="und-req"></p>
+        <p class="muted">勾選此需求需要開發的 repository，並選擇要做在哪個 feature branch。</p>
+        <div id="und-repos" class="und-repos"></div>
+        <p id="und-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" id="und-clear" class="btn-ghost btn-danger">取消確認</button>
+        <span class="spacer"></span>
+        <button type="button" id="und-cancel" class="btn-ghost">取消</button>
+        <button type="submit" id="und-ok" class="btn-primary">確認</button>
+      </footer>
+    </form>
+  </dialog>
+
   <main id="content">
     <header class="content-head">
       <div>

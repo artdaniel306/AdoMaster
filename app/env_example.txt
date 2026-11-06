@@ -1,0 +1,5 @@
+# 複製為 app/.env 後填入設定
+# Manager understand 時可選擇的 feature branch（逗號分隔）
+CRMAPP_BRANCHES=feature/xxx,feature/yyy
+CRMAPPUI_BRANCHES=feature/xxx
+UPAGENT_BRANCHES=feature/xxx

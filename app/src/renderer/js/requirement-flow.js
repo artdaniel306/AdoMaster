@@ -1,5 +1,6 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
+import { createUnderstandDialog } from './understand-dialog.js';
 
 /**
  * Requirement 流程（參考 feature/flow.pptx）：
@@ -7,6 +8,7 @@ import { $, el } from './dom.js';
  *
  * - Pending / Implement 由 ADO 資料判斷（有沒有展開子項目、子項目是否都已完成）。
  * - 其他人工步驟先以 checkbox 記錄在本機（data/requirement_flow_state.json），之後再串接實際動作。
+ * - Manager understand 點擊時開啟 dialog，決定要在哪些 repository 開發、各自的 feature branch。
  */
 const STAGES = [
   { key: 'pending', label: 'Pending' },
@@ -18,6 +20,7 @@ const STAGES = [
 ];
 const DONE = { key: 'done', label: '已完成' };
 const UNDERSTAND_KEY = 'understand';
+const UNDERSTAND_REPOS_KEY = 'understandRepos'; // { repoKey: featureBranch }，由 Manager understand dialog 設定
 
 /** 視為「開發完成」的子項目狀態（小寫比對） */
 const DEV_DONE_STATES = new Set(['tested by dev', 'resolved', 'closed', 'done', 'completed']);
@@ -59,7 +62,8 @@ export function createRequirementFlowView() {
 
   let requestSeq = 0; // 避免較慢的舊請求覆蓋新結果
   let requirements = [];
-  let state = {}; // { [id]: { [checkKey]: true } }
+  let state = {}; // { [id]: { [checkKey]: true, understandRepos?: { repoKey: branch } } }
+  const understandDialog = createUnderstandDialog();
 
   function renderSummary() {
     const counts = new Map([...STAGES, DONE].map((s) => [s.key, 0]));
@@ -93,6 +97,37 @@ export function createRequirementFlowView() {
     });
     lab.append(input, el('span', null, label));
     return lab;
+  }
+
+  /** Manager understand：checkbox 本身不直接切換，點擊時開啟 dialog 選擇 repository / feature branch */
+  function understandCheck(req) {
+    const lab = el('label', 'flow-check');
+    const input = el('input');
+    input.type = 'checkbox';
+    input.checked = !!state[req.id]?.[UNDERSTAND_KEY];
+    lab.title = '點擊選擇要開發的 repository 與 feature branch';
+    lab.addEventListener('click', (e) => {
+      e.preventDefault();
+      understandDialog.open(req, state[req.id]?.[UNDERSTAND_REPOS_KEY], async (repos) => {
+        state[req.id] = await api.setUnderstand(req.id, repos);
+        update(req);
+      });
+    });
+    lab.append(input, el('span', null, '已理解需求 / 確認開發 repository'));
+
+    const box = el('div');
+    box.append(lab);
+    const repos = state[req.id]?.[UNDERSTAND_REPOS_KEY];
+    if (repos) {
+      const list = el('div', 'und-summary');
+      for (const [repo, branch] of Object.entries(repos)) {
+        const line = el('div', 'repo-line');
+        line.append(el('span', 'repo-name', repo), el('span', 'repo-branch', branch));
+        list.append(line);
+      }
+      box.append(list);
+    }
+    return box;
   }
 
   function implementCell(req) {
@@ -133,7 +168,7 @@ export function createRequirementFlowView() {
       const impl = el('div', `stage ${progressClass(idx, curIdx, allDevDone(req))}`);
       impl.append(implementCell(req));
       const mgr = el('div', `stage ${progressClass(idx, curIdx, !!state[req.id]?.[UNDERSTAND_KEY])}`);
-      mgr.append(el('div', 'sub-head', 'Manager understand'), checkbox(req, UNDERSTAND_KEY, '已理解需求 / 確認驗收方式'));
+      mgr.append(el('div', 'sub-head', 'Manager understand'), understandCheck(req));
       const box = el('div', 'split-box');
       box.append(impl, mgr);
       const td = el('td', 'stage-split');

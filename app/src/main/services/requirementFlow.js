@@ -3,6 +3,10 @@ const os = require('node:os');
 const path = require('node:path');
 const { FLOW_STATE_FILE } = require('../paths');
 const { runScript } = require('../python');
+const { REPOS } = require('./repoConfig');
+
+const UNDERSTAND_KEY = 'understand';
+const UNDERSTAND_REPOS_KEY = 'understandRepos';
 
 /** 執行 get_requirement_flow.py 取得指定 Iteration 的 Requirement 與其子項目。 */
 async function fetchRequirementFlow({ iterationPath, exact } = {}) {
@@ -37,16 +41,12 @@ async function loadFlowState() {
 
 let writeQueue = Promise.resolve(); // 序列化讀改寫，避免連續勾選時互相覆蓋
 
-/** 設定某個 Requirement 的一個 checkbox，回傳該 Requirement 更新後的狀態。 */
-function setFlowCheck({ id, key, value } = {}) {
-  if (!Number.isInteger(id) || typeof key !== 'string' || !/^[\w.]+$/.test(key)) {
-    return Promise.reject(new Error('參數錯誤'));
-  }
+/** 讀出某個 Requirement 的狀態交給 mutate 修改後寫回，回傳該 Requirement 更新後的狀態。 */
+function updateRequirementState(id, mutate) {
   const task = writeQueue.then(async () => {
     const state = await loadFlowState();
     const checks = { ...(state[id] || {}) };
-    if (value) checks[key] = true;
-    else delete checks[key];
+    mutate(checks);
     if (Object.keys(checks).length) state[id] = checks;
     else delete state[id];
     await fs.mkdir(path.dirname(FLOW_STATE_FILE), { recursive: true });
@@ -57,4 +57,43 @@ function setFlowCheck({ id, key, value } = {}) {
   return task;
 }
 
-module.exports = { fetchRequirementFlow, loadFlowState, setFlowCheck };
+/** 設定某個 Requirement 的一個 checkbox，回傳該 Requirement 更新後的狀態。 */
+function setFlowCheck({ id, key, value } = {}) {
+  if (!Number.isInteger(id) || typeof key !== 'string' || !/^[\w.]+$/.test(key) || key === UNDERSTAND_KEY) {
+    return Promise.reject(new Error('參數錯誤'));
+  }
+  return updateRequirementState(id, (checks) => {
+    if (value) checks[key] = true;
+    else delete checks[key];
+  });
+}
+
+/**
+ * Manager understand：確認此需求要在哪些 repository 開發、各自的 feature branch。
+ *   repos = { crmapp: 'feature/x', upagent: 'feature/y' } → understand: true、understandRepos: repos
+ *   repos = null → 取消確認（清除兩者）
+ */
+function setUnderstand({ id, repos } = {}) {
+  if (!Number.isInteger(id)) return Promise.reject(new Error('參數錯誤'));
+  if (repos != null) {
+    const validKeys = new Set(REPOS.map((r) => r.key));
+    const entries = typeof repos === 'object' ? Object.entries(repos) : [];
+    if (!entries.length) return Promise.reject(new Error('請至少選擇一個 repository'));
+    for (const [k, branch] of entries) {
+      if (!validKeys.has(k)) return Promise.reject(new Error(`未知的 repository：${k}`));
+      if (typeof branch !== 'string' || !branch.trim()) return Promise.reject(new Error(`${k} 尚未選擇 feature branch`));
+    }
+    repos = Object.fromEntries(entries.map(([k, b]) => [k, b.trim()]));
+  }
+  return updateRequirementState(id, (checks) => {
+    if (repos) {
+      checks[UNDERSTAND_KEY] = true;
+      checks[UNDERSTAND_REPOS_KEY] = repos;
+    } else {
+      delete checks[UNDERSTAND_KEY];
+      delete checks[UNDERSTAND_REPOS_KEY];
+    }
+  });
+}
+
+module.exports = { fetchRequirementFlow, loadFlowState, setFlowCheck, setUnderstand };
