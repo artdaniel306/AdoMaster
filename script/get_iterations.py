@@ -1,11 +1,6 @@
 """
 取得 Azure DevOps 專案中所有的 Iteration（Sprint），輸出到專案根目錄的 data/ 資料夾。
 
-參考 API:
-  - Classification Nodes - Get（取得 Iteration 樹狀結構，含起訖日）
-      GET {base}/{org}/{project}/_apis/wit/classificationnodes/Iterations?$depth=20&api-version=7.1
-      https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/classification-nodes/get?view=azure-devops-rest-7.1
-
 輸出（預設檔名固定，每次執行會覆寫）:
   data/iterations.csv        扁平清單，Excel 可直接開啟
   data/iterations.json       扁平清單（JSON）
@@ -24,104 +19,26 @@ PAT 需有 Work Items (Read) 權限。
 """
 
 import argparse
-import csv
-import json
 import os
 from datetime import date, datetime
 
-from get_tasks import SCRIPT_DIR, api_request, api_url, get_config
-
-DEFAULT_OUT_DIR = os.path.join(os.path.dirname(SCRIPT_DIR), "data")
-MAX_DEPTH = 20
-
-CSV_COLUMNS = [
-    "id",
-    "identifier",
-    "name",
-    "iterationPath",
-    "level",
-    "parentId",
-    "hasChildren",
-    "startDate",
-    "finishDate",
-    "timeFrame",
-    "url",
-]
-
-
-def get_iteration_tree(cfg):
-    url = api_url(cfg, "wit/classificationnodes/Iterations", **{"$depth": MAX_DEPTH})
-    return api_request(url, cfg["pat"])
-
-
-def to_iteration_path(node_path):
-    """API 的 path 形如 \\Project\\Iteration\\Sprint 1，轉成 Project\\Sprint 1。"""
-    parts = [p for p in node_path.split("\\") if p]
-    if len(parts) >= 2 and parts[1] == "Iteration":
-        del parts[1]
-    return "\\".join(parts)
-
-
-def date_part(value):
-    return value[:10] if value else ""
-
-
-def time_frame(start, finish, today):
-    if not start or not finish:
-        return ""
-    if today < start:
-        return "future"
-    if today > finish:
-        return "past"
-    return "current"
-
-
-def flatten(node, today, level=0, parent_id=None, out=None):
-    """深度優先展開樹狀結構。根節點（專案本身）也保留，level=0。"""
-    if out is None:
-        out = []
-    attrs = node.get("attributes") or {}
-    start, finish = date_part(attrs.get("startDate")), date_part(attrs.get("finishDate"))
-    out.append({
-        "id": node.get("id"),
-        "identifier": node.get("identifier", ""),
-        "name": node.get("name", ""),
-        "iterationPath": to_iteration_path(node.get("path", "")),
-        "level": level,
-        "parentId": parent_id if parent_id is not None else "",
-        "hasChildren": bool(node.get("children")),
-        "startDate": start,
-        "finishDate": finish,
-        "timeFrame": time_frame(start, finish, today),
-        "url": node.get("url", ""),
-    })
-    for child in node.get("children") or []:
-        flatten(child, today, level + 1, node.get("id"), out)
-    return out
+from ado.cli import run
+from ado.config import DATA_DIR, get_config
+from ado.iterations import ROW_COLUMNS, flatten, get_iteration_tree
+from ado.output import write_csv, write_json
 
 
 def write_outputs(out_dir, tree, rows):
-    os.makedirs(out_dir, exist_ok=True)
-    paths = {
-        "csv": os.path.join(out_dir, "iterations.csv"),
-        "json": os.path.join(out_dir, "iterations.json"),
-        "tree": os.path.join(out_dir, "iterations_tree.json"),
+    return {
+        "csv": write_csv(os.path.join(out_dir, "iterations.csv"), rows, ROW_COLUMNS),
+        "json": write_json(os.path.join(out_dir, "iterations.json"), rows),
+        "tree": write_json(os.path.join(out_dir, "iterations_tree.json"), tree),
     }
-    # utf-8-sig：讓 Excel 直接開啟時中文不會亂碼
-    with open(paths["csv"], "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
-    with open(paths["json"], "w", encoding="utf-8") as f:
-        json.dump(rows, f, ensure_ascii=False, indent=2)
-    with open(paths["tree"], "w", encoding="utf-8") as f:
-        json.dump(tree, f, ensure_ascii=False, indent=2)
-    return paths
 
 
 def main():
     parser = argparse.ArgumentParser(description="取得 Azure DevOps 所有 Iteration 並輸出到 data/")
-    parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR, help=f"輸出資料夾（預設 {DEFAULT_OUT_DIR}）")
+    parser.add_argument("--out-dir", default=DATA_DIR, help=f"輸出資料夾（預設 {DATA_DIR}）")
     args = parser.parse_args()
 
     cfg = get_config()
@@ -145,4 +62,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run(main)

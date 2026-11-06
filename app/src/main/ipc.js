@@ -1,0 +1,20 @@
+const { ipcMain, shell } = require('electron');
+const iterations = require('./services/iterations');
+const workItems = require('./services/workItems');
+
+/**
+ * IPC channel → service 對照。renderer 只能透過 preload 暴露的 window.api 呼叫這些 channel。
+ * 新增功能時：services/ 寫邏輯 → 這裡註冊 channel → preload 加一個對應方法。
+ */
+function registerIpcHandlers() {
+  ipcMain.handle('iterations:load', () => iterations.loadIterations());
+  ipcMain.handle('iterations:sync', () => iterations.syncIterations());
+
+  ipcMain.handle('workitems:fetch', (_e, params) => workItems.fetchWorkItems(params));
+
+  ipcMain.handle('shell:open', (_e, url) => {
+    if (typeof url === 'string' && /^https:\/\//i.test(url)) return shell.openExternal(url);
+  });
+}
+
+module.exports = { registerIpcHandlers };

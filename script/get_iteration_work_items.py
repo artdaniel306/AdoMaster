@@ -17,20 +17,16 @@
 """
 
 import argparse
-import json
 import os
-import urllib.parse
 from datetime import datetime
 
-from get_tasks import SCRIPT_DIR, get_config, get_work_items, query_ids, to_row
+from ado.cli import run
+from ado.client import web_url
+from ado.config import DATA_DIR, get_config
+from ado.output import write_json
+from ado.work_items import get_work_items, query_ids, to_row
 
-DEFAULT_OUT = os.path.join(os.path.dirname(SCRIPT_DIR), "data", "work_items", "iteration_work_items.json")
-
-
-def web_url(cfg, item_id):
-    org = urllib.parse.quote(cfg["org"], safe="")
-    project = urllib.parse.quote(cfg["project"], safe="")
-    return f"{cfg['base_url']}/{org}/{project}/_workitems/edit/{item_id}"
+DEFAULT_OUT = os.path.join(DATA_DIR, "work_items", "iteration_work_items.json")
 
 
 def main():
@@ -41,34 +37,23 @@ def main():
     args = parser.parse_args()
 
     cfg = get_config()
-    query = argparse.Namespace(
-        type=None, state=None, assigned_to=None, area=None, changed_since=None, top=None,
-        iteration=args.iteration, iteration_exact=args.exact,
-    )
 
     print(f"查詢 Iteration：{args.iteration}（{'不含' if args.exact else '含'}子 Iteration）", flush=True)
-    ids = query_ids(cfg, query)
+    ids = query_ids(cfg, iteration=args.iteration, iteration_exact=args.exact)
     print(f"共 {len(ids)} 筆", flush=True)
 
-    items = sorted(get_work_items(cfg, ids), key=lambda x: x.get("id", 0)) if ids else []
-    rows = []
-    for item in items:
-        row = to_row(item)
-        row["webUrl"] = web_url(cfg, item.get("id"))
-        rows.append(row)
+    items = get_work_items(cfg, ids) if ids else []
+    rows = [{**to_row(item), "webUrl": web_url(cfg, item.get("id"))} for item in items]
 
-    out = os.path.abspath(args.out)
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    with open(out, "w", encoding="utf-8") as f:
-        json.dump({
-            "iterationPath": args.iteration,
-            "exact": args.exact,
-            "fetchedAt": datetime.now().isoformat(timespec="seconds"),
-            "count": len(rows),
-            "items": rows,
-        }, f, ensure_ascii=False, indent=2)
+    out = write_json(os.path.abspath(args.out), {
+        "iterationPath": args.iteration,
+        "exact": args.exact,
+        "fetchedAt": datetime.now().isoformat(timespec="seconds"),
+        "count": len(rows),
+        "items": rows,
+    })
     print(f"完成，已輸出 {len(rows)} 筆至：{out}", flush=True)
 
 
 if __name__ == "__main__":
-    main()
+    run(main)
