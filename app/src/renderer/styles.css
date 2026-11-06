@@ -190,7 +190,9 @@ td.stage-split { padding: 0; height: 1px; }
 .task { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
 .task.dev-done .link { color: var(--ok); }
 .checks { display: flex; flex-direction: column; gap: 4px; }
-.flow-check { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+/* 只有 checkbox 本身可以點，文字不觸發 */
+.flow-check { display: flex; align-items: center; gap: 4px; }
+.flow-check input { cursor: pointer; }
 .state-tested-by-dev { border-color: var(--ok); color: var(--ok); }
 .state-proposed, .state-ready-for-dev { color: var(--muted); }
 .node-row .pin-btn { margin-left: auto; }
@@ -255,7 +257,16 @@ td.stage-split { padding: 0; height: 1px; }
 .commit-check { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px dashed var(--border); }
 .und-summary .repo-commit { font: 11px Consolas, "Courier New", monospace; color: var(--muted); }
 .und-summary .repo-missing { color: var(--err); }
-.flow-check.disabled { cursor: not-allowed; opacity: .55; }
+.flow-check.disabled { opacity: .55; }
+.flow-check.disabled input { cursor: not-allowed; }
+
+/* ---- 通用確認 dialog（跳階段勾選等）---- */
+#confirm-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(480px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#confirm-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+.cf-msg { white-space: pre-line; margin: 8px 0 0; }
 
 /* ---- 尚未 merge 進環境 branch（勾 SaaS / Local 前）---- */
 #merge-dialog {

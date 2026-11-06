@@ -14,16 +14,22 @@ const NOTE_MAX = 2000;
 /** 佈版前要先 Confirm Commit 的階段；commit 存在 `<stage>.commits`，勾選 SaaS / Local 前必須先確認 */
 const COMMIT_STAGES = ['testDeploy', 'prodDeploy'];
 const commitsKey = (stage) => `${stage}.commits`;
+/** 跳階段（非進行中階段）直接勾起 Confirm Commit：沒有實際填 commit，只記錄已勾選 */
+const commitsForcedKey = (stage) => `${stage}.commitsForced`;
 const deployStageOf = (key) => COMMIT_STAGES.find((s) => key.startsWith(`${s}.`));
 
+/** 已確認的 commit 是否涵蓋 Manager understand 選的每個 repository */
+const commitsCover = (checks, stage) => {
+  const commits = checks[commitsKey(stage)] || {};
+  return Object.keys(checks[UNDERSTAND_REPOS_KEY] || {}).every((r) => commits[r]);
+};
+
 /**
- * 已確認的 commit 是否涵蓋 Manager understand 選的每個 repository。
+ * Confirm Commit 是否已完成：commit 涵蓋所有 repository，或跳階段直接勾起。
  * Manager understand 沒選任何 repository（例如只需調整 database 資料）時，視為自動完成。
  */
 function commitsConfirmed(checks, stage) {
-  const repos = Object.keys(checks[UNDERSTAND_REPOS_KEY] || {});
-  const commits = checks[commitsKey(stage)] || {};
-  return !!checks[UNDERSTAND_KEY] && repos.every((r) => commits[r]);
+  return !!checks[commitsForcedKey(stage)] || (!!checks[UNDERSTAND_KEY] && commitsCover(checks, stage));
 }
 
 /** 執行 get_requirement_flow.py 取得指定 Iteration 的 Requirement 與其子項目。 */
@@ -126,7 +132,10 @@ async function deployMergeStatus({ id, stage, fetch = true } = {}) {
   if (!commitsConfirmed(checks, stage)) throw new Error('請先完成 Confirm Commit');
   const repos = Object.keys(checks[UNDERSTAND_REPOS_KEY] || {});
   const commits = checks[commitsKey(stage)] || {};
-  if (!repos.length) return { stage, commits, items: [], allMerged: true }; // 不需修改 repository，Confirm Commit 自動完成
+  // 不需修改 repository（Confirm Commit 自動完成），或跳階段勾起 Confirm Commit 而沒有 commit 可檢查
+  if (!repos.length || !checks[UNDERSTAND_KEY] || !commitsCover(checks, stage)) {
+    return { stage, commits, items: [], allMerged: true };
+  }
   const config = await loadRepoConfig();
   const targets = repos.map((repo) => {
     const r = config.repos.find((x) => x.key === repo);
@@ -156,16 +165,34 @@ async function mergeDeploy({ id, stage } = {}) {
   return deployMergeStatus({ id, stage, fetch: false });
 }
 
-/** 設定某個 Requirement 的一個 checkbox，回傳該 Requirement 更新後的狀態。 */
-async function setFlowCheck({ id, key, value } = {}) {
-  if (
-    !Number.isInteger(id) ||
-    typeof key !== 'string' ||
-    !/^[\w.]+$/.test(key) ||
-    key === UNDERSTAND_KEY ||
-    key.endsWith('.commits')
-  ) {
-    throw new Error('參數錯誤');
+/**
+ * 設定某個 Requirement 的一個 checkbox，回傳該 Requirement 更新後的狀態。
+ * force = true：跳階段勾選（renderer 已跟使用者確認），不做 merge 檢查等一般勾選的邏輯，只變更勾選狀態。
+ *   此時另外允許：
+ *   - `understand`：勾起只設 understand: true；取消則連同 repository / migration / 註解一併清除
+ *   - `<stage>.commitsForced`：直接勾起 Confirm Commit；取消則清除該階段的 commit 與 SaaS / Local
+ */
+async function setFlowCheck({ id, key, value, force = false } = {}) {
+  if (!Number.isInteger(id) || typeof key !== 'string' || !/^[\w.]+$/.test(key)) throw new Error('參數錯誤');
+  const forcedStage = COMMIT_STAGES.find((s) => key === commitsForcedKey(s));
+  if (force && (key === UNDERSTAND_KEY || forcedStage)) {
+    return updateRequirementState(id, (checks) => {
+      if (key === UNDERSTAND_KEY) {
+        if (value) checks[UNDERSTAND_KEY] = true;
+        else for (const k of [UNDERSTAND_KEY, UNDERSTAND_REPOS_KEY, UNDERSTAND_MIGRATION_KEY, UNDERSTAND_NOTE_KEY]) delete checks[k];
+      } else if (value) {
+        checks[key] = true;
+      } else {
+        for (const k of Object.keys(checks)) if (k.startsWith(`${forcedStage}.`)) delete checks[k];
+      }
+    });
+  }
+  if (key.startsWith(UNDERSTAND_KEY) || key.endsWith('.commits') || forcedStage) throw new Error('參數錯誤');
+  if (force) {
+    return updateRequirementState(id, (checks) => {
+      if (value) checks[key] = true;
+      else delete checks[key];
+    });
   }
   const stage = deployStageOf(key);
   let verifiedCommits = null;
@@ -266,6 +293,7 @@ async function setCommits({ id, stage, commits } = {}) {
       throw new Error('Manager understand 的 repository 已變更，請重新開啟後再確認');
     }
     checks[commitsKey(stage)] = normalized;
+    delete checks[commitsForcedKey(stage)]; // 已填入實際 commit，不再是跳階段勾起
   });
 }
 

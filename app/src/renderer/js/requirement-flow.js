@@ -3,6 +3,7 @@ import { $, el } from './dom.js';
 import { createUnderstandDialog } from './understand-dialog.js';
 import { createCommitDialog } from './commit-dialog.js';
 import { createMergeDialog } from './merge-dialog.js';
+import { createConfirmDialog } from './confirm-dialog.js';
 import { createTaskDialog } from './task-dialog.js';
 import { workItemLink } from './description-dialog.js';
 
@@ -32,15 +33,21 @@ const UNDERSTAND_NOTE_KEY = 'understandNote'; // manager 註解，以 tooltip �
 /** 佈版前要先 Confirm Commit 的階段；commit 存在 `<stage>.commits`: { repoKey: commit } */
 const COMMIT_STAGES = new Set(['testDeploy', 'prodDeploy']);
 const commitsKey = (stage) => `${stage}.commits`;
+/** 跳階段直接勾起 Confirm Commit（沒有實際填 commit） */
+const commitsForcedKey = (stage) => `${stage}.commitsForced`;
+
+/** 已確認的 commit 是否涵蓋 Manager understand 選的每個 repository */
+const commitsCover = (checks, stage) => {
+  const commits = checks[commitsKey(stage)] || {};
+  return Object.keys(checks[UNDERSTAND_REPOS_KEY] || {}).every((r) => commits[r]);
+};
 
 /**
- * 已確認的 commit 是否涵蓋 Manager understand 選的每個 repository。
+ * Confirm Commit 是否已完成：commit 涵蓋所有 repository，或跳階段直接勾起。
  * Manager understand 沒選任何 repository（例如只需調整 database 資料）時，視為自動完成。
  */
 function commitsConfirmed(checks, stage) {
-  const repos = Object.keys(checks[UNDERSTAND_REPOS_KEY] || {});
-  const commits = checks[commitsKey(stage)] || {};
-  return !!checks[UNDERSTAND_KEY] && repos.every((r) => commits[r]);
+  return !!checks[commitsForcedKey(stage)] || (!!checks[UNDERSTAND_KEY] && commitsCover(checks, stage));
 }
 
 /** 視為「開發完成」的子項目狀態（小寫比對） */
@@ -90,6 +97,7 @@ export function createRequirementFlowView() {
   const understandDialog = createUnderstandDialog();
   const commitDialog = createCommitDialog();
   const mergeDialog = createMergeDialog();
+  const confirmDialog = createConfirmDialog();
   const taskDialog = createTaskDialog();
 
   function renderSummary() {
@@ -104,36 +112,87 @@ export function createRequirementFlowView() {
     summaryEl.replaceChildren(g);
   }
 
-  function checkbox(req, key, label, disabledReason = '') {
-    const lab = el('label', 'flow-check');
+  function showError(prefix, err) {
+    statusEl.className = 'status error';
+    statusEl.textContent = `${prefix}：${cleanError(err)}`;
+  }
+
+  /**
+   * 流程中的 checkbox：只有 checkbox 本身可以點（文字不是 <label>，點了不會觸發）。
+   * 點擊時不直接切換，而是交給 toggleCheck 決定（成功後整列重繪）。
+   * @param stage 此 checkbox 所屬的階段（決定是否為進行中階段）
+   * @param key 跳階段時直接勾選的 key（傳給 setFlowCheck(..., force=true)）
+   * @param text 顯示文字
+   * @param checked 目前是否勾選
+   * @param normal 進行中階段點擊時執行的一般邏輯 (value) => Promise | void
+   * @param disabledReason 進行中階段不能點的原因（非進行中階段一律可點）
+   * @param title 滑鼠移到 checkbox 上的說明
+   */
+  function flowCheck(req, { stage, key, text, checked, normal, disabledReason = '', title = '' }) {
+    const wrap = el('span', 'flow-check');
     const input = el('input');
     input.type = 'checkbox';
-    input.checked = !!state[req.id]?.[key];
-    if (disabledReason) {
+    input.checked = checked;
+    const isCurrent = stage.key === req.stage;
+    if (isCurrent && disabledReason) {
       input.disabled = true;
-      lab.classList.add('disabled');
-      lab.title = disabledReason;
+      wrap.classList.add('disabled');
+      wrap.title = disabledReason;
+    } else {
+      input.title = isCurrent ? title : `「${stage.label}」不是進行中的階段，點擊後會先確認`;
     }
-    input.addEventListener('change', async () => {
+    input.addEventListener('click', async (e) => {
+      e.preventDefault(); // 勾選狀態由儲存結果決定（重繪），不直接切換
+      if (input.disabled) return;
       input.disabled = true;
       try {
-        const stage = STAGES.find((s) => COMMIT_STAGES.has(s.key) && key.startsWith(`${s.key}.`));
-        if (input.checked && stage && !(await ensureMerged(req, stage))) {
-          input.checked = false;
-          return;
-        }
-        state[req.id] = await api.setFlowCheck(req.id, key, input.checked);
-        update(req);
+        await toggleCheck(req, { stage, key, text, value: !checked, normal });
       } catch (err) {
-        input.checked = !input.checked;
-        statusEl.className = 'status error';
-        statusEl.textContent = `儲存失敗：${cleanError(err)}`;
+        showError('儲存失敗', err);
       } finally {
         input.disabled = false;
       }
     });
-    lab.append(input, el('span', null, label));
-    return lab;
+    wrap.append(input, el('span', null, text));
+    return wrap;
+  }
+
+  /**
+   * 進行中（橘黃色）階段：執行一般勾選邏輯。
+   * 其他階段：先跳 dialog 確認，確認後只變更勾選狀態（不做 merge 檢查、不開 repository / commit dialog）。
+   */
+  async function toggleCheck(req, { stage, key, text, value, normal }) {
+    if (stage.key === req.stage) return normal(value);
+    const current = req.stage === DONE.key ? DONE.label : STAGES[stageIndex(req.stage)].label;
+    const ok = await confirmDialog.open({
+      title: '跳階段勾選',
+      req,
+      message:
+        `「${stage.label}」不是進行中的階段（目前：${current}）。\n` +
+        `確定要直接${value ? '勾起' : '取消勾選'}「${text}」嗎？\n\n` +
+        '跳階段只會變更勾選狀態，不會執行一般勾選時的檢查與動作（例如選擇 repository、填 commit、merge 檢查）。',
+      okLabel: value ? '確定勾起' : '確定取消',
+    });
+    if (!ok) return;
+    state[req.id] = await api.setFlowCheck(req.id, key, value, true);
+    update(req);
+  }
+
+  /** 一般 checkbox（SaaS / Local、測試完成、Meeting / Record…） */
+  function checkbox(req, stage, key, text, disabledReason = '') {
+    return flowCheck(req, {
+      stage,
+      key,
+      text,
+      checked: !!state[req.id]?.[key],
+      disabledReason,
+      normal: async (value) => {
+        // 勾佈版階段的 SaaS / Local 前，確認 commit 已 merge 進環境 branch
+        if (value && COMMIT_STAGES.has(stage.key) && !(await ensureMerged(req, stage))) return;
+        state[req.id] = await api.setFlowCheck(req.id, key, value);
+        update(req);
+      },
+    });
   }
 
   /**
@@ -156,28 +215,27 @@ export function createRequirementFlowView() {
   }
 
   /** Manager understand：checkbox 本身不直接切換，點擊時開啟 dialog 選擇 repository / feature branch */
-  function understandCheck(req) {
-    const lab = el('label', 'flow-check');
-    const input = el('input');
-    input.type = 'checkbox';
-    input.checked = !!state[req.id]?.[UNDERSTAND_KEY];
-    lab.title = '點擊選擇要開發的 repository 與 feature branch';
-    lab.addEventListener('click', (e) => {
-      e.preventDefault();
-      const s = state[req.id] || {};
-      const current = s[UNDERSTAND_KEY]
-        ? { repos: s[UNDERSTAND_REPOS_KEY], migration: !!s[UNDERSTAND_MIGRATION_KEY], note: s[UNDERSTAND_NOTE_KEY] }
-        : undefined;
-      understandDialog.open(req, current, async (repos, migration, note) => {
-        state[req.id] = await api.setUnderstand(req.id, repos, migration, note);
-        update(req);
-      });
+  function understandCheck(req, stage) {
+    const s = state[req.id] || {};
+    const lab = flowCheck(req, {
+      stage,
+      key: UNDERSTAND_KEY,
+      text: '已理解需求 / 確認開發 repository',
+      checked: !!s[UNDERSTAND_KEY],
+      title: '點擊選擇要開發的 repository 與 feature branch',
+      normal: () => {
+        const current = s[UNDERSTAND_KEY]
+          ? { repos: s[UNDERSTAND_REPOS_KEY], migration: !!s[UNDERSTAND_MIGRATION_KEY], note: s[UNDERSTAND_NOTE_KEY] }
+          : undefined;
+        understandDialog.open(req, current, async (repos, migration, note) => {
+          state[req.id] = await api.setUnderstand(req.id, repos, migration, note);
+          update(req);
+        });
+      },
     });
-    lab.append(input, el('span', null, '已理解需求 / 確認開發 repository'));
 
     const box = el('div');
     box.append(lab);
-    const s = state[req.id] || {};
     if (s[UNDERSTAND_KEY]) {
       const list = el('div', 'und-summary');
       const repos = Object.entries(s[UNDERSTAND_REPOS_KEY] || {});
@@ -199,42 +257,48 @@ export function createRequirementFlowView() {
     const repos = s[UNDERSTAND_KEY] ? s[UNDERSTAND_REPOS_KEY] || {} : {};
     const commits = s[commitsKey(stage.key)];
     const confirmed = commitsConfirmed(s, stage.key);
-
-    const lab = el('label', 'flow-check');
-    const input = el('input');
-    input.type = 'checkbox';
-    input.checked = confirmed;
-    lab.append(input, el('span', null, 'Confirm Commit'));
-    if (!s[UNDERSTAND_KEY]) {
-      input.disabled = true;
-      lab.classList.add('disabled');
-      lab.title = '請先完成 Manager understand';
-    } else if (!Object.keys(repos).length) {
-      // Manager understand 沒選 repository（不需修改程式）→ 自動完成
-      input.disabled = true;
-      lab.title = 'Manager understand 未選擇 repository，不需要 Confirm Commit';
-    } else {
-      lab.title = '點擊填入各 repository 測試通過版的 commit';
-      lab.addEventListener('click', (e) => {
-        e.preventDefault();
-        commitDialog.open({
-          req,
-          stageLabel: stage.label,
-          repos,
-          current: commits,
-          // Prod deploy 尚未確認時，預設帶入 Test deploy 確認過的 commit
-          prefill: stage.key === 'prodDeploy' ? s[commitsKey('testDeploy')] : undefined,
-          saveFn: async (c) => {
-            state[req.id] = await api.setCommits(req.id, stage.key, c);
-            update(req);
-          },
-        });
-      });
-    }
+    const forced = !!s[commitsForcedKey(stage.key)];
+    // Manager understand 沒選 repository（不需修改程式）→ 自動完成，不能點
+    const auto = !!s[UNDERSTAND_KEY] && !Object.keys(repos).length;
 
     const box = el('div', 'commit-check');
-    box.append(lab);
-    if (commits) {
+    if (auto) {
+      const wrap = el('span', 'flow-check');
+      wrap.title = 'Manager understand 未選擇 repository，不需要 Confirm Commit';
+      const input = el('input');
+      input.type = 'checkbox';
+      input.checked = input.disabled = true;
+      wrap.append(input, el('span', null, 'Confirm Commit'));
+      box.append(wrap);
+      return { box, confirmed };
+    }
+
+    box.append(
+      flowCheck(req, {
+        stage,
+        key: commitsForcedKey(stage.key),
+        text: 'Confirm Commit',
+        checked: confirmed,
+        disabledReason: s[UNDERSTAND_KEY] ? '' : '請先完成 Manager understand',
+        title: '點擊填入各 repository 測試通過版的 commit',
+        normal: () =>
+          commitDialog.open({
+            req,
+            stageLabel: stage.label,
+            repos,
+            current: commits,
+            // Prod deploy 尚未確認時，預設帶入 Test deploy 確認過的 commit
+            prefill: stage.key === 'prodDeploy' ? s[commitsKey('testDeploy')] : undefined,
+            saveFn: async (c) => {
+              state[req.id] = await api.setCommits(req.id, stage.key, c);
+              update(req);
+            },
+          }),
+      })
+    );
+    if (forced && !(s[UNDERSTAND_KEY] && commitsCover(s, stage.key))) {
+      box.append(el('div', 'und-summary repo-line repo-branch', '跳階段勾起，未填 commit'));
+    } else if (commits) {
       const list = el('div', 'und-summary');
       for (const repo of Object.keys(repos)) {
         const line = el('div', 'repo-line');
@@ -339,7 +403,7 @@ export function createRequirementFlowView() {
         icon.title = note; // 滑鼠移上去以 tooltip 顯示 manager 的註解
         mgrHead.append(icon);
       }
-      mgr.append(mgrHead, understandCheck(req));
+      mgr.append(mgrHead, understandCheck(req, stage));
       const box = el('div', 'split-box');
       box.append(impl, mgr);
       const td = el('td', 'stage-split');
@@ -356,12 +420,12 @@ export function createRequirementFlowView() {
       const reason = confirmed ? '' : '請先完成 Confirm Commit';
       // 已勾選的仍可取消，避免 commit 變更後卡住
       box.append(
-        ...stage.checks.map(([k, label]) => checkbox(req, k, label, state[req.id]?.[k] ? '' : reason))
+        ...stage.checks.map(([k, label]) => checkbox(req, stage, k, label, state[req.id]?.[k] ? '' : reason))
       );
       td.append(commitBox, box);
     } else {
       const box = el('div', 'checks');
-      box.append(...stage.checks.map(([k, label]) => checkbox(req, k, label)));
+      box.append(...stage.checks.map(([k, label]) => checkbox(req, stage, k, label)));
       td.append(box);
     }
     return [td];
