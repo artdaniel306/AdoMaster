@@ -17,6 +17,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('flow:fetch', (_e, params) => requirementFlow.fetchRequirementFlow(params));
   ipcMain.handle('flow:createTask', (_e, params) => requirementFlow.createDefaultTask(params));
+  ipcMain.handle('flow:updateState', (_e, params) => requirementFlow.updateRequirementStateInAdo(params));
   ipcMain.handle('flow:loadState', () => requirementFlow.loadFlowState());
   ipcMain.handle('flow:setCheck', (_e, params) => requirementFlow.setFlowCheck(params));
   ipcMain.handle('flow:setUnderstand', (_e, params) => requirementFlow.setUnderstand(params));

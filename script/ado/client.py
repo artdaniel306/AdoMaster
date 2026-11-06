@@ -26,8 +26,8 @@ def web_url(cfg, item_id):
     return f"{_project_base(cfg)}/_workitems/edit/{item_id}"
 
 
-def api_request(url, pat, payload=None, content_type="application/json"):
-    """payload 為 None 時送 GET，否則以 JSON body 送 POST。
+def api_request(url, pat, payload=None, content_type="application/json", method=None):
+    """payload 為 None 時送 GET，否則以 JSON body 送 POST（可用 method 指定，如更新 Work Item 用 PATCH）。
 
     建立 / 更新 Work Item 時 content_type 需為 application/json-patch+json。
     """
@@ -38,7 +38,7 @@ def api_request(url, pat, payload=None, content_type="application/json"):
         data = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = content_type
     req = urllib.request.Request(
-        url, data=data, method="GET" if data is None else "POST", headers=headers,
+        url, data=data, method=method or ("GET" if data is None else "POST"), headers=headers,
     )
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:

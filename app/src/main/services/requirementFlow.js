@@ -66,6 +66,21 @@ async function createDefaultTask({ id, description } = {}) {
   }
 }
 
+/** 點擊 Requirement 狀態 chip 時可更新成的狀態（renderer 依 Task 指派 / Implement / 流程進度決定） */
+const SYNC_STATES = ['Active', 'Resolved', 'Closed'];
+
+/** 更新 Requirement 在 ADO 的狀態（update_state.py），回傳更新後的 Work Item（欄位同 requirements，不含 children）。 */
+async function updateRequirementStateInAdo({ id, state } = {}) {
+  if (!Number.isInteger(id) || id <= 0 || !SYNC_STATES.includes(state)) throw new Error('參數錯誤');
+  const out = tempFile('state', 'json');
+  try {
+    await runScript('update_state.py', ['--id', String(id), '--state', state, '--out', out]);
+    return JSON.parse(await fs.readFile(out, 'utf-8'));
+  } finally {
+    fs.rm(out, { force: true }).catch(() => {});
+  }
+}
+
 /**
  * 流程中尚未串接 ADO 的人工步驟（Manager understand、佈版、測試、發表會…）先以 checkbox 記錄在本機：
  * data/requirement_flow_state.json → { "<requirementId>": { "<checkKey>": true, ... } }
@@ -250,6 +265,7 @@ async function setCommits({ id, stage, commits } = {}) {
 module.exports = {
   fetchRequirementFlow,
   createDefaultTask,
+  updateRequirementStateInAdo,
   loadFlowState,
   setFlowCheck,
   setUnderstand,

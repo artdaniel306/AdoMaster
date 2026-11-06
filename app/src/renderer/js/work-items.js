@@ -1,5 +1,6 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
+import { workItemLink } from './description-dialog.js';
 
 function fmtDate(v) {
   return v ? String(v).slice(0, 16).replace('T', ' ') : '';
@@ -29,14 +30,7 @@ export function createWorkItemsView() {
   function renderRow(i) {
     const tr = el('tr');
     const idCell = el('td');
-    const link = el('a', 'link', String(i.id));
-    link.href = '#';
-    link.title = '在瀏覽器開啟';
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      api.openExternal(i.webUrl);
-    });
-    idCell.append(link);
+    idCell.append(workItemLink(String(i.id), i));
     const typeCell = el('td', null, i.type);
     typeCell.dataset.type = i.type;
     const stateCell = el('td');

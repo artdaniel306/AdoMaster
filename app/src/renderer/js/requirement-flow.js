@@ -4,6 +4,7 @@ import { createUnderstandDialog } from './understand-dialog.js';
 import { createCommitDialog } from './commit-dialog.js';
 import { createMergeDialog } from './merge-dialog.js';
 import { createTaskDialog } from './task-dialog.js';
+import { workItemLink } from './description-dialog.js';
 
 /**
  * Requirement 流程（參考 feature/flow.pptx）：
@@ -58,18 +59,20 @@ function computeStage(req, checks) {
   return DONE.key;
 }
 
-const stageIndex = (key) => (key === DONE.key ? STAGES.length : STAGES.findIndex((s) => s.key === key));
-
-function openLink(text, url, cls = 'link') {
-  const a = el('a', cls, text);
-  a.href = '#';
-  a.title = '在瀏覽器開啟';
-  a.addEventListener('click', (e) => {
-    e.preventDefault();
-    api.openExternal(url);
-  });
-  return a;
+/**
+ * Requirement 在 ADO 應有的狀態（點擊狀態 chip 時更新成這個）：
+ *   流程全部走完 → Closed；Implement 完成（子項目都 Tested by Dev / Resolved / Closed）→ Resolved；
+ *   有子項目已指派給某人 → Active；其他情況沒有建議狀態（null）。
+ */
+function expectedState(req) {
+  if (req.stage === DONE.key) return 'Closed';
+  if (allDevDone(req)) return 'Resolved';
+  if (activeKids(req).some((c) => c.assignedTo)) return 'Active';
+  return null;
 }
+const sameState = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+
+const stageIndex = (key) => (key === DONE.key ? STAGES.length : STAGES.findIndex((s) => s.key === key));
 
 /** 右側 Requirement 流程看板：每列一個 Requirement，目前階段 highlight。 */
 export function createRequirementFlowView() {
@@ -236,6 +239,35 @@ export function createRequirementFlowView() {
     return { box, confirmed };
   }
 
+  /**
+   * Requirement 的狀態 chip：目前狀態與應有狀態（expectedState）不同時 highlight，
+   * 點擊後呼叫 ADO API 更新成應有狀態。
+   */
+  function stateChip(req) {
+    const target = expectedState(req);
+    if (!target || sameState(req.state, target)) return el('span', stateClass(req.state), req.state);
+
+    const btn = el('button', `${stateClass(req.state)} state-mismatch`, `${req.state} → ${target}`);
+    btn.type = 'button';
+    btn.title = `點擊將 ADO 狀態從 ${req.state} 更新為 ${target}`;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      statusEl.className = 'status loading';
+      statusEl.textContent = `更新 #${req.id} 的狀態為 ${target}…`;
+      try {
+        const updated = await api.updateRequirementState(req.id, target);
+        Object.assign(req, { state: updated.state, reason: updated.reason, changedDate: updated.changedDate });
+        update(req);
+        statusEl.textContent = `已將 #${req.id} 的狀態更新為 ${updated.state}`;
+      } catch (err) {
+        btn.disabled = false;
+        statusEl.className = 'status error';
+        statusEl.textContent = `更新狀態失敗：${cleanError(err)}`;
+      }
+    });
+    return btn;
+  }
+
   /** Pending 且尚未展開 Task：開啟 dialog 輸入 Description，在 ADO 建立與 Requirement 同名的 Task */
   function defaultTaskButton(req) {
     const btn = el('button', 'btn-ghost btn-default-task', '安排預設 Task');
@@ -266,7 +298,7 @@ export function createRequirementFlowView() {
     for (const c of kids) {
       const t = el('div', `task${isDevDone(c) ? ' dev-done' : ''}`);
       t.title = `${c.type} ${c.id}：${c.title}\n狀態：${c.state}\n指派：${c.assignedTo || '—'}`;
-      t.append(openLink(`${c.type === 'Task' ? '' : `${c.type} `}#${c.id}`, c.webUrl), el('span', stateClass(c.state), c.state));
+      t.append(workItemLink(`${c.type === 'Task' ? '' : `${c.type} `}#${c.id}`, c), el('span', stateClass(c.state), c.state));
       list.append(t);
     }
     box.append(head, list);
@@ -335,7 +367,7 @@ export function createRequirementFlowView() {
 
     const head = el('td', 'req-col');
     const top = el('div', 'req-top');
-    top.append(openLink(`#${req.id}`, req.webUrl), el('span', stateClass(req.state), req.state));
+    top.append(workItemLink(`#${req.id}`, req), stateChip(req));
     const stageName = req.stage === DONE.key ? DONE.label : STAGES[curIdx].label;
     head.append(top, el('div', 'req-title', req.title), el('div', 'req-meta muted', `${req.assignedTo || '未指派'} · ${stageName}`));
     head.title = req.description ? req.description.slice(0, 300) : '';

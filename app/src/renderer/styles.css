@@ -2,11 +2,13 @@
   color-scheme: light dark;
   --bg: #f5f6f8; --panel: #fff; --fg: #1f2328; --muted: #6b7280; --border: #e3e5e8;
   --accent: #2f6feb; --hover: #eef2f8; --sel: #dbe7ff; --err: #c62828; --ok: #2e7d32;
+  --warn: #b26a00; --warn-bg: #fff4ce;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #16181d; --panel: #1e2127; --fg: #e6e6e6; --muted: #9aa0a6; --border: #30343b;
     --hover: #272b33; --sel: #1f3559; --err: #ef6c6c; --ok: #6fcf75;
+    --warn: #f0b429; --warn-bg: #3a2f12;
   }
 }
 * { box-sizing: border-box; }
@@ -132,6 +134,13 @@ td.path { color: var(--muted); font-size: 12px; }
 .state-active, .state-in-progress, .state-doing, .state-committed { border-color: var(--accent); color: var(--accent); }
 .state-closed, .state-done, .state-resolved, .state-completed { border-color: var(--ok); color: var(--ok); }
 .state-removed { text-decoration: line-through; color: var(--muted); }
+/* Requirement 目前狀態與應有狀態不同：highlight，點擊更新 ADO */
+button.state-mismatch {
+  font: inherit; font-size: 12px; cursor: pointer;
+  background: var(--warn-bg); border-color: var(--warn); color: var(--warn); font-weight: 600;
+}
+button.state-mismatch:hover { filter: brightness(.95); }
+button.state-mismatch:disabled { opacity: .6; cursor: progress; }
 
 /* ---- Tabs / views ---- */
 .head-actions { display: flex; align-items: center; gap: 14px; }
@@ -266,3 +275,16 @@ td.stage-split { padding: 0; height: 1px; }
 }
 #task-dialog::backdrop { background: rgba(0, 0, 0, .35); }
 .btn-default-task { display: block; margin-top: 6px; font-size: 12px; }
+
+/* ---- Work Item Description dialog ---- */
+#desc-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(720px, 92vw); max-height: 85vh; box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#desc-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#desc-dialog .dlg-box { max-height: 85vh; }
+#desc-dialog .und-body { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.ds-body {
+  margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg);
+  white-space: pre-wrap; word-break: break-word; overflow: auto; min-height: 80px; max-height: 60vh;
+}

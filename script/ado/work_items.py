@@ -11,6 +11,9 @@ Work Item 查詢與轉換。
   - Create Work Item（以 JSON Patch 建立）
       POST {base}/{org}/{project}/_apis/wit/workitems/${type}?api-version=7.1
       https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/create?view=azure-devops-rest-7.1
+  - Update Work Item（以 JSON Patch 更新）
+      PATCH {base}/{org}/{project}/_apis/wit/workitems/{id}?api-version=7.1
+      https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/update?view=azure-devops-rest-7.1
 """
 
 import html
@@ -201,3 +204,15 @@ def create_child_task(cfg, parent_id, description="", type="Task"):
 
     url = api_url(cfg, f"wit/workitems/${urllib.parse.quote(type)}")
     return api_request(url, cfg["pat"], ops, content_type="application/json-patch+json")
+
+
+# ---------------------------------------------------------------- 更新
+
+def update_state(cfg, item_id, state):
+    """把 Work Item 的 System.State 改成 state（Reason 由 ADO 依流程規則帶入預設值）。
+
+    回傳 API 回傳的更新後 Work Item。
+    """
+    ops = [{"op": "add", "path": "/fields/System.State", "value": state}]
+    url = api_url(cfg, f"wit/workitems/{int(item_id)}")
+    return api_request(url, cfg["pat"], ops, content_type="application/json-patch+json", method="PATCH")
