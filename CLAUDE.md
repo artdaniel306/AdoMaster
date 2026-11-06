@@ -23,6 +23,7 @@ cp script/env_example.txt script/.env
 cd script
 python get_iterations.py                                   # writes data/iterations.{csv,json}, data/iterations_tree.json
 python get_iteration_work_items.py --iteration "Proj\\Sprint 1" [--exact] [--out path.json]
+python get_requirement_flow.py --iteration "Proj\\Sprint 1" [--exact] [--type Requirement] [--out path.json]
 python get_tasks.py [ids/ranges] [--type Bug] [--state Active] [--assigned-to @Me] [--iteration ...] [--json]
 
 # Electron app
@@ -39,7 +40,7 @@ There is no test suite, linter, or build step configured.
 - `script/ado/` is the shared package; `get_*.py` entry points only parse args and write output — all logic lives in `ado/`.
   - `config.py` — hand-rolled `.env` parser; reads `script/.env` (env vars are the fallback). `Config.opt()` for script-specific optional keys (e.g. `OUTPUT_CSV`).
   - `client.py` — `api_url` / `api_request` (Basic auth with PAT, GET when no payload else POST JSON). A non-JSON response (ADO returns 203 + HTML login page for a bad PAT) is treated as an error.
-  - `work_items.py` — WIQL query → ids, then `workitemsbatch` in chunks of 200; `ROW_FIELDS` defines the flattened row schema used by both CSV and the app.
+  - `work_items.py` — WIQL query → ids, then `workitemsbatch` in chunks of 200; `ROW_FIELDS` defines the flattened row schema used by both CSV and the app. Gotcha: `workitemsbatch` without a field list does **not** return `System.Parent`; pass `get_work_items(..., relations=True)` (`$expand=relations`) and use `child_ids` / `parent_id` for hierarchy (`to_row` then fills `parent` from relations).
   - `iterations.py` — fetches the Iterations classification-node tree and flattens it (depth-first, `parentId` links, `timeFrame` past/current/future). `to_iteration_path` strips the `\Iteration\` segment so paths match `System.IterationPath`.
   - `cli.run(main)` — wraps entry points: `AdoError` messages go to stderr with exit code 1. Raise `AdoError` for any user-facing failure.
 - Output paths: `data/` at repo root (`ado.config.DATA_DIR`). `*.csv`, `*.json`, and `.env` are gitignored.
@@ -48,8 +49,15 @@ There is no test suite, linter, or build step configured.
 - `main/` — `index.js` creates the window; `ipc.js` maps IPC channels → `services/*`; `python.js` runs `script/*.py` with `cwd=script/` and UTF-8 forced; `paths.js` resolves repo-root paths.
 - `preload/index.js` — exposes `window.api` via `contextBridge` (contextIsolation on, nodeIntegration off; sandboxed, so it can only `require('electron')`).
 - `renderer/` — plain ES modules (no bundler/framework), strict CSP (`'self'` only, no inline scripts/styles). `api.js` wraps `window.api` and `cleanError` strips the IPC error prefix.
-- Data flow: services call a Python script, which writes JSON to disk; the service reads it back. `iterations:load` reads `data/iterations.json` (returns `null` if missing), `iterations:sync` reruns `get_iterations.py` first. `workitems:fetch` writes to a unique temp file per request and deletes it afterward. The renderer builds the iteration tree from the flat list.
+- Data flow: services call a Python script, which writes JSON to disk; the service reads it back. `iterations:load` reads `data/iterations.json` (returns `null` if missing), `iterations:sync` reruns `get_iterations.py` first. `workitems:fetch` and `flow:fetch` write to a unique temp file per request and delete it afterward. The renderer builds the iteration tree from the flat list.
+- Content area has two tabs (`main.js` switches them and only refetches when iteration/exact changed): **Requirement 流程** (`requirement-flow.js`, default) and **Work Items** (`work-items.js`).
 - **Adding a feature**: implement logic in `main/services/` (and a Python script if it needs ADO) → register the channel in `main/ipc.js` → add the method in `preload/index.js` → call via `api` in the renderer.
+
+### Requirement 流程 (based on `feature/flow.pptx`)
+- Stages: Pending → Implement + Manager understand (parallel, separate columns) → Test deploy (SaaS/Local) → Test → Prod deploy (SaaS/Local) → Release recap (meeting/record). The current stage cell is highlighted; past = green, future = dimmed.
+- Requirements are selected by **their own** iteration (`get_requirement_flow.py`); children (Task/Bug) come via parent-child relations even if they sit in another iteration. Tasks without a parent are anomalies — ignore them.
+- Pending = no non-Removed children. Implement is done when all children are Tested by Dev / Resolved / Closed (that cell turns green even while the stage is current). The stage advances only when Implement and Manager understand are both done.
+- Steps other than Pending/Implement are not wired to real actions yet: they are checkboxes stored locally in `data/requirement_flow_state.json` (`{ "<reqId>": { "<checkKey>": true } }`, via `flow:loadState` / `flow:setCheck`; writes are serialized). Nothing is written back to ADO.
 
 ### `feature/restore_workitem/`
 Standalone, older scripts (recycle-bin listing and restore) that do **not** use the `ado` package; they duplicate config/client code and read their own `.env` in that folder.
