@@ -62,8 +62,7 @@ export function createUnderstandDialog() {
       if (!r.select.value) throw new Error(`請選擇 ${r.label} 的 feature branch`);
       repos[r.key] = r.select.value;
     }
-    if (!Object.keys(repos).length) throw new Error('請至少選擇一個 repository');
-    return repos;
+    return repos; // 可以是空的：不需修改 repository（例如只需調整 database 資料）
   }
 
   async function save(repos) {

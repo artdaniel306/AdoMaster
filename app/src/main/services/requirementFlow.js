@@ -16,11 +16,14 @@ const COMMIT_STAGES = ['testDeploy', 'prodDeploy'];
 const commitsKey = (stage) => `${stage}.commits`;
 const deployStageOf = (key) => COMMIT_STAGES.find((s) => key.startsWith(`${s}.`));
 
-/** 已確認的 commit 是否涵蓋 Manager understand 選的每個 repository */
+/**
+ * 已確認的 commit 是否涵蓋 Manager understand 選的每個 repository。
+ * Manager understand 沒選任何 repository（例如只需調整 database 資料）時，視為自動完成。
+ */
 function commitsConfirmed(checks, stage) {
   const repos = Object.keys(checks[UNDERSTAND_REPOS_KEY] || {});
   const commits = checks[commitsKey(stage)] || {};
-  return !!checks[UNDERSTAND_KEY] && repos.length > 0 && repos.every((r) => commits[r]);
+  return !!checks[UNDERSTAND_KEY] && repos.every((r) => commits[r]);
 }
 
 /** 執行 get_requirement_flow.py 取得指定 Iteration 的 Requirement 與其子項目。 */
@@ -121,9 +124,10 @@ async function deployMergeStatus({ id, stage, fetch = true } = {}) {
   if (!Number.isInteger(id) || !COMMIT_STAGES.includes(stage)) throw new Error('參數錯誤');
   const checks = (await loadFlowState())[id] || {};
   if (!commitsConfirmed(checks, stage)) throw new Error('請先完成 Confirm Commit');
-  const commits = checks[commitsKey(stage)];
+  const repos = Object.keys(checks[UNDERSTAND_REPOS_KEY] || {});
+  const commits = checks[commitsKey(stage)] || {};
+  if (!repos.length) return { stage, commits, items: [], allMerged: true }; // 不需修改 repository，Confirm Commit 自動完成
   const config = await loadRepoConfig();
-  const repos = Object.keys(checks[UNDERSTAND_REPOS_KEY]);
   const targets = repos.map((repo) => {
     const r = config.repos.find((x) => x.key === repo);
     if (!r) throw new Error(`未知的 repository：${repo}`);
@@ -176,7 +180,7 @@ async function setFlowCheck({ id, key, value } = {}) {
   return updateRequirementState(id, (checks) => {
     if (value && stage) {
       if (!commitsConfirmed(checks, stage)) throw new Error('請先完成 Confirm Commit');
-      if (JSON.stringify(checks[commitsKey(stage)]) !== verifiedCommits) throw new Error('Confirm Commit 已變更，請重新勾選');
+      if (JSON.stringify(checks[commitsKey(stage)] || {}) !== verifiedCommits) throw new Error('Confirm Commit 已變更，請重新勾選');
     }
     if (value) checks[key] = true;
     else delete checks[key];
@@ -186,6 +190,7 @@ async function setFlowCheck({ id, key, value } = {}) {
 /**
  * Manager understand：確認此需求要在哪些 repository 開發、各自的 feature branch。
  *   repos = { crmapp: 'feature/x', upagent: 'feature/y' } → understand: true、understandRepos: repos
+ *   repos = {} → understand: true、understandRepos: {}（不需修改 repository，Confirm Commit 自動完成）
  *   migration = true → understandMigration: true（需要 migration）
  *   note = '...'     → understandNote: '...'（manager 的註解，空白則不存）
  *   repos = null → 取消確認（全部清除）
@@ -197,8 +202,9 @@ function setUnderstand({ id, repos, migration, note } = {}) {
   if (note.length > NOTE_MAX) return Promise.reject(new Error(`註解最多 ${NOTE_MAX} 字`));
   if (repos != null) {
     const validKeys = new Set(REPOS.map((r) => r.key));
-    const entries = typeof repos === 'object' ? Object.entries(repos) : [];
-    if (!entries.length) return Promise.reject(new Error('請至少選擇一個 repository'));
+    if (typeof repos !== 'object') return Promise.reject(new Error('參數錯誤'));
+    // 可以不選任何 repository（例如只需調整 database 資料），此時 Confirm Commit 自動完成
+    const entries = Object.entries(repos);
     for (const [k, branch] of entries) {
       if (!validKeys.has(k)) return Promise.reject(new Error(`未知的 repository：${k}`));
       if (typeof branch !== 'string' || !branch.trim()) return Promise.reject(new Error(`${k} 尚未選擇 feature branch`));
@@ -237,7 +243,8 @@ async function setCommits({ id, stage, commits } = {}) {
   }
   const current = (await loadFlowState())[id] || {};
   const repos = current[UNDERSTAND_KEY] ? current[UNDERSTAND_REPOS_KEY] || {} : {};
-  if (!Object.keys(repos).length) throw new Error('請先完成 Manager understand（選擇要開發的 repository）');
+  if (!current[UNDERSTAND_KEY]) throw new Error('請先完成 Manager understand');
+  if (!Object.keys(repos).length) throw new Error('Manager understand 未選擇 repository，不需要 Confirm Commit');
   if (typeof commits !== 'object') throw new Error('參數錯誤');
 
   const normalized = {};

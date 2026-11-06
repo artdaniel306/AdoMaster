@@ -33,11 +33,14 @@ const UNDERSTAND_NOTE_KEY = 'understandNote'; // manager 註解，以 tooltip �
 const COMMIT_STAGES = new Set(['testDeploy', 'prodDeploy']);
 const commitsKey = (stage) => `${stage}.commits`;
 
-/** 已確認的 commit 是否涵蓋 Manager understand 選的每個 repository */
+/**
+ * 已確認的 commit 是否涵蓋 Manager understand 選的每個 repository。
+ * Manager understand 沒選任何 repository（例如只需調整 database 資料）時，視為自動完成。
+ */
 function commitsConfirmed(checks, stage) {
   const repos = Object.keys(checks[UNDERSTAND_REPOS_KEY] || {});
   const commits = checks[commitsKey(stage)] || {};
-  return !!checks[UNDERSTAND_KEY] && repos.length > 0 && repos.every((r) => commits[r]);
+  return !!checks[UNDERSTAND_KEY] && repos.every((r) => commits[r]);
 }
 
 /** 視為「開發完成」的子項目狀態（小寫比對） */
@@ -177,7 +180,9 @@ export function createRequirementFlowView() {
     const s = state[req.id] || {};
     if (s[UNDERSTAND_KEY]) {
       const list = el('div', 'und-summary');
-      for (const [repo, branch] of Object.entries(s[UNDERSTAND_REPOS_KEY] || {})) {
+      const repos = Object.entries(s[UNDERSTAND_REPOS_KEY] || {});
+      if (!repos.length) list.append(el('div', 'repo-line repo-branch', '不需修改 repository'));
+      for (const [repo, branch] of repos) {
         const line = el('div', 'repo-line');
         line.append(el('span', 'repo-name', repo), el('span', 'repo-branch', branch));
         list.append(line);
@@ -200,10 +205,14 @@ export function createRequirementFlowView() {
     input.type = 'checkbox';
     input.checked = confirmed;
     lab.append(input, el('span', null, 'Confirm Commit'));
-    if (!Object.keys(repos).length) {
+    if (!s[UNDERSTAND_KEY]) {
       input.disabled = true;
       lab.classList.add('disabled');
-      lab.title = '請先完成 Manager understand（選擇要開發的 repository）';
+      lab.title = '請先完成 Manager understand';
+    } else if (!Object.keys(repos).length) {
+      // Manager understand 沒選 repository（不需修改程式）→ 自動完成
+      input.disabled = true;
+      lab.title = 'Manager understand 未選擇 repository，不需要 Confirm Commit';
     } else {
       lab.title = '點擊填入各 repository 測試通過版的 commit';
       lab.addEventListener('click', (e) => {
