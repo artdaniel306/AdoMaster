@@ -29,6 +29,20 @@ button { font: inherit; cursor: pointer; }
 }
 .side-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 8px; }
 .side-head h1 { font-size: 16px; }
+.side-actions { display: flex; align-items: center; gap: 6px; }
+.btn-icon {
+  background: none; border: 1px solid transparent; color: var(--muted); border-radius: 6px;
+  width: 26px; height: 26px; padding: 0; line-height: 1; font-size: 16px;
+}
+.btn-icon:hover { background: var(--hover); color: var(--fg); border-color: var(--border); }
+/* 收合：只留一條窄欄與展開按鈕（!important 蓋過 resize 拖曳留下的 inline width） */
+#sidebar.collapsed { width: 40px !important; min-width: 0; resize: none; }
+#sidebar.collapsed .side-head { justify-content: center; padding: 14px 0 8px; }
+#sidebar.collapsed .side-head h1,
+#sidebar.collapsed #sync,
+#sidebar.collapsed #filter,
+#sidebar.collapsed #tree,
+#sidebar.collapsed #tree-status { display: none; }
 #filter {
   margin: 0 12px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
   background: var(--bg); color: var(--fg); font: inherit;

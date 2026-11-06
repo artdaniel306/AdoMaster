@@ -10,7 +10,10 @@
   <aside id="sidebar">
     <header class="side-head">
       <h1>Iterations</h1>
-      <button id="sync" class="btn-ghost" title="執行 get_iterations.py 重新同步">↻ 同步</button>
+      <div class="side-actions">
+        <button id="sync" class="btn-ghost" title="執行 get_iterations.py 重新同步">↻ 同步</button>
+        <button id="side-toggle" class="btn-icon" title="收合側欄 (Ctrl+B)" aria-expanded="true" aria-controls="sidebar">«</button>
+      </div>
     </header>
     <input id="filter" type="search" placeholder="篩選 Iteration 名稱…" />
     <div id="tree" role="tree"></div>
