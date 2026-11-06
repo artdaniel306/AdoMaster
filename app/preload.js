@@ -1,10 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
-  versions: {
-    node: process.versions.node,
-    chrome: process.versions.chrome,
-    electron: process.versions.electron,
-  },
-  getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
+  loadIterations: () => ipcRenderer.invoke('iterations:load'),
+  syncIterations: () => ipcRenderer.invoke('iterations:sync'),
+  fetchWorkItems: (iterationPath, exact) => ipcRenderer.invoke('workitems:fetch', { iterationPath, exact }),
+  openExternal: (url) => ipcRenderer.invoke('shell:open', url),
 });

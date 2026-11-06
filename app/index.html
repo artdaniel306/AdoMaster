@@ -3,28 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'" />
-  <title>Electron 範例</title>
+  <title>ADO Master</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main>
-    <h1>👋 Hello Electron</h1>
-    <p id="versions"></p>
+  <aside id="sidebar">
+    <header class="side-head">
+      <h1>Iterations</h1>
+      <button id="sync" class="btn-ghost" title="執行 get_iterations.py 重新同步">↻ 同步</button>
+    </header>
+    <input id="filter" type="search" placeholder="篩選 Iteration 名稱…" />
+    <div id="tree" role="tree"></div>
+    <p id="tree-status" class="muted"></p>
+  </aside>
 
-    <section class="card">
-      <h2>計數器</h2>
-      <div class="row">
-        <button id="dec">−</button>
-        <span id="count">0</span>
-        <button id="inc">+</button>
+  <main id="content">
+    <header class="content-head">
+      <div>
+        <h2 id="wi-title">請從左側選擇 Iteration</h2>
+        <p id="wi-sub" class="muted"></p>
       </div>
-    </section>
-
-    <section class="card">
-      <h2>系統資訊（透過 IPC 從主程序取得）</h2>
-      <button id="load">取得系統資訊</button>
-      <ul id="info"></ul>
-    </section>
+      <label class="check"><input id="exact" type="checkbox" /> 不含子 Iteration</label>
+    </header>
+    <div id="wi-status" class="status"></div>
+    <div id="wi-summary" class="summary"></div>
+    <div class="table-wrap">
+      <table id="wi-table" hidden>
+        <thead>
+          <tr>
+            <th>ID</th><th>類型</th><th>標題</th><th>狀態</th><th>指派給</th>
+            <th>Iteration</th><th class="num">剩餘</th><th class="num">完成</th><th>最後修改</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </main>
   <script src="renderer.js"></script>
 </body>

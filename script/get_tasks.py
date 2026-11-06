@@ -165,10 +165,9 @@ def wiql_str(value):
 
 
 def build_wiql(args, ids=None):
-    conds = [
-        "[System.TeamProject] = @project",
-        f"[System.WorkItemType] = {wiql_str(args.type)}",
-    ]
+    conds = ["[System.TeamProject] = @project"]
+    if args.type:  # 為空時不限 Work Item Type
+        conds.append(f"[System.WorkItemType] = {wiql_str(args.type)}")
     if ids:
         conds.append(f"[System.Id] IN ({', '.join(map(str, ids))})")
     if args.state:
@@ -178,7 +177,8 @@ def build_wiql(args, ids=None):
         who = args.assigned_to
         conds.append("[System.AssignedTo] = " + ("@Me" if who.lower() == "@me" else wiql_str(who)))
     if args.iteration:
-        conds.append(f"[System.IterationPath] UNDER {wiql_str(args.iteration)}")
+        op = "=" if getattr(args, "iteration_exact", False) else "UNDER"
+        conds.append(f"[System.IterationPath] {op} {wiql_str(args.iteration)}")
     if args.area:
         conds.append(f"[System.AreaPath] UNDER {wiql_str(args.area)}")
     if args.changed_since:
