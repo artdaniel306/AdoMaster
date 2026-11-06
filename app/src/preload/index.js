@@ -8,7 +8,8 @@ contextBridge.exposeInMainWorld('api', {
   fetchRequirementFlow: (iterationPath, exact) => ipcRenderer.invoke('flow:fetch', { iterationPath, exact }),
   loadFlowState: () => ipcRenderer.invoke('flow:loadState'),
   setFlowCheck: (id, key, value) => ipcRenderer.invoke('flow:setCheck', { id, key, value }),
-  setUnderstand: (id, repos) => ipcRenderer.invoke('flow:setUnderstand', { id, repos }),
+  setUnderstand: (id, repos, migration, note) =>
+    ipcRenderer.invoke('flow:setUnderstand', { id, repos, migration, note }),
   loadRepoConfig: () => ipcRenderer.invoke('repos:config'),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
 });

@@ -213,3 +213,11 @@ td.stage-split { padding: 0; height: 1px; }
 .und-summary .repo-line { display: flex; gap: 6px; font-size: 11px; }
 .und-summary .repo-name { font-weight: 600; }
 .und-summary .repo-branch { color: var(--muted); word-break: break-all; }
+.und-migration { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.und-summary .migration { color: var(--cur-border); font-weight: 600; }
+.und-note-label { display: block; margin: 12px 0 4px; font-weight: 600; }
+.und-note {
+  width: 100%; resize: vertical; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--fg); font: inherit;
+}
+.note-icon { cursor: help; font-weight: normal; }

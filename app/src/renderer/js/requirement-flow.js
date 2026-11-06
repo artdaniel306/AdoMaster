@@ -21,6 +21,8 @@ const STAGES = [
 const DONE = { key: 'done', label: '已完成' };
 const UNDERSTAND_KEY = 'understand';
 const UNDERSTAND_REPOS_KEY = 'understandRepos'; // { repoKey: featureBranch }，由 Manager understand dialog 設定
+const UNDERSTAND_MIGRATION_KEY = 'understandMigration'; // 是否需要 migration
+const UNDERSTAND_NOTE_KEY = 'understandNote'; // manager 註解，以 tooltip 顯示
 
 /** 視為「開發完成」的子項目狀態（小寫比對） */
 const DEV_DONE_STATES = new Set(['tested by dev', 'resolved', 'closed', 'done', 'completed']);
@@ -62,7 +64,7 @@ export function createRequirementFlowView() {
 
   let requestSeq = 0; // 避免較慢的舊請求覆蓋新結果
   let requirements = [];
-  let state = {}; // { [id]: { [checkKey]: true, understandRepos?: { repoKey: branch } } }
+  let state = {}; // { [id]: { [checkKey]: true, understandRepos?: { repoKey: branch }, understandMigration?: true } }
   const understandDialog = createUnderstandDialog();
 
   function renderSummary() {
@@ -108,8 +110,12 @@ export function createRequirementFlowView() {
     lab.title = '點擊選擇要開發的 repository 與 feature branch';
     lab.addEventListener('click', (e) => {
       e.preventDefault();
-      understandDialog.open(req, state[req.id]?.[UNDERSTAND_REPOS_KEY], async (repos) => {
-        state[req.id] = await api.setUnderstand(req.id, repos);
+      const s = state[req.id] || {};
+      const current = s[UNDERSTAND_KEY]
+        ? { repos: s[UNDERSTAND_REPOS_KEY], migration: !!s[UNDERSTAND_MIGRATION_KEY], note: s[UNDERSTAND_NOTE_KEY] }
+        : undefined;
+      understandDialog.open(req, current, async (repos, migration, note) => {
+        state[req.id] = await api.setUnderstand(req.id, repos, migration, note);
         update(req);
       });
     });
@@ -117,14 +123,15 @@ export function createRequirementFlowView() {
 
     const box = el('div');
     box.append(lab);
-    const repos = state[req.id]?.[UNDERSTAND_REPOS_KEY];
-    if (repos) {
+    const s = state[req.id] || {};
+    if (s[UNDERSTAND_KEY]) {
       const list = el('div', 'und-summary');
-      for (const [repo, branch] of Object.entries(repos)) {
+      for (const [repo, branch] of Object.entries(s[UNDERSTAND_REPOS_KEY] || {})) {
         const line = el('div', 'repo-line');
         line.append(el('span', 'repo-name', repo), el('span', 'repo-branch', branch));
         list.append(line);
       }
+      if (s[UNDERSTAND_MIGRATION_KEY]) list.append(el('div', 'repo-line migration', '⚠ 需要 migration'));
       box.append(list);
     }
     return box;
@@ -168,7 +175,15 @@ export function createRequirementFlowView() {
       const impl = el('div', `stage ${progressClass(idx, curIdx, allDevDone(req))}`);
       impl.append(implementCell(req));
       const mgr = el('div', `stage ${progressClass(idx, curIdx, !!state[req.id]?.[UNDERSTAND_KEY])}`);
-      mgr.append(el('div', 'sub-head', 'Manager understand'), understandCheck(req));
+      const mgrHead = el('div', 'sub-head');
+      mgrHead.append(el('span', null, 'Manager understand'));
+      const note = state[req.id]?.[UNDERSTAND_NOTE_KEY];
+      if (note) {
+        const icon = el('span', 'note-icon', '💬');
+        icon.title = note; // 滑鼠移上去以 tooltip 顯示 manager 的註解
+        mgrHead.append(icon);
+      }
+      mgr.append(mgrHead, understandCheck(req));
       const box = el('div', 'split-box');
       box.append(impl, mgr);
       const td = el('td', 'stage-split');

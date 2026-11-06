@@ -7,6 +7,9 @@ const { REPOS } = require('./repoConfig');
 
 const UNDERSTAND_KEY = 'understand';
 const UNDERSTAND_REPOS_KEY = 'understandRepos';
+const UNDERSTAND_MIGRATION_KEY = 'understandMigration';
+const UNDERSTAND_NOTE_KEY = 'understandNote';
+const NOTE_MAX = 2000;
 
 /** 執行 get_requirement_flow.py 取得指定 Iteration 的 Requirement 與其子項目。 */
 async function fetchRequirementFlow({ iterationPath, exact } = {}) {
@@ -71,10 +74,15 @@ function setFlowCheck({ id, key, value } = {}) {
 /**
  * Manager understand：確認此需求要在哪些 repository 開發、各自的 feature branch。
  *   repos = { crmapp: 'feature/x', upagent: 'feature/y' } → understand: true、understandRepos: repos
- *   repos = null → 取消確認（清除兩者）
+ *   migration = true → understandMigration: true（需要 migration）
+ *   note = '...'     → understandNote: '...'（manager 的註解，空白則不存）
+ *   repos = null → 取消確認（全部清除）
  */
-function setUnderstand({ id, repos } = {}) {
+function setUnderstand({ id, repos, migration, note } = {}) {
   if (!Number.isInteger(id)) return Promise.reject(new Error('參數錯誤'));
+  if (note != null && typeof note !== 'string') return Promise.reject(new Error('參數錯誤'));
+  note = (note || '').trim();
+  if (note.length > NOTE_MAX) return Promise.reject(new Error(`註解最多 ${NOTE_MAX} 字`));
   if (repos != null) {
     const validKeys = new Set(REPOS.map((r) => r.key));
     const entries = typeof repos === 'object' ? Object.entries(repos) : [];
@@ -89,9 +97,15 @@ function setUnderstand({ id, repos } = {}) {
     if (repos) {
       checks[UNDERSTAND_KEY] = true;
       checks[UNDERSTAND_REPOS_KEY] = repos;
+      if (migration === true) checks[UNDERSTAND_MIGRATION_KEY] = true;
+      else delete checks[UNDERSTAND_MIGRATION_KEY];
+      if (note) checks[UNDERSTAND_NOTE_KEY] = note;
+      else delete checks[UNDERSTAND_NOTE_KEY];
     } else {
       delete checks[UNDERSTAND_KEY];
       delete checks[UNDERSTAND_REPOS_KEY];
+      delete checks[UNDERSTAND_MIGRATION_KEY];
+      delete checks[UNDERSTAND_NOTE_KEY];
     }
   });
 }
