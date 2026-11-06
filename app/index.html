@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'" />
+  <title>Electron 範例</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <h1>👋 Hello Electron</h1>
+    <p id="versions"></p>
+
+    <section class="card">
+      <h2>計數器</h2>
+      <div class="row">
+        <button id="dec">−</button>
+        <span id="count">0</span>
+        <button id="inc">+</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>系統資訊（透過 IPC 從主程序取得）</h2>
+      <button id="load">取得系統資訊</button>
+      <ul id="info"></ul>
+    </section>
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>
