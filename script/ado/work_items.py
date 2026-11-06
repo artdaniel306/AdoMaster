@@ -88,17 +88,51 @@ def query_ids(cfg, top=None, **filters):
     return [w["id"] for w in data.get("workItems", [])]
 
 
-def get_work_items(cfg, ids):
-    """依 id 分批取得完整 Work Item，依 id 排序回傳。"""
+def get_work_items(cfg, ids, relations=False):
+    """依 id 分批取得完整 Work Item，依 id 排序回傳。
+
+    relations=True 時一併取回關聯（$expand=relations），可用 child_ids / parent_id 取得父子關係。
+    注意：workitemsbatch 不指定 fields 時不會回傳 System.Parent，需靠 relations 取得 parent。
+    """
     items = []
     url = api_url(cfg, "wit/workitemsbatch")
     for start in range(0, len(ids), BATCH_SIZE):
         chunk = ids[start:start + BATCH_SIZE]
         # 不指定 fields → 回傳所有欄位；errorPolicy=omit → 查無/無權限的 id 不會讓整批失敗
-        data = api_request(url, cfg["pat"], {"ids": chunk, "errorPolicy": "omit"})
+        payload = {"ids": chunk, "errorPolicy": "omit"}
+        if relations:
+            payload["$expand"] = "relations"
+        data = api_request(url, cfg["pat"], payload)
         items.extend(i for i in data.get("value", []) if i)
         print(f"  已取得 {min(start + BATCH_SIZE, len(ids))}/{len(ids)}", flush=True)
     return sorted(items, key=lambda x: x.get("id", 0))
+
+
+# ---------------------------------------------------------------- 關聯
+
+HIERARCHY_FORWARD = "System.LinkTypes.Hierarchy-Forward"  # 子項目
+HIERARCHY_REVERSE = "System.LinkTypes.Hierarchy-Reverse"  # 父項目
+
+
+def _related_ids(item, rel_type):
+    ids = []
+    for rel in item.get("relations") or []:
+        if rel.get("rel") == rel_type:
+            tail = rel.get("url", "").rstrip("/").rsplit("/", 1)[-1]
+            if tail.isdigit():
+                ids.append(int(tail))
+    return ids
+
+
+def child_ids(item):
+    """子 Work Item id（需以 relations=True 取得 item）。"""
+    return _related_ids(item, HIERARCHY_FORWARD)
+
+
+def parent_id(item):
+    """父 Work Item id，沒有時回傳 None（需以 relations=True 取得 item）。"""
+    ids = _related_ids(item, HIERARCHY_REVERSE)
+    return ids[0] if ids else None
 
 
 # ---------------------------------------------------------------- 轉換
@@ -121,4 +155,6 @@ def to_row(item):
         elif ref == "System.Description" and val:
             val = html_to_text(val)
         row[col] = "" if val is None else val
+    if not row["parent"] and item.get("relations"):
+        row["parent"] = parent_id(item) or ""
     return row

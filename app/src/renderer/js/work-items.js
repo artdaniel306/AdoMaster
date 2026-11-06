@@ -7,8 +7,6 @@ function fmtDate(v) {
 
 /** 右側 Work Item 清單（摘要 + 表格）。 */
 export function createWorkItemsView() {
-  const titleEl = $('wi-title');
-  const subEl = $('wi-sub');
   const statusEl = $('wi-status');
   const summaryEl = $('wi-summary');
   const table = $('wi-table');
@@ -71,8 +69,6 @@ export function createWorkItemsView() {
   /** 顯示指定 Iteration 的 Work Item；exact=true 時不含子 Iteration。 */
   async function show(node, exact) {
     const seq = ++requestSeq;
-    titleEl.textContent = node.name;
-    subEl.textContent = node.iterationPath + (node.startDate ? `　(${node.startDate} ~ ${node.finishDate})` : '');
     statusEl.className = 'status loading';
     statusEl.textContent = '執行 get_iteration_work_items.py 取得 Work Item 中…';
     summaryEl.replaceChildren();

@@ -23,21 +23,51 @@
         <h2 id="wi-title">請從左側選擇 Iteration</h2>
         <p id="wi-sub" class="muted"></p>
       </div>
-      <label class="check"><input id="exact" type="checkbox" /> 不含子 Iteration</label>
+      <div class="head-actions">
+        <nav class="tabs" role="tablist">
+          <button class="tab active" data-view="flow" role="tab">Requirement 流程</button>
+          <button class="tab" data-view="items" role="tab">Work Items</button>
+        </nav>
+        <label class="check"><input id="exact" type="checkbox" /> 不含子 Iteration</label>
+      </div>
     </header>
-    <div id="wi-status" class="status"></div>
-    <div id="wi-summary" class="summary"></div>
-    <div class="table-wrap">
-      <table id="wi-table" hidden>
-        <thead>
-          <tr>
-            <th>ID</th><th>類型</th><th>標題</th><th>狀態</th><th>指派給</th>
-            <th>Iteration</th><th class="num">剩餘</th><th class="num">完成</th><th>最後修改</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
+
+    <section id="view-flow" class="view">
+      <div id="flow-status" class="status"></div>
+      <div id="flow-summary" class="summary"></div>
+      <div class="table-wrap">
+        <table id="flow-table" class="flow" hidden>
+          <thead>
+            <tr>
+              <th class="req-col">Requirement</th>
+              <th data-stage="pending">Pending</th>
+              <th data-stage="implement">Implement / Manager understand</th>
+              <th data-stage="testDeploy">Test deploy</th>
+              <th data-stage="test">Test</th>
+              <th data-stage="prodDeploy">Prod deploy</th>
+              <th data-stage="recap">Release recap</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-items" class="view" hidden>
+      <div id="wi-status" class="status"></div>
+      <div id="wi-summary" class="summary"></div>
+      <div class="table-wrap">
+        <table id="wi-table" hidden>
+          <thead>
+            <tr>
+              <th>ID</th><th>類型</th><th>標題</th><th>狀態</th><th>指派給</th>
+              <th>Iteration</th><th class="num">剩餘</th><th class="num">完成</th><th>最後修改</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
   </main>
   <script type="module" src="js/main.js"></script>
 </body>
