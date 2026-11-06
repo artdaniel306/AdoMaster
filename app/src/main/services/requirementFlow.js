@@ -1,58 +1,36 @@
 const fs = require('node:fs/promises');
-const os = require('node:os');
 const path = require('node:path');
 const { FLOW_STATE_FILE } = require('../paths');
-const { runScript } = require('../python');
+const { runScriptJson, tempFile, removeTemp } = require('../python');
 const { REPOS, loadRepoConfig } = require('./repoConfig');
-const { checkCommit, checkMerged, mergeNoFf, COMMIT_RE } = require('./gitCommit');
+const { checkCommit, checkMerged, mergeNoFf } = require('./gitCommit');
+const {
+  UNDERSTAND_KEY,
+  UNDERSTAND_REPOS_KEY,
+  UNDERSTAND_MIGRATION_KEY,
+  UNDERSTAND_NOTE_KEY,
+  UNDERSTAND_KEYS,
+  COMMIT_STAGES,
+  COMMIT_RE,
+  COMMIT_FORMAT_HINT,
+  commitsKey,
+  commitsForcedKey,
+  commitsCover,
+  commitsConfirmed,
+} = require('../../shared/flow-rules.js');
 
-const UNDERSTAND_KEY = 'understand';
-const UNDERSTAND_REPOS_KEY = 'understandRepos';
-const UNDERSTAND_MIGRATION_KEY = 'understandMigration';
-const UNDERSTAND_NOTE_KEY = 'understandNote';
 const NOTE_MAX = 2000;
-/** 佈版前要先 Confirm Commit 的階段；commit 存在 `<stage>.commits`，勾選 SaaS / Local 前必須先確認 */
-const COMMIT_STAGES = ['testDeploy', 'prodDeploy'];
-const commitsKey = (stage) => `${stage}.commits`;
-/** 跳階段（非進行中階段）直接勾起 Confirm Commit：沒有實際填 commit，只記錄已勾選 */
-const commitsForcedKey = (stage) => `${stage}.commitsForced`;
 const deployStageOf = (key) => COMMIT_STAGES.find((s) => key.startsWith(`${s}.`));
-
-/** 已確認的 commit 是否涵蓋 Manager understand 選的每個 repository */
-const commitsCover = (checks, stage) => {
-  const commits = checks[commitsKey(stage)] || {};
-  return Object.keys(checks[UNDERSTAND_REPOS_KEY] || {}).every((r) => commits[r]);
-};
-
-/**
- * Confirm Commit 是否已完成：commit 涵蓋所有 repository，或跳階段直接勾起。
- * Manager understand 沒選任何 repository（例如只需調整 database 資料）時，視為自動完成。
- */
-function commitsConfirmed(checks, stage) {
-  return !!checks[commitsForcedKey(stage)] || (!!checks[UNDERSTAND_KEY] && commitsCover(checks, stage));
-}
 
 /** 執行 get_requirement_flow.py 取得指定 Iteration 的 Requirement 與其子項目。 */
 async function fetchRequirementFlow({ iterationPath, exact } = {}) {
   if (typeof iterationPath !== 'string' || !iterationPath) throw new Error('缺少 iterationPath');
-  // 每次請求用獨立暫存檔，避免同時查詢互相覆寫
-  const out = path.join(
-    os.tmpdir(),
-    `ado-master-flow-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
-  );
-  const args = ['--iteration', iterationPath, '--out', out];
+  const args = ['--iteration', iterationPath];
   if (exact) args.push('--exact');
-  try {
-    await runScript('get_requirement_flow.py', args);
-    return JSON.parse(await fs.readFile(out, 'utf-8'));
-  } finally {
-    fs.rm(out, { force: true }).catch(() => {});
-  }
+  return runScriptJson('get_requirement_flow.py', args);
 }
 
 const DESCRIPTION_MAX = 8000;
-const tempFile = (tag, ext) =>
-  path.join(os.tmpdir(), `ado-master-${tag}-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`);
 
 /**
  * Pending：在 Requirement 底下建立預設 Task（標題與 Requirement 相同），回傳新 Task（欄位同 children）。
@@ -63,15 +41,12 @@ async function createDefaultTask({ id, description } = {}) {
   if (description != null && typeof description !== 'string') throw new Error('參數錯誤');
   description = (description || '').trim();
   if (description.length > DESCRIPTION_MAX) throw new Error(`Description 最多 ${DESCRIPTION_MAX} 字`);
-  const descFile = tempFile('desc', 'txt');
-  const out = tempFile('task', 'json');
+  const descFile = tempFile('txt');
   try {
     await fs.writeFile(descFile, description, 'utf-8');
-    await runScript('create_task.py', ['--parent', String(id), '--description-file', descFile, '--out', out]);
-    return JSON.parse(await fs.readFile(out, 'utf-8'));
+    return await runScriptJson('create_task.py', ['--parent', String(id), '--description-file', descFile]);
   } finally {
-    fs.rm(descFile, { force: true }).catch(() => {});
-    fs.rm(out, { force: true }).catch(() => {});
+    removeTemp(descFile);
   }
 }
 
@@ -81,13 +56,7 @@ const SYNC_STATES = ['Active', 'Resolved', 'Closed'];
 /** 更新 Requirement 在 ADO 的狀態（update_state.py），回傳更新後的 Work Item（欄位同 requirements，不含 children）。 */
 async function updateRequirementStateInAdo({ id, state } = {}) {
   if (!Number.isInteger(id) || id <= 0 || !SYNC_STATES.includes(state)) throw new Error('參數錯誤');
-  const out = tempFile('state', 'json');
-  try {
-    await runScript('update_state.py', ['--id', String(id), '--state', state, '--out', out]);
-    return JSON.parse(await fs.readFile(out, 'utf-8'));
-  } finally {
-    fs.rm(out, { force: true }).catch(() => {});
-  }
+  return runScriptJson('update_state.py', ['--id', String(id), '--state', state]);
 }
 
 /**
@@ -103,6 +72,19 @@ async function loadFlowState() {
   }
 }
 
+/** 先寫到同資料夾的暫存檔再 rename 覆蓋：寫到一半中斷也不會留下壞掉的 JSON */
+async function writeFileAtomic(file, text) {
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  try {
+    await fs.writeFile(tmp, text, 'utf-8');
+    await fs.rename(tmp, file);
+  } catch (err) {
+    await fs.rm(tmp, { force: true }).catch(() => {});
+    throw err;
+  }
+}
+
 let writeQueue = Promise.resolve(); // 序列化讀改寫，避免連續勾選時互相覆蓋
 
 /** 讀出某個 Requirement 的狀態交給 mutate 修改後寫回，回傳該 Requirement 更新後的狀態。 */
@@ -113,8 +95,7 @@ function updateRequirementState(id, mutate) {
     mutate(checks);
     if (Object.keys(checks).length) state[id] = checks;
     else delete state[id];
-    await fs.mkdir(path.dirname(FLOW_STATE_FILE), { recursive: true });
-    await fs.writeFile(FLOW_STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+    await writeFileAtomic(FLOW_STATE_FILE, JSON.stringify(state, null, 2));
     return checks;
   });
   writeQueue = task.catch(() => {});
@@ -179,7 +160,7 @@ async function setFlowCheck({ id, key, value, force = false } = {}) {
     return updateRequirementState(id, (checks) => {
       if (key === UNDERSTAND_KEY) {
         if (value) checks[UNDERSTAND_KEY] = true;
-        else for (const k of [UNDERSTAND_KEY, UNDERSTAND_REPOS_KEY, UNDERSTAND_MIGRATION_KEY, UNDERSTAND_NOTE_KEY]) delete checks[k];
+        else for (const k of UNDERSTAND_KEYS) delete checks[k];
       } else if (value) {
         checks[key] = true;
       } else {
@@ -247,10 +228,7 @@ function setUnderstand({ id, repos, migration, note } = {}) {
       if (note) checks[UNDERSTAND_NOTE_KEY] = note;
       else delete checks[UNDERSTAND_NOTE_KEY];
     } else {
-      delete checks[UNDERSTAND_KEY];
-      delete checks[UNDERSTAND_REPOS_KEY];
-      delete checks[UNDERSTAND_MIGRATION_KEY];
-      delete checks[UNDERSTAND_NOTE_KEY];
+      for (const k of UNDERSTAND_KEYS) delete checks[k];
     }
   });
 }
@@ -278,7 +256,7 @@ async function setCommits({ id, stage, commits } = {}) {
   for (const repo of Object.keys(repos)) {
     const c = typeof commits[repo] === 'string' ? commits[repo].trim().toLowerCase() : '';
     if (!c) throw new Error(`請填入 ${repo} 的 commit`);
-    if (!COMMIT_RE.test(c)) throw new Error(`${repo} 的 commit 格式錯誤（需為 4～40 碼的十六進位 hash）`);
+    if (!COMMIT_RE.test(c)) throw new Error(`${repo} 的 commit 格式錯誤（${COMMIT_FORMAT_HINT}）`);
     normalized[repo] = c;
   }
   // 存檔前再確認一次，避免沒按「檢查」或檢查後又修改

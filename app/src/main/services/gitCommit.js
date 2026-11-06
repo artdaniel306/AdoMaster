@@ -1,6 +1,7 @@
 const { execFile } = require('node:child_process');
 const fs = require('node:fs/promises');
 const { loadRepoConfig } = require('./repoConfig');
+const { COMMIT_RE, COMMIT_FORMAT_HINT } = require('../../shared/flow-rules.js');
 
 /**
  * Confirm Commit：到本機 clone 的 repository 確認指定 commit 是否存在。
@@ -8,8 +9,6 @@ const { loadRepoConfig } = require('./repoConfig');
  * 本機找不到（或不在 feature branch 上）時會 `git fetch` 一次再重查。
  */
 
-/** commit 縮寫：4～40 個十六進位字元（也避免被 git 當成選項） */
-const COMMIT_RE = /^[0-9a-f]{4,40}$/;
 const FETCH_TIMEOUT = 60_000;
 
 function git(cwd, args, timeout = 15_000) {
@@ -79,7 +78,7 @@ async function resolveRepo(repo) {
 function normalizeCommit(commit) {
   if (typeof commit !== 'string') throw new Error('參數錯誤');
   commit = commit.trim().toLowerCase();
-  if (!COMMIT_RE.test(commit)) throw new Error('commit 格式錯誤（需為 4～40 碼的十六進位 hash）');
+  if (!COMMIT_RE.test(commit)) throw new Error(`commit 格式錯誤（${COMMIT_FORMAT_HINT}）`);
   return commit;
 }
 
@@ -225,4 +224,4 @@ async function mergeNoFf({ repo, commit, envBranch, message } = {}) {
   return checkMerged({ repo, commit, envBranch });
 }
 
-module.exports = { checkCommit, checkMerged, mergeNoFf, COMMIT_RE };
+module.exports = { checkCommit, checkMerged, mergeNoFf };

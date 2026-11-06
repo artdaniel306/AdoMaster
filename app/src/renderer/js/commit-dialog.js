@@ -1,5 +1,6 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
+import { COMMIT_RE, COMMIT_FORMAT_HINT } from '../../shared/flow-rules.js';
 
 /**
  * Confirm Commit dialog（Test deploy / Prod deploy 勾選 SaaS / Local 之前）：
@@ -7,8 +8,6 @@ import { $, el } from './dom.js';
  * 按「檢查」到 app/.env 設定的 repository（<REPO>_REPO_PATH）確認 commit 存在。
  * 按「確認」時 main process 會再全部檢查一次才存檔。
  */
-const COMMIT_RE = /^[0-9a-f]{4,40}$/i;
-
 export function createCommitDialog() {
   const dialog = $('commit-dialog');
   const form = $('cc-form');
@@ -53,9 +52,9 @@ export function createCommitDialog() {
 
     const seq = openSeq;
     btn.addEventListener('click', async () => {
-      const c = input.value.trim();
+      const c = input.value.trim().toLowerCase();
       if (!COMMIT_RE.test(c)) {
-        setResult(result, 'bad', '請輸入 4～40 碼的十六進位 commit hash');
+        setResult(result, 'bad', `commit 格式錯誤（${COMMIT_FORMAT_HINT}）`);
         input.focus();
         return;
       }
@@ -64,7 +63,7 @@ export function createCommitDialog() {
       try {
         const r = await api.checkCommit(repo, c, branch);
         if (seq !== openSeq) return;
-        if (input.value.trim() !== c) return; // 檢查期間又改了輸入
+        if (input.value.trim().toLowerCase() !== c) return; // 檢查期間又改了輸入
         setResult(result, !r.ok ? 'bad' : r.onBranch === false ? 'warn' : 'ok', r.ok ? r.message : `✕ ${r.message}`);
         if (r.ok) result.title = `${r.full}\n${r.subject}\n${r.author} · ${r.date}${r.fetched ? '\n（已 git fetch）' : ''}`;
       } catch (err) {
@@ -115,9 +114,9 @@ export function createCommitDialog() {
     e.preventDefault();
     const commits = {};
     for (const { repo, input } of rows) {
-      const c = input.value.trim();
+      const c = input.value.trim().toLowerCase();
       if (!c) return showError(`請填入 ${repo} 的 commit`);
-      if (!COMMIT_RE.test(c)) return showError(`${repo} 的 commit 格式錯誤（需為 4～40 碼的十六進位 hash）`);
+      if (!COMMIT_RE.test(c)) return showError(`${repo} 的 commit 格式錯誤（${COMMIT_FORMAT_HINT}）`);
       commits[repo] = c;
     }
     save(commits);

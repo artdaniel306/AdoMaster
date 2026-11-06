@@ -6,6 +6,17 @@ import { createMergeDialog } from './merge-dialog.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 import { createTaskDialog } from './task-dialog.js';
 import { workItemLink } from './description-dialog.js';
+import {
+  UNDERSTAND_KEY,
+  UNDERSTAND_REPOS_KEY,
+  UNDERSTAND_MIGRATION_KEY,
+  UNDERSTAND_NOTE_KEY,
+  isCommitStage,
+  commitsKey,
+  commitsForcedKey,
+  commitsCover,
+  commitsConfirmed,
+} from '../../shared/flow-rules.js';
 
 /**
  * Requirement 流程（參考 feature/flow.pptx）：
@@ -26,29 +37,6 @@ const STAGES = [
   { key: 'recap', label: 'Release recap', checks: [['recap.meeting', 'Meeting'], ['recap.record', 'Record']] },
 ];
 const DONE = { key: 'done', label: '已完成' };
-const UNDERSTAND_KEY = 'understand';
-const UNDERSTAND_REPOS_KEY = 'understandRepos'; // { repoKey: featureBranch }，由 Manager understand dialog 設定
-const UNDERSTAND_MIGRATION_KEY = 'understandMigration'; // 是否需要 migration
-const UNDERSTAND_NOTE_KEY = 'understandNote'; // manager 註解，以 tooltip 顯示
-/** 佈版前要先 Confirm Commit 的階段；commit 存在 `<stage>.commits`: { repoKey: commit } */
-const COMMIT_STAGES = new Set(['testDeploy', 'prodDeploy']);
-const commitsKey = (stage) => `${stage}.commits`;
-/** 跳階段直接勾起 Confirm Commit（沒有實際填 commit） */
-const commitsForcedKey = (stage) => `${stage}.commitsForced`;
-
-/** 已確認的 commit 是否涵蓋 Manager understand 選的每個 repository */
-const commitsCover = (checks, stage) => {
-  const commits = checks[commitsKey(stage)] || {};
-  return Object.keys(checks[UNDERSTAND_REPOS_KEY] || {}).every((r) => commits[r]);
-};
-
-/**
- * Confirm Commit 是否已完成：commit 涵蓋所有 repository，或跳階段直接勾起。
- * Manager understand 沒選任何 repository（例如只需調整 database 資料）時，視為自動完成。
- */
-function commitsConfirmed(checks, stage) {
-  return !!checks[commitsForcedKey(stage)] || (!!checks[UNDERSTAND_KEY] && commitsCover(checks, stage));
-}
 
 /** 視為「開發完成」的子項目狀態（小寫比對） */
 const DEV_DONE_STATES = new Set(['tested by dev', 'resolved', 'closed', 'done', 'completed']);
@@ -63,7 +51,7 @@ function computeStage(req, checks) {
   if (!activeKids(req).length) return 'pending';
   if (!(allDevDone(req) && checks[UNDERSTAND_KEY])) return 'implement';
   for (const s of STAGES.slice(2)) {
-    if (COMMIT_STAGES.has(s.key) && !commitsConfirmed(checks, s.key)) return s.key;
+    if (isCommitStage(s.key) && !commitsConfirmed(checks, s.key)) return s.key;
     if (!s.checks.every(([k]) => checks[k])) return s.key;
   }
   return DONE.key;
@@ -188,7 +176,7 @@ export function createRequirementFlowView() {
       disabledReason,
       normal: async (value) => {
         // 勾佈版階段的 SaaS / Local 前，確認 commit 已 merge 進環境 branch
-        if (value && COMMIT_STAGES.has(stage.key) && !(await ensureMerged(req, stage))) return;
+        if (value && isCommitStage(stage.key) && !(await ensureMerged(req, stage))) return;
         state[req.id] = await api.setFlowCheck(req.id, key, value);
         update(req);
       },
@@ -414,7 +402,7 @@ export function createRequirementFlowView() {
     if (stage.key === 'pending') {
       td.append(el('span', 'stage-mark', idx < curIdx ? '✓ 已展開' : '待指派 / 展開 Task'));
       if (!activeKids(req).length) td.append(defaultTaskButton(req));
-    } else if (COMMIT_STAGES.has(stage.key)) {
+    } else if (isCommitStage(stage.key)) {
       const { box: commitBox, confirmed } = commitCheck(req, stage);
       const box = el('div', 'checks');
       const reason = confirmed ? '' : '請先完成 Confirm Commit';
