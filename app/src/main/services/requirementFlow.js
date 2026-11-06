@@ -41,6 +41,31 @@ async function fetchRequirementFlow({ iterationPath, exact } = {}) {
   }
 }
 
+const DESCRIPTION_MAX = 8000;
+const tempFile = (tag, ext) =>
+  path.join(os.tmpdir(), `ado-master-${tag}-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`);
+
+/**
+ * Pending：在 Requirement 底下建立預設 Task（標題與 Requirement 相同），回傳新 Task（欄位同 children）。
+ * Description 透過暫存檔傳給 create_task.py，避免命令列長度 / 換行 / 引號問題。
+ */
+async function createDefaultTask({ id, description } = {}) {
+  if (!Number.isInteger(id) || id <= 0) throw new Error('參數錯誤');
+  if (description != null && typeof description !== 'string') throw new Error('參數錯誤');
+  description = (description || '').trim();
+  if (description.length > DESCRIPTION_MAX) throw new Error(`Description 最多 ${DESCRIPTION_MAX} 字`);
+  const descFile = tempFile('desc', 'txt');
+  const out = tempFile('task', 'json');
+  try {
+    await fs.writeFile(descFile, description, 'utf-8');
+    await runScript('create_task.py', ['--parent', String(id), '--description-file', descFile, '--out', out]);
+    return JSON.parse(await fs.readFile(out, 'utf-8'));
+  } finally {
+    fs.rm(descFile, { force: true }).catch(() => {});
+    fs.rm(out, { force: true }).catch(() => {});
+  }
+}
+
 /**
  * 流程中尚未串接 ADO 的人工步驟（Manager understand、佈版、測試、發表會…）先以 checkbox 記錄在本機：
  * data/requirement_flow_state.json → { "<requirementId>": { "<checkKey>": true, ... } }
@@ -224,6 +249,7 @@ async function setCommits({ id, stage, commits } = {}) {
 
 module.exports = {
   fetchRequirementFlow,
+  createDefaultTask,
   loadFlowState,
   setFlowCheck,
   setUnderstand,

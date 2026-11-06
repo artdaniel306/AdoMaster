@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('api', {
   syncIterations: () => ipcRenderer.invoke('iterations:sync'),
   fetchWorkItems: (iterationPath, exact) => ipcRenderer.invoke('workitems:fetch', { iterationPath, exact }),
   fetchRequirementFlow: (iterationPath, exact) => ipcRenderer.invoke('flow:fetch', { iterationPath, exact }),
+  createDefaultTask: (id, description) => ipcRenderer.invoke('flow:createTask', { id, description }),
   loadFlowState: () => ipcRenderer.invoke('flow:loadState'),
   setFlowCheck: (id, key, value) => ipcRenderer.invoke('flow:setCheck', { id, key, value }),
   setUnderstand: (id, repos, migration, note) =>

@@ -8,13 +8,19 @@ Work Item 查詢與轉換。
   - Get Work Items Batch（依 ids 取得明細，每次最多 200 筆）
       POST {base}/{org}/{project}/_apis/wit/workitemsbatch?api-version=7.1
       https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/get-work-items-batch?view=azure-devops-rest-7.1
+  - Create Work Item（以 JSON Patch 建立）
+      POST {base}/{org}/{project}/_apis/wit/workitems/${type}?api-version=7.1
+      https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/create?view=azure-devops-rest-7.1
 """
 
 import html
 import json
 import re
 
+import urllib.parse
+
 from .client import api_request, api_url
+from .errors import AdoError
 
 BATCH_SIZE = 200  # workitemsbatch 單次上限
 
@@ -158,3 +164,40 @@ def to_row(item):
     if not row["parent"] and item.get("relations"):
         row["parent"] = parent_id(item) or ""
     return row
+
+
+# ---------------------------------------------------------------- 建立
+
+def text_to_html(value):
+    """純文字轉成 Description 欄位用的 HTML（跳脫特殊字元、換行轉 <br>）。"""
+    return "<br>".join(html.escape(line) for line in value.splitlines())
+
+
+def create_child_task(cfg, parent_id, description="", type="Task"):
+    """在 parent 底下建立一個子 Work Item：標題與 parent 相同，Area / Iteration 沿用 parent。
+
+    回傳 API 回傳的新 Work Item（含 relations）。
+    """
+    found = get_work_items(cfg, [parent_id])
+    if not found:
+        raise AdoError(f"[錯誤] 找不到 Work Item #{parent_id}（或沒有權限）")
+    parent = found[0]
+    fields = parent.get("fields", {})
+
+    def add(path, value):
+        return {"op": "add", "path": path, "value": value}
+
+    ops = [
+        add("/fields/System.Title", fields.get("System.Title", "")),
+        add("/fields/System.AreaPath", fields.get("System.AreaPath", "")),
+        add("/fields/System.IterationPath", fields.get("System.IterationPath", "")),
+        add("/relations/-", {
+            "rel": HIERARCHY_REVERSE,
+            "url": parent.get("url") or api_url(cfg, f"wit/workItems/{parent_id}").split("?", 1)[0],
+        }),
+    ]
+    if description:
+        ops.append(add("/fields/System.Description", text_to_html(description)))
+
+    url = api_url(cfg, f"wit/workitems/${urllib.parse.quote(type)}")
+    return api_request(url, cfg["pat"], ops, content_type="application/json-patch+json")

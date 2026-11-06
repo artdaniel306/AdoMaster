@@ -3,6 +3,7 @@ import { $, el } from './dom.js';
 import { createUnderstandDialog } from './understand-dialog.js';
 import { createCommitDialog } from './commit-dialog.js';
 import { createMergeDialog } from './merge-dialog.js';
+import { createTaskDialog } from './task-dialog.js';
 
 /**
  * Requirement 流程（參考 feature/flow.pptx）：
@@ -83,6 +84,7 @@ export function createRequirementFlowView() {
   const understandDialog = createUnderstandDialog();
   const commitDialog = createCommitDialog();
   const mergeDialog = createMergeDialog();
+  const taskDialog = createTaskDialog();
 
   function renderSummary() {
     const counts = new Map([...STAGES, DONE].map((s) => [s.key, 0]));
@@ -234,6 +236,22 @@ export function createRequirementFlowView() {
     return { box, confirmed };
   }
 
+  /** Pending 且尚未展開 Task：開啟 dialog 輸入 Description，在 ADO 建立與 Requirement 同名的 Task */
+  function defaultTaskButton(req) {
+    const btn = el('button', 'btn-ghost btn-default-task', '安排預設 Task');
+    btn.type = 'button';
+    btn.title = '在此 Requirement 底下建立同名的 Task';
+    btn.addEventListener('click', () => {
+      taskDialog.open(req, async (description) => {
+        const task = await api.createDefaultTask(req.id, description);
+        req.children = [...req.children, task];
+        update(req);
+        statusEl.textContent = `已建立 Task #${task.id}：${task.title}`;
+      });
+    });
+    return btn;
+  }
+
   function implementCell(req) {
     const kids = activeKids(req);
     const box = el('div', 'impl');
@@ -290,6 +308,7 @@ export function createRequirementFlowView() {
     const td = cell(idx, curIdx);
     if (stage.key === 'pending') {
       td.append(el('span', 'stage-mark', idx < curIdx ? '✓ 已展開' : '待指派 / 展開 Task'));
+      if (!activeKids(req).length) td.append(defaultTaskButton(req));
     } else if (COMMIT_STAGES.has(stage.key)) {
       const { box: commitBox, confirmed } = commitCheck(req, stage);
       const box = el('div', 'checks');

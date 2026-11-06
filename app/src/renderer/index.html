@@ -77,6 +77,27 @@
     </form>
   </dialog>
 
+  <dialog id="task-dialog">
+    <form id="tk-form" class="dlg-box" method="dialog">
+      <header class="dlg-head">
+        <h3>安排預設 Task</h3>
+        <button type="button" id="tk-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="und-body">
+        <p id="tk-req" class="und-req"></p>
+        <p class="muted">將在此 Requirement 底下建立一個同名的 Task（Area / Iteration 沿用 Requirement）。</p>
+        <label class="und-note-label" for="tk-desc">Description</label>
+        <textarea id="tk-desc" class="und-note" rows="6" maxlength="8000" placeholder="Task 的說明…"></textarea>
+        <p id="tk-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" id="tk-cancel" class="btn-ghost">取消</button>
+        <button type="submit" id="tk-ok" class="btn-primary">建立 Task</button>
+      </footer>
+    </form>
+  </dialog>
+
   <dialog id="merge-dialog">
     <div class="dlg-box">
       <header class="dlg-head">
