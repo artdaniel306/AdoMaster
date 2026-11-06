@@ -50,6 +50,7 @@ There is no test suite, linter, or build step configured.
 - `preload/index.js` — exposes `window.api` via `contextBridge` (contextIsolation on, nodeIntegration off; sandboxed, so it can only `require('electron')`).
 - `renderer/` — plain ES modules (no bundler/framework), strict CSP (`'self'` only, no inline scripts/styles). `api.js` wraps `window.api` and `cleanError` strips the IPC error prefix.
 - Data flow: services call a Python script, which writes JSON to disk; the service reads it back. `iterations:load` reads `data/iterations.json` (returns `null` if missing), `iterations:sync` reruns `get_iterations.py` first. `workitems:fetch` and `flow:fetch` write to a unique temp file per request and delete it afterward. The renderer builds the iteration tree from the flat list.
+- Iteration picker (`iteration-tree.js`): the sidebar lists only pinned iterations (plus the current selection if it isn't pinned); the full tree lives in a `<dialog>` opened by「選擇 Iteration…」, where ☆ pins/unpins. Pins are stored in `localStorage` (`pinnedIterations`) by iteration `identifier` (GUID), so they survive renames.
 - Content area has two tabs (`main.js` switches them and only refetches when iteration/exact changed): **Requirement 流程** (`requirement-flow.js`, default) and **Work Items** (`work-items.js`).
 - **Adding a feature**: implement logic in `main/services/` (and a Python script if it needs ADO) → register the channel in `main/ipc.js` → add the method in `preload/index.js` → call via `api` in the renderer.
 

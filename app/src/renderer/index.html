@@ -15,10 +15,22 @@
         <button id="side-toggle" class="btn-icon" title="收合側欄 (Ctrl+B)" aria-expanded="true" aria-controls="sidebar">«</button>
       </div>
     </header>
-    <input id="filter" type="search" placeholder="篩選 Iteration 名稱…" />
-    <div id="tree" role="tree"></div>
+    <button id="browse" class="btn-ghost btn-browse" title="從全部 Iteration 中選擇">☰ 選擇 Iteration…</button>
+    <div id="pinned"></div>
     <p id="tree-status" class="muted"></p>
   </aside>
+
+  <dialog id="iter-dialog">
+    <div class="dlg-box">
+      <header class="dlg-head">
+        <h3>選擇 Iteration</h3>
+        <button id="dlg-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <input id="filter" type="search" placeholder="篩選 Iteration 名稱或路徑…" />
+      <div id="tree" role="tree"></div>
+      <p class="muted dlg-hint">點選 Iteration 切換顯示；按 ☆ 固定到左側清單</p>
+    </div>
+  </dialog>
 
   <main id="content">
     <header class="content-head">
