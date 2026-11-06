@@ -11,6 +11,8 @@ AdoMaster is an Azure DevOps (ADO) Iteration / Work Item viewer. It has two laye
 
 Code comments, docstrings, CLI messages, and UI strings are written in Traditional Chinese; keep that convention.
 
+**Prefer existing packages over home-grown systems.** Before implementing any feature, first check whether something existing already fits: the language's built-ins / standard library, a well-known npm package (for `app/`), an existing tool's CLI (e.g. `git`), or code already in this repo. Only build your own mechanism when nothing fits the requirement or it can't reasonably be applied as-is — and say why in that case. Note that `script/` is restricted to the Python **standard library** (no pip packages), so there "existing" means stdlib only.
+
 **Communication:** The user prefers to communicate in Traditional Chinese (繁體中文) — reply in Chinese.
 
 ## Commands
