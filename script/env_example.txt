@@ -6,3 +6,11 @@ AZDO_PAT=
 # AZDO_BASE_URL=https://dev.azure.com      # Azure DevOps Server (on-prem) 改成自己的網址
 # AZDO_API_VERSION=7.1
 # OUTPUT_CSV=tasks.csv                     # 沒設定時預設為 tasks_YYYYMMDD_HHMMSS.csv
+
+# Azure App Service（restart_app_service.py 用；和 AZDO_PAT 無關，需要 Microsoft Entra ID 身分）
+# AZURE_SUBSCRIPTION_ID=
+# AZURE_RESOURCE_GROUP=                    # 沒加 --resource-group 時使用
+# Service Principal（需有 App Service 的 Website Contributor 角色）；三個都不設定時改用 Azure CLI（先 az login）
+# AZURE_TENANT_ID=
+# AZURE_CLIENT_ID=
+# AZURE_CLIENT_SECRET=

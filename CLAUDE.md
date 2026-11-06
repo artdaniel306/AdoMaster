@@ -29,6 +29,7 @@ python get_requirement_flow.py --iteration "Proj\\Sprint 1" [--exact] [--type Re
 python create_task.py --parent 12345 [--description "..." | --description-file f.txt] [--out task.json]
 python update_state.py --id 12345 --state Active [--out item.json]
 python get_pipeline_runs.py --pipeline "Folder\name" [--top 30] [--out runs.json]   # needs PAT Build (Read)
+python restart_app_service.py --app my-app [--resource-group rg] [--slot staging] [--soft] [--sync] [--out r.json]   # needs AZURE_* in .env
 python get_tasks.py [ids/ranges] [--type Bug] [--state Active] [--assigned-to @Me] [--iteration ...] [--json]
 
 # Electron app
@@ -47,6 +48,7 @@ There is no test suite, linter, or build step configured.
   - `client.py` — `api_url` / `api_request` (Basic auth with PAT, GET when no payload else POST JSON; `method=` overrides, e.g. PATCH for updates). A non-JSON response (ADO returns 203 + HTML login page for a bad PAT) is treated as an error.
   - `work_items.py` — WIQL query → ids, then `workitemsbatch` in chunks of 200; `ROW_FIELDS` defines the flattened row schema used by both CSV and the app. Gotcha: `workitemsbatch` without a field list does **not** return `System.Parent`; pass `get_work_items(..., relations=True)` (`$expand=relations`) and use `child_ids` / `parent_id` for hierarchy (`to_row` then fills `parent` from relations).
   - `iterations.py` — fetches the Iterations classification-node tree and flattens it (depth-first, `parentId` links, `timeFrame` past/current/future). `to_iteration_path` strips the `\Iteration\` segment so paths match `System.IterationPath`.
+  - `app_service.py` — Azure App Service via ARM REST (`restart_app`; not used by the app/flow yet). Needs a Microsoft Entra ID token, **not** the ADO PAT: Service Principal client credentials when `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` are all set, else `az account get-access-token` (Azure CLI, `az login`). `get_azure_config()` reads `AZURE_*` from the same `script/.env` without requiring `AZDO_*`. `client.http_request` is the generic sender (custom headers, empty body → `None`); `api_request` wraps it with PAT Basic auth.
   - `cli.run(main)` — wraps entry points: `AdoError` messages go to stderr with exit code 1. Raise `AdoError` for any user-facing failure.
 - Output paths: `data/` at repo root (`ado.config.DATA_DIR`). `*.csv`, `*.json`, and `.env` are gitignored.
 
