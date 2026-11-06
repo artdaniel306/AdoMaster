@@ -1,0 +1,55 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Overview
+
+AdoMaster is an Azure DevOps (ADO) Iteration / Work Item viewer. It has two layers:
+
+- `script/` — Python CLI scripts that call the ADO REST API (**standard library only**, no pip dependencies).
+- `app/` — an Electron desktop UI that shells out to those Python scripts via `python-shell` and renders the results.
+
+Code comments, docstrings, CLI messages, and UI strings are written in Traditional Chinese; keep that convention.
+
+**Communication:** The user prefers to communicate in Traditional Chinese (繁體中文) — reply in Chinese.
+
+## Commands
+
+```bash
+# Configure (required before anything works): copy and fill AZDO_ORG / AZDO_PROJECT / AZDO_PAT
+cp script/env_example.txt script/.env
+
+# Python scripts (run from script/ so the `ado` package is importable)
+cd script
+python get_iterations.py                                   # writes data/iterations.{csv,json}, data/iterations_tree.json
+python get_iteration_work_items.py --iteration "Proj\\Sprint 1" [--exact] [--out path.json]
+python get_tasks.py [ids/ranges] [--type Bug] [--state Active] [--assigned-to @Me] [--iteration ...] [--json]
+
+# Electron app
+cd app
+npm install
+npm start          # electron .   (set PYTHON env var to override the python executable)
+```
+
+There is no test suite, linter, or build step configured.
+
+## Architecture
+
+### Python (`script/`)
+- `script/ado/` is the shared package; `get_*.py` entry points only parse args and write output — all logic lives in `ado/`.
+  - `config.py` — hand-rolled `.env` parser; reads `script/.env` (env vars are the fallback). `Config.opt()` for script-specific optional keys (e.g. `OUTPUT_CSV`).
+  - `client.py` — `api_url` / `api_request` (Basic auth with PAT, GET when no payload else POST JSON). A non-JSON response (ADO returns 203 + HTML login page for a bad PAT) is treated as an error.
+  - `work_items.py` — WIQL query → ids, then `workitemsbatch` in chunks of 200; `ROW_FIELDS` defines the flattened row schema used by both CSV and the app.
+  - `iterations.py` — fetches the Iterations classification-node tree and flattens it (depth-first, `parentId` links, `timeFrame` past/current/future). `to_iteration_path` strips the `\Iteration\` segment so paths match `System.IterationPath`.
+  - `cli.run(main)` — wraps entry points: `AdoError` messages go to stderr with exit code 1. Raise `AdoError` for any user-facing failure.
+- Output paths: `data/` at repo root (`ado.config.DATA_DIR`). `*.csv`, `*.json`, and `.env` are gitignored.
+
+### Electron (`app/src/`)
+- `main/` — `index.js` creates the window; `ipc.js` maps IPC channels → `services/*`; `python.js` runs `script/*.py` with `cwd=script/` and UTF-8 forced; `paths.js` resolves repo-root paths.
+- `preload/index.js` — exposes `window.api` via `contextBridge` (contextIsolation on, nodeIntegration off; sandboxed, so it can only `require('electron')`).
+- `renderer/` — plain ES modules (no bundler/framework), strict CSP (`'self'` only, no inline scripts/styles). `api.js` wraps `window.api` and `cleanError` strips the IPC error prefix.
+- Data flow: services call a Python script, which writes JSON to disk; the service reads it back. `iterations:load` reads `data/iterations.json` (returns `null` if missing), `iterations:sync` reruns `get_iterations.py` first. `workitems:fetch` writes to a unique temp file per request and deletes it afterward. The renderer builds the iteration tree from the flat list.
+- **Adding a feature**: implement logic in `main/services/` (and a Python script if it needs ADO) → register the channel in `main/ipc.js` → add the method in `preload/index.js` → call via `api` in the renderer.
+
+### `feature/restore_workitem/`
+Standalone, older scripts (recycle-bin listing and restore) that do **not** use the `ado` package; they duplicate config/client code and read their own `.env` in that folder.
