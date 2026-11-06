@@ -4,12 +4,24 @@ const path = require('node:path');
 const { FLOW_STATE_FILE } = require('../paths');
 const { runScript } = require('../python');
 const { REPOS } = require('./repoConfig');
+const { checkCommit, COMMIT_RE } = require('./gitCommit');
 
 const UNDERSTAND_KEY = 'understand';
 const UNDERSTAND_REPOS_KEY = 'understandRepos';
 const UNDERSTAND_MIGRATION_KEY = 'understandMigration';
 const UNDERSTAND_NOTE_KEY = 'understandNote';
 const NOTE_MAX = 2000;
+/** 佈版前要先 Confirm Commit 的階段；commit 存在 `<stage>.commits`，勾選 SaaS / Local 前必須先確認 */
+const COMMIT_STAGES = ['testDeploy', 'prodDeploy'];
+const commitsKey = (stage) => `${stage}.commits`;
+const deployStageOf = (key) => COMMIT_STAGES.find((s) => key.startsWith(`${s}.`));
+
+/** 已確認的 commit 是否涵蓋 Manager understand 選的每個 repository */
+function commitsConfirmed(checks, stage) {
+  const repos = Object.keys(checks[UNDERSTAND_REPOS_KEY] || {});
+  const commits = checks[commitsKey(stage)] || {};
+  return !!checks[UNDERSTAND_KEY] && repos.length > 0 && repos.every((r) => commits[r]);
+}
 
 /** 執行 get_requirement_flow.py 取得指定 Iteration 的 Requirement 與其子項目。 */
 async function fetchRequirementFlow({ iterationPath, exact } = {}) {
@@ -62,10 +74,18 @@ function updateRequirementState(id, mutate) {
 
 /** 設定某個 Requirement 的一個 checkbox，回傳該 Requirement 更新後的狀態。 */
 function setFlowCheck({ id, key, value } = {}) {
-  if (!Number.isInteger(id) || typeof key !== 'string' || !/^[\w.]+$/.test(key) || key === UNDERSTAND_KEY) {
+  if (
+    !Number.isInteger(id) ||
+    typeof key !== 'string' ||
+    !/^[\w.]+$/.test(key) ||
+    key === UNDERSTAND_KEY ||
+    key.endsWith('.commits')
+  ) {
     return Promise.reject(new Error('參數錯誤'));
   }
   return updateRequirementState(id, (checks) => {
+    const stage = deployStageOf(key);
+    if (value && stage && !commitsConfirmed(checks, stage)) throw new Error('請先完成 Confirm Commit');
     if (value) checks[key] = true;
     else delete checks[key];
   });
@@ -110,4 +130,44 @@ function setUnderstand({ id, repos, migration, note } = {}) {
   });
 }
 
-module.exports = { fetchRequirementFlow, loadFlowState, setFlowCheck, setUnderstand };
+/**
+ * Confirm Commit（Test deploy / Prod deploy 佈版前）：manager 填入 Manager understand 所選每個 repository
+ * 的測試通過版 commit（縮寫即可），存檔前逐一到 repository 確認 commit 存在。
+ *   commits = { crmapp: 'abc1234', ... } → `<stage>.commits`: commits
+ *   commits = null → 取消確認（連同該階段已勾的 SaaS / Local 一併清除）
+ */
+async function setCommits({ id, stage, commits } = {}) {
+  if (!Number.isInteger(id) || !COMMIT_STAGES.includes(stage)) throw new Error('參數錯誤');
+  if (commits == null) {
+    return updateRequirementState(id, (checks) => {
+      for (const k of Object.keys(checks)) if (k.startsWith(`${stage}.`)) delete checks[k];
+    });
+  }
+  const current = (await loadFlowState())[id] || {};
+  const repos = current[UNDERSTAND_KEY] ? current[UNDERSTAND_REPOS_KEY] || {} : {};
+  if (!Object.keys(repos).length) throw new Error('請先完成 Manager understand（選擇要開發的 repository）');
+  if (typeof commits !== 'object') throw new Error('參數錯誤');
+
+  const normalized = {};
+  for (const repo of Object.keys(repos)) {
+    const c = typeof commits[repo] === 'string' ? commits[repo].trim().toLowerCase() : '';
+    if (!c) throw new Error(`請填入 ${repo} 的 commit`);
+    if (!COMMIT_RE.test(c)) throw new Error(`${repo} 的 commit 格式錯誤（需為 4～40 碼的十六進位 hash）`);
+    normalized[repo] = c;
+  }
+  // 存檔前再確認一次，避免沒按「檢查」或檢查後又修改
+  const results = await Promise.all(
+    Object.entries(normalized).map(([repo, commit]) => checkCommit({ repo, commit, branch: repos[repo] }))
+  );
+  const missing = results.filter((r) => !r.ok);
+  if (missing.length) throw new Error(missing.map((r) => r.message).join('；'));
+
+  return updateRequirementState(id, (checks) => {
+    if (JSON.stringify(checks[UNDERSTAND_REPOS_KEY] || {}) !== JSON.stringify(repos)) {
+      throw new Error('Manager understand 的 repository 已變更，請重新開啟後再確認');
+    }
+    checks[commitsKey(stage)] = normalized;
+  });
+}
+
+module.exports = { fetchRequirementFlow, loadFlowState, setFlowCheck, setUnderstand, setCommits };

@@ -221,3 +221,29 @@ td.stage-split { padding: 0; height: 1px; }
   background: var(--bg); color: var(--fg); font: inherit;
 }
 .note-icon { cursor: help; font-weight: normal; }
+
+/* ---- Confirm Commit（Test deploy / Prod deploy 佈版前）---- */
+#commit-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(620px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#commit-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+.cc-repos { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.cc-repo { display: grid; grid-template-columns: 150px 1fr auto; align-items: center; gap: 4px 10px; }
+.cc-name { display: flex; flex-direction: column; min-width: 0; }
+.cc-name .repo-name { font-weight: 600; }
+.cc-name .repo-branch { font-size: 11px; color: var(--muted); word-break: break-all; }
+.cc-repo input {
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg);
+  font: 13px Consolas, "Courier New", monospace;
+}
+.cc-result { grid-column: 2 / 4; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-result:empty { display: none; }
+.cc-result.loading { color: var(--muted); }
+.cc-result.ok { color: var(--ok); }
+.cc-result.warn { color: var(--cur-border); }
+.cc-result.bad { color: var(--err); }
+.commit-check { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px dashed var(--border); }
+.und-summary .repo-commit { font: 11px Consolas, "Courier New", monospace; color: var(--muted); }
+.und-summary .repo-missing { color: var(--err); }
+.flow-check.disabled { cursor: not-allowed; opacity: .55; }

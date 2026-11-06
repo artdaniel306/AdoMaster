@@ -3,3 +3,9 @@
 CRMAPP_BRANCHES=feature/xxx,feature/yyy
 CRMAPPUI_BRANCHES=feature/xxx
 UPAGENT_BRANCHES=feature/xxx
+
+# Confirm Commit 時到哪裡確認 commit 是否存在：各 repository 本機 clone 的路徑
+# （本機找不到時會自動 git fetch 一次，需能不輸入帳密即可 fetch）
+CRMAPP_REPO_PATH=C:\source\crmapp
+CRMAPPUI_REPO_PATH=C:\source\crmappui
+UPAGENT_REPO_PATH=C:\source\upagent

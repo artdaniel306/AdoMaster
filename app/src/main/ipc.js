@@ -3,6 +3,7 @@ const iterations = require('./services/iterations');
 const workItems = require('./services/workItems');
 const requirementFlow = require('./services/requirementFlow');
 const repoConfig = require('./services/repoConfig');
+const gitCommit = require('./services/gitCommit');
 
 /**
  * IPC channel → service 對照。renderer 只能透過 preload 暴露的 window.api 呼叫這些 channel。
@@ -18,7 +19,9 @@ function registerIpcHandlers() {
   ipcMain.handle('flow:loadState', () => requirementFlow.loadFlowState());
   ipcMain.handle('flow:setCheck', (_e, params) => requirementFlow.setFlowCheck(params));
   ipcMain.handle('flow:setUnderstand', (_e, params) => requirementFlow.setUnderstand(params));
+  ipcMain.handle('flow:setCommits', (_e, params) => requirementFlow.setCommits(params));
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());
+  ipcMain.handle('repos:checkCommit', (_e, params) => gitCommit.checkCommit(params));
 
   ipcMain.handle('shell:open', (_e, url) => {
     if (typeof url === 'string' && /^https:\/\//i.test(url)) return shell.openExternal(url);

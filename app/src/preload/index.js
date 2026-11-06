@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('api', {
   setFlowCheck: (id, key, value) => ipcRenderer.invoke('flow:setCheck', { id, key, value }),
   setUnderstand: (id, repos, migration, note) =>
     ipcRenderer.invoke('flow:setUnderstand', { id, repos, migration, note }),
+  setCommits: (id, stage, commits) => ipcRenderer.invoke('flow:setCommits', { id, stage, commits }),
   loadRepoConfig: () => ipcRenderer.invoke('repos:config'),
+  checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
 });

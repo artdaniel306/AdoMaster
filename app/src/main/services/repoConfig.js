@@ -3,12 +3,13 @@ const { APP_ENV_FILE } = require('../paths');
 
 /**
  * Manager understand 時要決定開發的 repository。
- * 每個 repository 可選的 feature branch 由 app/.env 的 `<KEY>_BRANCHES` 設定（逗號分隔）。
+ * 每個 repository 可選的 feature branch 由 app/.env 的 `<KEY>_BRANCHES` 設定（逗號分隔），
+ * Confirm Commit 時到 `<KEY>_REPO_PATH`（本機 clone 的路徑）確認 commit 是否存在。
  */
 const REPOS = [
-  { key: 'crmapp', label: 'crmapp', envKey: 'CRMAPP_BRANCHES' },
-  { key: 'crmappui', label: 'crmappui', envKey: 'CRMAPPUI_BRANCHES' },
-  { key: 'upagent', label: 'upagent', envKey: 'UPAGENT_BRANCHES' },
+  { key: 'crmapp', label: 'crmapp', envKey: 'CRMAPP_BRANCHES', pathEnvKey: 'CRMAPP_REPO_PATH' },
+  { key: 'crmappui', label: 'crmappui', envKey: 'CRMAPPUI_BRANCHES', pathEnvKey: 'CRMAPPUI_REPO_PATH' },
+  { key: 'upagent', label: 'upagent', envKey: 'UPAGENT_BRANCHES', pathEnvKey: 'UPAGENT_REPO_PATH' },
 ];
 
 /** 簡易 .env 解析（與 script/ado/config.py 相同規則）：KEY=VALUE，支援 # 註解與引號。檔案不存在時回傳 {}。 */
@@ -42,11 +43,13 @@ async function loadRepoConfig() {
   const env = await readEnv(APP_ENV_FILE);
   return {
     envFound: Object.keys(env).length > 0,
-    repos: REPOS.map(({ key, label, envKey }) => ({
+    repos: REPOS.map(({ key, label, envKey, pathEnvKey }) => ({
       key,
       label,
       envKey,
+      pathEnvKey,
       branches: splitList(env[envKey] ?? process.env[envKey]),
+      path: String(env[pathEnvKey] ?? process.env[pathEnvKey] ?? '').trim(),
     })),
   };
 }
