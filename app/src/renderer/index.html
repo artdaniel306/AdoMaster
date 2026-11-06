@@ -156,6 +156,31 @@
     </div>
   </dialog>
 
+  <dialog id="deploy-dialog">
+    <div class="dlg-box">
+      <header class="dlg-head">
+        <h3 id="dp-title">佈版</h3>
+        <button type="button" id="dp-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="und-body">
+        <p id="dp-req" class="und-req"></p>
+        <p id="dp-phase" class="status"></p>
+        <h4 class="dp-sec">Merge</h4>
+        <div id="dp-merge" class="cc-repos"></div>
+        <h4 class="dp-sec">Pipeline</h4>
+        <div id="dp-pipelines" class="cc-repos"></div>
+        <p id="dp-hint" class="muted"></p>
+        <p id="dp-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" id="dp-stop" class="btn-ghost btn-danger">停止</button>
+        <span class="spacer"></span>
+        <button type="button" id="dp-bg" class="btn-ghost">背景執行</button>
+        <button type="button" id="dp-ok" class="btn-primary">開始佈版</button>
+      </footer>
+    </div>
+  </dialog>
+
   <main id="content">
     <header class="content-head">
       <div>

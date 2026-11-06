@@ -6,6 +6,7 @@ const { APP_ENV_FILE } = require('../paths');
  * 每個 repository 可選的 feature branch 由 app/.env 的 `<KEY>_BRANCHES` 設定（逗號分隔），
  * Confirm Commit 時到 `<KEY>_REPO_PATH`（本機 clone 的路徑）確認 commit 是否存在。
  * Test deploy / Prod deploy 勾 SaaS / Local 前，確認 commit 已進到環境 branch：`<KEY>_TEST_BRANCH` / `<KEY>_PROD_BRANCH`。
+ * 環境 branch push 後自動佈版的 Azure DevOps Pipeline 名稱：`<KEY>_TEST_PIPELINE` / `<KEY>_PROD_PIPELINE`（未設定 = 沒有自動佈版）。
  */
 const REPOS = [
   { key: 'crmapp', label: 'crmapp', prefix: 'CRMAPP' },
@@ -17,6 +18,8 @@ const REPOS = [
   pathEnvKey: `${prefix}_REPO_PATH`,
   // 佈版階段 → 環境 branch 的設定名稱
   deployEnvKeys: { testDeploy: `${prefix}_TEST_BRANCH`, prodDeploy: `${prefix}_PROD_BRANCH` },
+  // 佈版階段 → 自動佈版 Pipeline 的設定名稱
+  pipelineEnvKeys: { testDeploy: `${prefix}_TEST_PIPELINE`, prodDeploy: `${prefix}_PROD_PIPELINE` },
 }));
 
 /** 簡易 .env 解析（與 script/ado/config.py 相同規則）：KEY=VALUE，支援 # 註解與引號。檔案不存在時回傳 {}。 */
@@ -51,7 +54,7 @@ async function loadRepoConfig() {
   const get = (k) => String(env[k] ?? process.env[k] ?? '').trim();
   return {
     envFound: Object.keys(env).length > 0,
-    repos: REPOS.map(({ key, label, envKey, pathEnvKey, deployEnvKeys }) => ({
+    repos: REPOS.map(({ key, label, envKey, pathEnvKey, deployEnvKeys, pipelineEnvKeys }) => ({
       key,
       label,
       envKey,
@@ -60,6 +63,8 @@ async function loadRepoConfig() {
       branches: splitList(get(envKey)),
       path: get(pathEnvKey),
       deployBranches: Object.fromEntries(Object.entries(deployEnvKeys).map(([stage, k]) => [stage, get(k)])),
+      pipelineEnvKeys,
+      pipelines: Object.fromEntries(Object.entries(pipelineEnvKeys).map(([stage, k]) => [stage, get(k)])),
     })),
   };
 }

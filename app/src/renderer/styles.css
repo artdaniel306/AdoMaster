@@ -279,6 +279,29 @@ td.stage-split { padding: 0; height: 1px; }
 .mg-item .cc-result { grid-column: auto; white-space: normal; }
 .btn-primary:disabled { opacity: .5; cursor: not-allowed; filter: none; }
 
+/* ---- 自動佈版（勾 SaaS：等待 Run → merge + push → 監看新 Run）---- */
+#deploy-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(680px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#deploy-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#deploy-dialog .status { margin: 4px 0; }
+#deploy-dialog .status.ok { color: var(--ok); font-weight: 600; }
+#deploy-dialog #dp-phase.error { font-weight: 600; }
+#deploy-dialog .cc-repos { margin-top: 4px; gap: 6px; }
+.dp-sec { margin: 12px 0 0; font-size: 13px; color: var(--muted); }
+.dp-sec[hidden], #dp-merge:empty { display: none; }
+.dp-pipe { display: grid; grid-template-columns: 200px 1fr; gap: 2px 10px; align-items: start; }
+.dp-pipe .cc-result { grid-column: auto; white-space: normal; }
+.dp-runs { display: flex; flex-direction: column; gap: 2px; font-size: 12px; min-width: 0; }
+.dp-run { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.dp-run .btn-link { font-size: 12px; }
+.dp-run.ok { color: var(--ok); }
+.dp-run.warn { color: var(--cur-border); }
+.dp-run.bad { color: var(--err); }
+.dp-run .muted { font-size: 11px; }
+.deploy-status { display: block; margin-top: 4px; font-size: 12px; text-align: left; }
+
 /* ---- 安排預設 Task（Pending 階段、尚未展開 Task）---- */
 #task-dialog {
   padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);

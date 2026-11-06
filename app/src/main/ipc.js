@@ -4,6 +4,7 @@ const workItems = require('./services/workItems');
 const requirementFlow = require('./services/requirementFlow');
 const repoConfig = require('./services/repoConfig');
 const gitCommit = require('./services/gitCommit');
+const pipelines = require('./services/pipelines');
 
 /**
  * IPC channel → service 對照。renderer 只能透過 preload 暴露的 window.api 呼叫這些 channel。
@@ -24,6 +25,7 @@ function registerIpcHandlers() {
   ipcMain.handle('flow:setCommits', (_e, params) => requirementFlow.setCommits(params));
   ipcMain.handle('flow:mergeStatus', (_e, { id, stage } = {}) => requirementFlow.deployMergeStatus({ id, stage }));
   ipcMain.handle('flow:mergeDeploy', (_e, { id, stage } = {}) => requirementFlow.mergeDeploy({ id, stage }));
+  ipcMain.handle('flow:pipelineRuns', (_e, { id, stage } = {}) => pipelines.deployPipelineRuns({ id, stage }));
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());
   ipcMain.handle('repos:checkCommit', (_e, params) => gitCommit.checkCommit(params));
 

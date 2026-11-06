@@ -221,7 +221,8 @@ async function mergeNoFf({ repo, commit, envBranch, message } = {}) {
   } catch (err) {
     throw new Error(`${repo} push 到 ${REMOTE}/${status.envBranch} 失敗：${(err.stderr || err.message).trim()}`);
   }
-  return checkMerged({ repo, commit, envBranch });
+  // mergeCommit：push 上去的 merge commit（用來找出 push 觸發的 Pipeline Run）
+  return { ...(await checkMerged({ repo, commit, envBranch })), mergeCommit };
 }
 
 module.exports = { checkCommit, checkMerged, mergeNoFf };

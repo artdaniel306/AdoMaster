@@ -19,3 +19,12 @@ CRMAPPUI_TEST_BRANCH=test
 CRMAPPUI_PROD_BRANCH=master
 UPAGENT_TEST_BRANCH=test
 UPAGENT_PROD_BRANCH=master
+
+# 環境 branch push 後自動佈版的 Azure DevOps Pipeline 名稱（同名 Pipeline 在不同資料夾時可寫「資料夾\名稱」）
+# 勾 Test deploy / Prod deploy 的 SaaS 時：先等這些 Pipeline 沒有進行中 / 停等的 Run，再 merge + push，
+# 接著監看 push 觸發的 Run 直到結束並通知。未設定的 repository 只做 merge、不監看。
+# 需要 script/.env 的 AZDO_PAT 有 Build (Read) 權限。
+CRMAPP_TEST_PIPELINE=
+CRMAPP_PROD_PIPELINE=
+CRMAPPUI_TEST_PIPELINE=
+CRMAPPUI_PROD_PIPELINE=

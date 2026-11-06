@@ -129,13 +129,16 @@ async function deployMergeStatus({ id, stage, fetch = true } = {}) {
   return { stage, commits, items, allMerged: items.every((x) => x.merged) };
 }
 
-/** 把尚未 merge 的 commit 以 merge commit（--no-ff）merge 進環境 branch，回傳最新的 deployMergeStatus。 */
+/**
+ * 把尚未 merge 的 commit 以 merge commit（--no-ff）merge 進環境 branch，
+ * 回傳最新的 deployMergeStatus，另加 mergeCommits: { repo: 這次 push 的 merge commit }。
+ */
 async function mergeDeploy({ id, stage } = {}) {
   const status = await deployMergeStatus({ id, stage });
   const blocked = status.items.filter((x) => !x.merged && !x.canMerge);
   if (blocked.length) throw new Error(blocked.map((x) => `${x.repo}：${x.message}`).join('；'));
   const featureBranches = (await loadFlowState())[id]?.[UNDERSTAND_REPOS_KEY] || {};
-  await Promise.all(
+  const results = await Promise.allSettled(
     status.items
       .filter((x) => !x.merged)
       .map((x) => {
@@ -143,7 +146,13 @@ async function mergeDeploy({ id, stage } = {}) {
         return mergeNoFf({ ...x, message: `Merge ${from} into ${x.envBranch}\n\nRequirement #${id}` });
       })
   );
-  return deployMergeStatus({ id, stage, fetch: false });
+  // 等全部做完再回報失敗：已 push 成功的 repository 不會因為另一個失敗而被漏掉
+  const failed = results.filter((r) => r.status === 'rejected');
+  if (failed.length) throw new Error(failed.map((r) => r.reason?.message || r.reason).join('；'));
+  const mergeCommits = Object.fromEntries(
+    results.map((r) => r.value).filter((v) => v.mergeCommit).map((v) => [v.repo, v.mergeCommit])
+  );
+  return { ...(await deployMergeStatus({ id, stage, fetch: false })), mergeCommits };
 }
 
 /**

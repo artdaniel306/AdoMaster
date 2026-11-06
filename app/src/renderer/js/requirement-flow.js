@@ -3,6 +3,7 @@ import { $, el } from './dom.js';
 import { createUnderstandDialog } from './understand-dialog.js';
 import { createCommitDialog } from './commit-dialog.js';
 import { createMergeDialog } from './merge-dialog.js';
+import { createDeployDialog } from './deploy-dialog.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 import { createTaskDialog } from './task-dialog.js';
 import { workItemLink } from './description-dialog.js';
@@ -27,6 +28,8 @@ import {
  * - Manager understand 點擊時開啟 dialog，決定要在哪些 repository 開發、各自的 feature branch。
  * - Test deploy / Prod deploy 勾選 SaaS / Local 前要先 Confirm Commit：依 Manager understand 選的 repository
  *   各自填入測試通過版的 commit，並確認 repository 中真的有這個 commit。
+ * - 勾 SaaS 時若有設定自動佈版 Pipeline（app/.env `<REPO>_TEST_PIPELINE` / `<REPO>_PROD_PIPELINE`），
+ *   改走 deploy-dialog.js：等進行中的 Run 結束 → merge + push → 監看新 Run → 通知（成功時自動勾起）。
  */
 const STAGES = [
   { key: 'pending', label: 'Pending' },
@@ -37,6 +40,8 @@ const STAGES = [
   { key: 'recap', label: 'Release recap', checks: [['recap.meeting', 'Meeting'], ['recap.record', 'Record']] },
 ];
 const DONE = { key: 'done', label: '已完成' };
+/** 佈版階段的 SaaS checkbox key（勾選時走自動佈版流程） */
+const saasKey = (stage) => `${stage.key}.saas`;
 
 /** 視為「開發完成」的子項目狀態（小寫比對） */
 const DEV_DONE_STATES = new Set(['tested by dev', 'resolved', 'closed', 'done', 'completed']);
@@ -85,6 +90,7 @@ export function createRequirementFlowView() {
   const understandDialog = createUnderstandDialog();
   const commitDialog = createCommitDialog();
   const mergeDialog = createMergeDialog();
+  const deployDialog = createDeployDialog();
   const confirmDialog = createConfirmDialog();
   const taskDialog = createTaskDialog();
 
@@ -175,7 +181,8 @@ export function createRequirementFlowView() {
       checked: !!state[req.id]?.[key],
       disabledReason,
       normal: async (value) => {
-        // 勾佈版階段的 SaaS / Local 前，確認 commit 已 merge 進環境 branch
+        if (value && isCommitStage(stage.key) && key === saasKey(stage)) return deploySaas(req, stage, key, text);
+        // 勾佈版階段的 Local 前，確認 commit 已 merge 進環境 branch
         if (value && isCommitStage(stage.key) && !(await ensureMerged(req, stage))) return;
         state[req.id] = await api.setFlowCheck(req.id, key, value);
         update(req);
@@ -200,6 +207,57 @@ export function createRequirementFlowView() {
       status,
       mergeFn: () => api.mergeDeploy(req.id, stage.key),
     });
+  }
+
+  /**
+   * 勾佈版階段的 SaaS：
+   *   - 相關 repository 都沒設定 Pipeline → 同 Local（確認 / merge 後勾選）
+   *   - 已全部 merge 且 Pipeline 沒有進行中的 Run → 直接勾選
+   *   - 其他 → 開啟佈版 dialog：等待進行中的 Run → merge + push → 監看新 Run → 通知（成功時自動勾起）
+   */
+  async function deploySaas(req, stage, key, text) {
+    statusEl.className = 'status loading';
+    statusEl.textContent = `確認 #${req.id} 的 merge 狀態（git fetch）與 Pipeline Run…`;
+    const [mergeStatus, pipelineRuns] = await Promise.all([
+      api.deployMergeStatus(req.id, stage.key),
+      api.deployPipelineRuns(req.id, stage.key),
+    ]);
+    statusEl.className = 'status';
+    statusEl.textContent = '';
+    const save = async () => {
+      state[req.id] = await api.setFlowCheck(req.id, key, true);
+      refresh(req.id);
+    };
+    if (!pipelineRuns.pipelines.length) {
+      if (mergeStatus.allMerged || (await mergeDialog.open({ req, stageLabel: stage.label, status: mergeStatus, mergeFn: () => api.mergeDeploy(req.id, stage.key) }))) {
+        await save();
+      }
+      return;
+    }
+    const hasActive = pipelineRuns.pipelines.some((p) => p.runs.some((r) => r.active));
+    if (mergeStatus.allMerged && !hasActive) return save();
+    deployDialog.start({
+      req,
+      stage,
+      checkLabel: text,
+      mergeStatus,
+      pipelineRuns,
+      mergeFn: () => api.mergeDeploy(req.id, stage.key),
+      runsFn: () => api.deployPipelineRuns(req.id, stage.key),
+      checkFn: save,
+      onChange: refresh,
+    });
+  }
+
+  /** 佈版流程進行中時，在 SaaS 底下顯示狀態，點擊重新開啟佈版 dialog */
+  function deployStatusLine(req, stage) {
+    const text = deployDialog.statusOf(req.id, stage.key);
+    if (!text) return null;
+    const btn = el('button', 'btn-link deploy-status', `🚀 ${text}`);
+    btn.type = 'button';
+    btn.title = '開啟佈版視窗';
+    btn.addEventListener('click', () => deployDialog.show());
+    return btn;
   }
 
   /** Manager understand：checkbox 本身不直接切換，點擊時開啟 dialog 選擇 repository / feature branch */
@@ -406,10 +464,15 @@ export function createRequirementFlowView() {
       const { box: commitBox, confirmed } = commitCheck(req, stage);
       const box = el('div', 'checks');
       const reason = confirmed ? '' : '請先完成 Confirm Commit';
+      const deploying = deployDialog.statusOf(req.id, stage.key);
       // 已勾選的仍可取消，避免 commit 變更後卡住
       box.append(
-        ...stage.checks.map(([k, label]) => checkbox(req, stage, k, label, state[req.id]?.[k] ? '' : reason))
+        ...stage.checks.map(([k, label]) =>
+          checkbox(req, stage, k, label, state[req.id]?.[k] ? '' : k === saasKey(stage) && deploying ? '佈版流程進行中' : reason)
+        )
       );
+      const line = deployStatusLine(req, stage);
+      if (line) box.append(line);
       td.append(commitBox, box);
     } else {
       const box = el('div', 'checks');
@@ -435,6 +498,12 @@ export function createRequirementFlowView() {
 
     tr.append(head, ...STAGES.flatMap((s, i) => stageCells(req, s, i, curIdx)));
     return tr;
+  }
+
+  /** 依 id 重繪目前畫面上的 Requirement（佈版流程在背景結束時，畫面可能已換過 Iteration） */
+  function refresh(id) {
+    const req = requirements.find((r) => r.id === id);
+    if (req) update(req);
   }
 
   /** 勾選後只重繪該列與摘要 */
