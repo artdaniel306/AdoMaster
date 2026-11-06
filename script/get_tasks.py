@@ -124,17 +124,16 @@ def api_url(cfg, path, **params):
     return f"{cfg['base_url']}/{org}/{project}/_apis/{path}?{query}"
 
 
-def api_post(url, pat, payload):
+def api_request(url, pat, payload=None):
+    """payload 為 None 時送 GET，否則以 JSON body 送 POST。"""
     token = base64.b64encode(f":{pat}".encode("utf-8")).decode("ascii")
+    headers = {"Authorization": f"Basic {token}", "Accept": "application/json"}
+    data = None
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
     req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        method="POST",
-        headers={
-            "Authorization": f"Basic {token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
+        url, data=data, method="GET" if data is None else "POST", headers=headers,
     )
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
@@ -194,7 +193,7 @@ def build_wiql(args, ids=None):
 def query_ids(cfg, args, ids=None):
     wiql = build_wiql(args, ids)
     params = {"$top": args.top} if args.top else {}
-    data = api_post(api_url(cfg, "wit/wiql", **params), cfg["pat"], {"query": wiql})
+    data = api_request(api_url(cfg, "wit/wiql", **params), cfg["pat"], {"query": wiql})
     return [w["id"] for w in data.get("workItems", [])]
 
 
@@ -204,7 +203,7 @@ def get_work_items(cfg, ids):
     for start in range(0, len(ids), BATCH_SIZE):
         chunk = ids[start:start + BATCH_SIZE]
         # 不指定 fields → 回傳所有欄位；errorPolicy=omit → 查無/無權限的 id 不會讓整批失敗
-        data = api_post(url, cfg["pat"], {"ids": chunk, "errorPolicy": "omit"})
+        data = api_request(url, cfg["pat"], {"ids": chunk, "errorPolicy": "omit"})
         items.extend(i for i in data.get("value", []) if i)
         print(f"  已取得 {min(start + BATCH_SIZE, len(ids))}/{len(ids)}")
     return items
