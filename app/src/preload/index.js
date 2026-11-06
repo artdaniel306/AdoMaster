@@ -11,7 +11,9 @@ contextBridge.exposeInMainWorld('api', {
   setUnderstand: (id, repos, migration, note) =>
     ipcRenderer.invoke('flow:setUnderstand', { id, repos, migration, note }),
   setCommits: (id, stage, commits) => ipcRenderer.invoke('flow:setCommits', { id, stage, commits }),
-  loadRepoConfig: () => ipcRenderer.invoke('repos:config'),
+  deployMergeStatus: (id, stage) => ipcRenderer.invoke('flow:mergeStatus', { id, stage }),
+  mergeDeploy: (id, stage) => ipcRenderer.invoke('flow:mergeDeploy', { id, stage }),
+  loadRepoConfig:() => ipcRenderer.invoke('repos:config'),
   checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
 });

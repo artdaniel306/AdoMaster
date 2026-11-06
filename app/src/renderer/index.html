@@ -77,6 +77,27 @@
     </form>
   </dialog>
 
+  <dialog id="merge-dialog">
+    <div class="dlg-box">
+      <header class="dlg-head">
+        <h3 id="mg-title">尚未 merge</h3>
+        <button type="button" id="mg-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="und-body">
+        <p id="mg-req" class="und-req"></p>
+        <p class="muted">以下 commit 尚未 merge 進環境 branch，要現在 merge 嗎？</p>
+        <div id="mg-list" class="cc-repos"></div>
+        <p id="mg-hint" class="muted"></p>
+        <p id="mg-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" id="mg-cancel" class="btn-ghost">取消</button>
+        <button type="button" id="mg-ok" class="btn-primary">確定 merge</button>
+      </footer>
+    </div>
+  </dialog>
+
   <main id="content">
     <header class="content-head">
       <div>

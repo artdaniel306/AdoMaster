@@ -27,6 +27,7 @@ function git(cwd, args, timeout = 15_000) {
       (err, stdout, stderr) => {
         if (err) {
           if (err.code === 'ENOENT') err.message = '找不到 git 指令，請確認 git 已安裝並加入 PATH';
+          err.stdout = String(stdout || '');
           err.stderr = String(stderr || '');
           reject(err);
         } else resolve(String(stdout));
@@ -61,12 +62,8 @@ async function lookup(cwd, commit, branch) {
  * @returns {{ ok, repo, commit, full?, subject?, author?, date?, branch?, onBranch?, fetched, message }}
  *   ok=false 代表找不到；設定錯誤（未設定路徑、路徑不存在、git 錯誤）則直接 throw。
  */
-async function checkCommit({ repo, commit, branch } = {}) {
-  if (typeof repo !== 'string' || typeof commit !== 'string') throw new Error('參數錯誤');
-  commit = commit.trim().toLowerCase();
-  if (!COMMIT_RE.test(commit)) throw new Error('commit 格式錯誤（需為 4～40 碼的十六進位 hash）');
-  if (branch != null && typeof branch !== 'string') throw new Error('參數錯誤');
-
+/** 讀取 app/.env 中 repo 的設定，並確認本機 clone 的路徑存在 */
+async function resolveRepo(repo) {
   const config = await loadRepoConfig();
   const r = config.repos.find((x) => x.key === repo);
   if (!r) throw new Error(`未知的 repository：${repo}`);
@@ -76,6 +73,22 @@ async function checkCommit({ repo, commit, branch } = {}) {
   } catch {
     throw new Error(`${r.pathEnvKey} 指定的路徑不存在：${r.path}`);
   }
+  return r;
+}
+
+function normalizeCommit(commit) {
+  if (typeof commit !== 'string') throw new Error('參數錯誤');
+  commit = commit.trim().toLowerCase();
+  if (!COMMIT_RE.test(commit)) throw new Error('commit 格式錯誤（需為 4～40 碼的十六進位 hash）');
+  return commit;
+}
+
+async function checkCommit({ repo, commit, branch } = {}) {
+  if (typeof repo !== 'string') throw new Error('參數錯誤');
+  commit = normalizeCommit(commit);
+  if (branch != null && typeof branch !== 'string') throw new Error('參數錯誤');
+
+  const r = await resolveRepo(repo);
 
   let fetched = false;
   let found = await lookup(r.path, commit, branch);
@@ -97,4 +110,119 @@ async function checkCommit({ repo, commit, branch } = {}) {
   return { ...base, ok: true, ...found, message };
 }
 
-module.exports = { checkCommit, COMMIT_RE };
+/* ---------- 環境 branch（Test deploy / Prod deploy）---------- */
+
+/** 環境 branch 一律以這個 remote 為準（本機 branch 可能沒更新或根本沒 checkout） */
+const REMOTE = 'origin';
+
+/** `git merge-base --is-ancestor a b`：a 是否在 b 的歷史中（exit 0 = 是、1 = 否、其他 = 錯誤） */
+async function isAncestor(cwd, a, b) {
+  try {
+    await git(cwd, ['merge-base', '--is-ancestor', a, b]);
+    return true;
+  } catch (err) {
+    if (err.code === 1) return false;
+    throw new Error(`git merge-base 失敗：${(err.stderr || err.message).trim()}`);
+  }
+}
+
+/**
+ * 不 checkout 試算 merge：`git merge-tree --write-tree`（git 2.38+）。
+ * @returns {{ tree: string|null, conflicts: string[] }} 有衝突時 tree 為 null
+ */
+async function trialMerge(cwd, base, commit) {
+  try {
+    const out = await git(cwd, ['merge-tree', '--write-tree', '--name-only', '--no-messages', base, commit]);
+    return { tree: out.split(/\r?\n/)[0].trim(), conflicts: [] };
+  } catch (err) {
+    if (err.code === 1) {
+      // exit 1 = 有衝突：第一行是 tree，之後是衝突的檔案
+      const conflicts = [...new Set(String(err.stdout || '').split(/\r?\n/).slice(1).filter(Boolean))];
+      return { tree: null, conflicts };
+    }
+    throw new Error(`git merge-tree 失敗（需要 git 2.38 以上）：${(err.stderr || err.message).trim()}`);
+  }
+}
+
+/**
+ * 確認 commit 是否已進到 repo 的環境 branch（origin/<envBranch>）。
+ * 「已進到」= commit 是環境 branch 的祖先（不論當初是 merge commit 或 fast-forward）。
+ * 尚未 merge 時順便試算 merge 是否有衝突。
+ * @param fetch 先 git fetch 取得 remote 最新狀態（預設 true）
+ * @returns {{ repo, commit, full, envBranch, merged, canMerge, conflicts, message }}
+ */
+async function checkMerged({ repo, commit, envBranch, fetch = true } = {}) {
+  if (typeof repo !== 'string' || typeof envBranch !== 'string' || !envBranch.trim()) throw new Error('參數錯誤');
+  commit = normalizeCommit(commit);
+  envBranch = envBranch.trim();
+  const r = await resolveRepo(repo);
+  try {
+    await git(r.path, ['check-ref-format', `refs/heads/${envBranch}`]);
+  } catch {
+    throw new Error(`${repo} 的環境 branch 名稱不正確：${envBranch}`);
+  }
+
+  if (fetch) {
+    try {
+      await git(r.path, ['fetch', REMOTE, '--quiet', '--no-tags'], FETCH_TIMEOUT);
+    } catch (err) {
+      throw new Error(`${repo} git fetch ${REMOTE} 失敗：${(err.stderr || err.message).trim()}`);
+    }
+  }
+  const found = await lookup(r.path, commit);
+  if (!found) throw new Error(`${repo} 找不到 commit ${commit}`);
+  const ref = `refs/remotes/${REMOTE}/${envBranch}`;
+  try {
+    await git(r.path, ['rev-parse', '--verify', '--quiet', ref]);
+  } catch {
+    throw new Error(`${repo} 的 remote 沒有環境 branch ${REMOTE}/${envBranch}`);
+  }
+
+  const merged = await isAncestor(r.path, found.full, ref);
+  const { conflicts } = merged ? { conflicts: [] } : await trialMerge(r.path, ref, found.full);
+  const canMerge = !merged && !conflicts.length;
+  const short = found.full.slice(0, 10);
+  const message = merged
+    ? `✓ ${short} 已在 ${envBranch}`
+    : canMerge
+      ? `${short} 尚未 merge 進 ${envBranch}`
+      : `${short} merge 進 ${envBranch} 會有衝突，請手動處理：${conflicts.join(', ')}`;
+  return { repo, commit, full: found.full, subject: found.subject, envBranch, merged, canMerge, conflicts, message };
+}
+
+/**
+ * 將 commit merge 進環境 branch，一律建立 merge commit（等同 `git merge --no-ff`，即使可以 fast-forward）。
+ * 不 checkout、不動本機 working tree：
+ *   git merge-tree --write-tree origin/<env> <commit>  → tree
+ *   git commit-tree <tree> -p origin/<env> -p <commit> → merge commit
+ *   git push origin <merge commit>:refs/heads/<env>    （不加 --force；remote 期間有變動會被拒絕）
+ * merge commit 的作者 / committer 用該 repository 的 git user 設定。
+ */
+async function mergeNoFf({ repo, commit, envBranch, message } = {}) {
+  const status = await checkMerged({ repo, commit, envBranch });
+  if (status.merged) return status;
+  if (!status.canMerge) throw new Error(status.message);
+  const r = await resolveRepo(repo);
+  const ref = `refs/remotes/${REMOTE}/${status.envBranch}`;
+  const base = (await git(r.path, ['rev-parse', '--verify', ref])).trim();
+  const { tree, conflicts } = await trialMerge(r.path, base, status.full);
+  if (!tree) throw new Error(`${repo} merge 進 ${status.envBranch} 會有衝突：${conflicts.join(', ')}`);
+
+  const msg = typeof message === 'string' && message.trim()
+    ? message.trim()
+    : `Merge commit '${status.full.slice(0, 10)}' into ${status.envBranch}`;
+  let mergeCommit;
+  try {
+    mergeCommit = (await git(r.path, ['commit-tree', tree, '-p', base, '-p', status.full, '-m', msg])).trim();
+  } catch (err) {
+    throw new Error(`${repo} 建立 merge commit 失敗：${(err.stderr || err.message).trim()}`);
+  }
+  try {
+    await git(r.path, ['push', '--quiet', REMOTE, `${mergeCommit}:refs/heads/${status.envBranch}`], FETCH_TIMEOUT);
+  } catch (err) {
+    throw new Error(`${repo} push 到 ${REMOTE}/${status.envBranch} 失敗：${(err.stderr || err.message).trim()}`);
+  }
+  return checkMerged({ repo, commit, envBranch });
+}
+
+module.exports = { checkCommit, checkMerged, mergeNoFf, COMMIT_RE };

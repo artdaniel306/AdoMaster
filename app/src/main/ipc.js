@@ -20,6 +20,8 @@ function registerIpcHandlers() {
   ipcMain.handle('flow:setCheck', (_e, params) => requirementFlow.setFlowCheck(params));
   ipcMain.handle('flow:setUnderstand', (_e, params) => requirementFlow.setUnderstand(params));
   ipcMain.handle('flow:setCommits', (_e, params) => requirementFlow.setCommits(params));
+  ipcMain.handle('flow:mergeStatus', (_e, { id, stage } = {}) => requirementFlow.deployMergeStatus({ id, stage }));
+  ipcMain.handle('flow:mergeDeploy', (_e, { id, stage } = {}) => requirementFlow.mergeDeploy({ id, stage }));
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());
   ipcMain.handle('repos:checkCommit', (_e, params) => gitCommit.checkCommit(params));
 

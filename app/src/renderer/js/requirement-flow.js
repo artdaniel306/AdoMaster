@@ -2,6 +2,7 @@ import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
 import { createUnderstandDialog } from './understand-dialog.js';
 import { createCommitDialog } from './commit-dialog.js';
+import { createMergeDialog } from './merge-dialog.js';
 
 /**
  * Requirement 流程（參考 feature/flow.pptx）：
@@ -81,6 +82,7 @@ export function createRequirementFlowView() {
   let state = {}; // { [id]: { [checkKey]: true, understandRepos?: { repoKey: branch }, understandMigration?: true } }
   const understandDialog = createUnderstandDialog();
   const commitDialog = createCommitDialog();
+  const mergeDialog = createMergeDialog();
 
   function renderSummary() {
     const counts = new Map([...STAGES, DONE].map((s) => [s.key, 0]));
@@ -107,6 +109,11 @@ export function createRequirementFlowView() {
     input.addEventListener('change', async () => {
       input.disabled = true;
       try {
+        const stage = STAGES.find((s) => COMMIT_STAGES.has(s.key) && key.startsWith(`${s.key}.`));
+        if (input.checked && stage && !(await ensureMerged(req, stage))) {
+          input.checked = false;
+          return;
+        }
         state[req.id] = await api.setFlowCheck(req.id, key, input.checked);
         update(req);
       } catch (err) {
@@ -119,6 +126,25 @@ export function createRequirementFlowView() {
     });
     lab.append(input, el('span', null, label));
     return lab;
+  }
+
+  /**
+   * 勾佈版階段的 SaaS / Local 前：確認 Confirm Commit 的 commit 都已進到環境 branch。
+   * 尚未 merge 時跳出 dialog 詢問是否現在 merge（建立 merge commit）。回傳 true 代表可以勾選。
+   */
+  async function ensureMerged(req, stage) {
+    statusEl.className = 'status loading';
+    statusEl.textContent = `確認 #${req.id} 的 commit 是否已 merge 進 ${stage.label} 環境 branch（git fetch）…`;
+    const status = await api.deployMergeStatus(req.id, stage.key);
+    statusEl.className = 'status';
+    statusEl.textContent = '';
+    if (status.allMerged) return true;
+    return mergeDialog.open({
+      req,
+      stageLabel: stage.label,
+      status,
+      mergeFn: () => api.mergeDeploy(req.id, stage.key),
+    });
   }
 
   /** Manager understand：checkbox 本身不直接切換，點擊時開啟 dialog 選擇 repository / feature branch */

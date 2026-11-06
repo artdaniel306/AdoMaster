@@ -3,8 +3,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { FLOW_STATE_FILE } = require('../paths');
 const { runScript } = require('../python');
-const { REPOS } = require('./repoConfig');
-const { checkCommit, COMMIT_RE } = require('./gitCommit');
+const { REPOS, loadRepoConfig } = require('./repoConfig');
+const { checkCommit, checkMerged, mergeNoFf, COMMIT_RE } = require('./gitCommit');
 
 const UNDERSTAND_KEY = 'understand';
 const UNDERSTAND_REPOS_KEY = 'understandRepos';
@@ -72,8 +72,48 @@ function updateRequirementState(id, mutate) {
   return task;
 }
 
+/**
+ * 佈版階段：Confirm Commit 的每個 commit 是否已進到該 repository 的環境 branch
+ * （app/.env 的 `<REPO>_TEST_BRANCH` / `<REPO>_PROD_BRANCH`）。
+ * @returns {{ stage, commits, items: [{ repo, commit, envBranch, merged, canMerge, conflicts, message }], allMerged }}
+ */
+async function deployMergeStatus({ id, stage, fetch = true } = {}) {
+  if (!Number.isInteger(id) || !COMMIT_STAGES.includes(stage)) throw new Error('參數錯誤');
+  const checks = (await loadFlowState())[id] || {};
+  if (!commitsConfirmed(checks, stage)) throw new Error('請先完成 Confirm Commit');
+  const commits = checks[commitsKey(stage)];
+  const config = await loadRepoConfig();
+  const repos = Object.keys(checks[UNDERSTAND_REPOS_KEY]);
+  const targets = repos.map((repo) => {
+    const r = config.repos.find((x) => x.key === repo);
+    if (!r) throw new Error(`未知的 repository：${repo}`);
+    const envBranch = r.deployBranches[stage];
+    if (!envBranch) throw new Error(`尚未設定 ${repo} 的環境 branch，請在 app/.env 設定 ${r.deployEnvKeys[stage]}`);
+    return { repo, commit: commits[repo], envBranch };
+  });
+  const items = await Promise.all(targets.map((t) => checkMerged({ ...t, fetch })));
+  return { stage, commits, items, allMerged: items.every((x) => x.merged) };
+}
+
+/** 把尚未 merge 的 commit 以 merge commit（--no-ff）merge 進環境 branch，回傳最新的 deployMergeStatus。 */
+async function mergeDeploy({ id, stage } = {}) {
+  const status = await deployMergeStatus({ id, stage });
+  const blocked = status.items.filter((x) => !x.merged && !x.canMerge);
+  if (blocked.length) throw new Error(blocked.map((x) => `${x.repo}：${x.message}`).join('；'));
+  const featureBranches = (await loadFlowState())[id]?.[UNDERSTAND_REPOS_KEY] || {};
+  await Promise.all(
+    status.items
+      .filter((x) => !x.merged)
+      .map((x) => {
+        const from = featureBranches[x.repo] ? `${featureBranches[x.repo]} (${x.full.slice(0, 10)})` : x.full.slice(0, 10);
+        return mergeNoFf({ ...x, message: `Merge ${from} into ${x.envBranch}\n\nRequirement #${id}` });
+      })
+  );
+  return deployMergeStatus({ id, stage, fetch: false });
+}
+
 /** 設定某個 Requirement 的一個 checkbox，回傳該 Requirement 更新後的狀態。 */
-function setFlowCheck({ id, key, value } = {}) {
+async function setFlowCheck({ id, key, value } = {}) {
   if (
     !Number.isInteger(id) ||
     typeof key !== 'string' ||
@@ -81,11 +121,23 @@ function setFlowCheck({ id, key, value } = {}) {
     key === UNDERSTAND_KEY ||
     key.endsWith('.commits')
   ) {
-    return Promise.reject(new Error('參數錯誤'));
+    throw new Error('參數錯誤');
+  }
+  const stage = deployStageOf(key);
+  let verifiedCommits = null;
+  if (value && stage) {
+    // 勾 SaaS / Local 前，commit 必須已進到環境 branch。
+    // renderer 勾選前已呼叫 deployMergeStatus（含 git fetch）或 mergeDeploy，這裡不再 fetch，只用本機的 remote 狀態再確認
+    const status = await deployMergeStatus({ id, stage, fetch: false });
+    const pending = status.items.filter((x) => !x.merged);
+    if (pending.length) throw new Error(`尚未 merge 進環境 branch：${pending.map((x) => `${x.repo} → ${x.envBranch}`).join('、')}`);
+    verifiedCommits = JSON.stringify(status.commits);
   }
   return updateRequirementState(id, (checks) => {
-    const stage = deployStageOf(key);
-    if (value && stage && !commitsConfirmed(checks, stage)) throw new Error('請先完成 Confirm Commit');
+    if (value && stage) {
+      if (!commitsConfirmed(checks, stage)) throw new Error('請先完成 Confirm Commit');
+      if (JSON.stringify(checks[commitsKey(stage)]) !== verifiedCommits) throw new Error('Confirm Commit 已變更，請重新勾選');
+    }
     if (value) checks[key] = true;
     else delete checks[key];
   });
@@ -170,4 +222,12 @@ async function setCommits({ id, stage, commits } = {}) {
   });
 }
 
-module.exports = { fetchRequirementFlow, loadFlowState, setFlowCheck, setUnderstand, setCommits };
+module.exports = {
+  fetchRequirementFlow,
+  loadFlowState,
+  setFlowCheck,
+  setUnderstand,
+  setCommits,
+  deployMergeStatus,
+  mergeDeploy,
+};

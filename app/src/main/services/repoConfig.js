@@ -5,12 +5,19 @@ const { APP_ENV_FILE } = require('../paths');
  * Manager understand 時要決定開發的 repository。
  * 每個 repository 可選的 feature branch 由 app/.env 的 `<KEY>_BRANCHES` 設定（逗號分隔），
  * Confirm Commit 時到 `<KEY>_REPO_PATH`（本機 clone 的路徑）確認 commit 是否存在。
+ * Test deploy / Prod deploy 勾 SaaS / Local 前，確認 commit 已進到環境 branch：`<KEY>_TEST_BRANCH` / `<KEY>_PROD_BRANCH`。
  */
 const REPOS = [
-  { key: 'crmapp', label: 'crmapp', envKey: 'CRMAPP_BRANCHES', pathEnvKey: 'CRMAPP_REPO_PATH' },
-  { key: 'crmappui', label: 'crmappui', envKey: 'CRMAPPUI_BRANCHES', pathEnvKey: 'CRMAPPUI_REPO_PATH' },
-  { key: 'upagent', label: 'upagent', envKey: 'UPAGENT_BRANCHES', pathEnvKey: 'UPAGENT_REPO_PATH' },
-];
+  { key: 'crmapp', label: 'crmapp', prefix: 'CRMAPP' },
+  { key: 'crmappui', label: 'crmappui', prefix: 'CRMAPPUI' },
+  { key: 'upagent', label: 'upagent', prefix: 'UPAGENT' },
+].map(({ prefix, ...r }) => ({
+  ...r,
+  envKey: `${prefix}_BRANCHES`,
+  pathEnvKey: `${prefix}_REPO_PATH`,
+  // 佈版階段 → 環境 branch 的設定名稱
+  deployEnvKeys: { testDeploy: `${prefix}_TEST_BRANCH`, prodDeploy: `${prefix}_PROD_BRANCH` },
+}));
 
 /** 簡易 .env 解析（與 script/ado/config.py 相同規則）：KEY=VALUE，支援 # 註解與引號。檔案不存在時回傳 {}。 */
 async function readEnv(file) {
@@ -41,15 +48,18 @@ const splitList = (v) => [...new Set(String(v || '').split(',').map((s) => s.tri
 /** 每次呼叫都重新讀取 app/.env，修改設定後不用重開 App。 */
 async function loadRepoConfig() {
   const env = await readEnv(APP_ENV_FILE);
+  const get = (k) => String(env[k] ?? process.env[k] ?? '').trim();
   return {
     envFound: Object.keys(env).length > 0,
-    repos: REPOS.map(({ key, label, envKey, pathEnvKey }) => ({
+    repos: REPOS.map(({ key, label, envKey, pathEnvKey, deployEnvKeys }) => ({
       key,
       label,
       envKey,
       pathEnvKey,
-      branches: splitList(env[envKey] ?? process.env[envKey]),
-      path: String(env[pathEnvKey] ?? process.env[pathEnvKey] ?? '').trim(),
+      deployEnvKeys,
+      branches: splitList(get(envKey)),
+      path: get(pathEnvKey),
+      deployBranches: Object.fromEntries(Object.entries(deployEnvKeys).map(([stage, k]) => [stage, get(k)])),
     })),
   };
 }

@@ -9,3 +9,13 @@ UPAGENT_BRANCHES=feature/xxx
 CRMAPP_REPO_PATH=C:\source\crmapp
 CRMAPPUI_REPO_PATH=C:\source\crmappui
 UPAGENT_REPO_PATH=C:\source\upagent
+
+# 各 repository 的環境 branch（remote 為 origin）
+# Test deploy / Prod deploy 勾 SaaS / Local 前會確認 Confirm Commit 的 commit 已在該 branch 中；
+# 尚未 merge 時可在 App 中直接 merge：一律建立 merge commit（--no-ff）後 push 到 origin（需 git 2.38+，且能不輸入帳密即可 push）
+CRMAPP_TEST_BRANCH=test
+CRMAPP_PROD_BRANCH=master
+CRMAPPUI_TEST_BRANCH=test
+CRMAPPUI_PROD_BRANCH=master
+UPAGENT_TEST_BRANCH=test
+UPAGENT_PROD_BRANCH=master
