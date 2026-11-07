@@ -1,6 +1,6 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
-import { createUnderstandDialog } from './understand-dialog.js';
+import { createPlanDialog } from './plan-dialog.js';
 import { createCommitDialog } from './commit-dialog.js';
 import { createMergeDialog } from './merge-dialog.js';
 import { createDeployDialog } from './deploy-dialog.js';
@@ -9,10 +9,10 @@ import { createTaskDialog } from './task-dialog.js';
 import { workItemLink } from './description-dialog.js';
 import { loadRepos, repoTag } from './repos.js';
 import {
-  UNDERSTAND_KEY,
-  UNDERSTAND_REPOS_KEY,
-  UNDERSTAND_MIGRATION_KEY,
-  UNDERSTAND_NOTE_KEY,
+  PLAN_KEY,
+  PLAN_REPOS_KEY,
+  PLAN_MIGRATION_KEY,
+  PLAN_NOTE_KEY,
   isCommitStage,
   commitsKey,
   commitsForcedKey,
@@ -22,23 +22,23 @@ import {
 
 /**
  * Requirement 流程（參考 feature/flow.pptx）：
- *   Pending → Implement + Manager understand（並行，同一欄上下兩格）→ Test deploy → Test → Prod deploy → Release recap
+ *   Pending → Implement + 規劃（並行，同一欄上下兩格）→ Test deploy → Test → Prod deploy → Release recap
  *
  * - Pending / Implement 由 ADO 資料判斷（有沒有展開子項目、子項目是否都已完成）。
  * - 其他人工步驟先以 checkbox 記錄在本機（data/requirement_flow_state.json），之後再串接實際動作。
- * - Manager understand 點擊時開啟 dialog，決定要在哪些 repository 開發、各自的 feature branch。
- * - Test deploy / Prod deploy 勾選 SaaS / Local 前要先 Confirm Commit：依 Manager understand 選的 repository
+ * - 規劃 點擊時開啟 dialog，決定要在哪些 repository 開發、各自的 feature branch。
+ * - Test deploy / Prod deploy 勾選 SaaS / Local 前要先 Confirm Commit：依 規劃 選的 repository
  *   各自填入測試通過版的 commit，並確認 repository 中真的有這個 commit。
  * - 勾 SaaS 時若有設定自動佈版 Pipeline（app/.env `<REPO>_TEST_PIPELINE` / `<REPO>_PROD_PIPELINE`），
  *   改走 deploy-dialog.js：等進行中的 Run 結束 → merge + push → 監看新 Run → 通知（成功時自動勾起）。
  */
 const STAGES = [
-  { key: 'pending', label: 'Pending' },
-  { key: 'implement', label: 'Implement' },
-  { key: 'testDeploy', label: 'Test deploy', checks: [['testDeploy.saas', 'SaaS'], ['testDeploy.local', 'Local']] },
-  { key: 'test', label: 'Test', checks: [['test', '測試完成']] },
-  { key: 'prodDeploy', label: 'Prod deploy', checks: [['prodDeploy.saas', 'SaaS'], ['prodDeploy.local', 'Local']] },
-  { key: 'recap', label: 'Release recap', checks: [['recap.meeting', 'Meeting'], ['recap.record', 'Record']] },
+  { key: 'pending', label: '待處理' },
+  { key: 'implement', label: '開發' },
+  { key: 'testDeploy', label: '測試環境佈版', checks: [['testDeploy.saas', 'SaaS'], ['testDeploy.local', 'Local']] },
+  { key: 'test', label: '測試', checks: [['test', '測試完成']] },
+  { key: 'prodDeploy', label: '正式環境佈版', checks: [['prodDeploy.saas', 'SaaS'], ['prodDeploy.local', 'Local']] },
+  { key: 'recap', label: '功能發表', checks: [['recap.meeting', 'Meeting'], ['recap.record', 'Record']] },
 ];
 const DONE = { key: 'done', label: '已完成' };
 /** 佈版階段的 SaaS checkbox key（勾選時走自動佈版流程） */
@@ -55,7 +55,7 @@ const stateClass = (s) => `state state-${String(s).toLowerCase().replace(/\s+/g,
 /** 依子項目與 checkbox 計算 Requirement 目前所在階段 */
 function computeStage(req, checks) {
   if (!activeKids(req).length) return 'pending';
-  if (!(allDevDone(req) && checks[UNDERSTAND_KEY])) return 'implement';
+  if (!(allDevDone(req) && checks[PLAN_KEY])) return 'implement';
   for (const s of STAGES.slice(2)) {
     if (isCommitStage(s.key) && !commitsConfirmed(checks, s.key)) return s.key;
     if (!s.checks.every(([k]) => checks[k])) return s.key;
@@ -87,8 +87,8 @@ export function createRequirementFlowView() {
 
   let requestSeq = 0; // 避免較慢的舊請求覆蓋新結果
   let requirements = [];
-  let state = {}; // { [id]: { [checkKey]: true, understandRepos?: { repoKey: branch }, understandMigration?: true } }
-  const understandDialog = createUnderstandDialog();
+  let state = {}; // { [id]: { [checkKey]: true, planRepos?: { repoKey: branch }, planMigration?: true } }
+  const planDialog = createPlanDialog();
   const commitDialog = createCommitDialog();
   const mergeDialog = createMergeDialog();
   const deployDialog = createDeployDialog();
@@ -261,21 +261,21 @@ export function createRequirementFlowView() {
     return btn;
   }
 
-  /** Manager understand：checkbox 本身不直接切換，點擊時開啟 dialog 選擇 repository / feature branch */
-  function understandCheck(req, stage) {
+  /** 規劃：checkbox 本身不直接切換，點擊時開啟 dialog 選擇 repository / feature branch */
+  function planCheck(req, stage) {
     const s = state[req.id] || {};
     const lab = flowCheck(req, {
       stage,
-      key: UNDERSTAND_KEY,
+      key: PLAN_KEY,
       text: '已理解需求 / 確認開發 repository',
-      checked: !!s[UNDERSTAND_KEY],
+      checked: !!s[PLAN_KEY],
       title: '點擊選擇要開發的 repository 與 feature branch',
       normal: () => {
-        const current = s[UNDERSTAND_KEY]
-          ? { repos: s[UNDERSTAND_REPOS_KEY], migration: !!s[UNDERSTAND_MIGRATION_KEY], note: s[UNDERSTAND_NOTE_KEY] }
+        const current = s[PLAN_KEY]
+          ? { repos: s[PLAN_REPOS_KEY], migration: !!s[PLAN_MIGRATION_KEY], note: s[PLAN_NOTE_KEY] }
           : undefined;
-        understandDialog.open(req, current, async (repos, migration, note) => {
-          state[req.id] = await api.setUnderstand(req.id, repos, migration, note);
+        planDialog.open(req, current, async (repos, migration, note) => {
+          state[req.id] = await api.setPlan(req.id, repos, migration, note);
           update(req);
         });
       },
@@ -283,16 +283,16 @@ export function createRequirementFlowView() {
 
     const box = el('div');
     box.append(lab);
-    if (s[UNDERSTAND_KEY]) {
-      const list = el('div', 'und-summary');
-      const repos = Object.entries(s[UNDERSTAND_REPOS_KEY] || {});
+    if (s[PLAN_KEY]) {
+      const list = el('div', 'check-summary');
+      const repos = Object.entries(s[PLAN_REPOS_KEY] || {});
       if (!repos.length) list.append(el('div', 'repo-line repo-branch', '不需修改 repository'));
       for (const [repo, branch] of repos) {
         const line = el('div', 'repo-line');
         line.append(repoTag(repo), el('span', 'repo-branch', branch));
         list.append(line);
       }
-      if (s[UNDERSTAND_MIGRATION_KEY]) list.append(el('div', 'repo-line migration', '⚠ 需要 migration'));
+      if (s[PLAN_MIGRATION_KEY]) list.append(el('div', 'repo-line migration', '⚠ 需要 migration'));
       box.append(list);
     }
     return box;
@@ -301,17 +301,17 @@ export function createRequirementFlowView() {
   /** Confirm Commit：點擊開啟 dialog 填入各 repository 測試通過版的 commit；確認後才能勾 SaaS / Local */
   function commitCheck(req, stage) {
     const s = state[req.id] || {};
-    const repos = s[UNDERSTAND_KEY] ? s[UNDERSTAND_REPOS_KEY] || {} : {};
+    const repos = s[PLAN_KEY] ? s[PLAN_REPOS_KEY] || {} : {};
     const commits = s[commitsKey(stage.key)];
     const confirmed = commitsConfirmed(s, stage.key);
     const forced = !!s[commitsForcedKey(stage.key)];
-    // Manager understand 沒選 repository（不需修改程式）→ 自動完成，不能點
-    const auto = !!s[UNDERSTAND_KEY] && !Object.keys(repos).length;
+    // 規劃 沒選 repository（不需修改程式）→ 自動完成，不能點
+    const auto = !!s[PLAN_KEY] && !Object.keys(repos).length;
 
     const box = el('div', 'commit-check');
     if (auto) {
       const wrap = el('span', 'flow-check');
-      wrap.title = 'Manager understand 未選擇 repository，不需要 Confirm Commit';
+      wrap.title = '規劃未選擇 repository，不需要 Confirm Commit';
       const input = el('input');
       input.type = 'checkbox';
       input.checked = input.disabled = true;
@@ -326,7 +326,7 @@ export function createRequirementFlowView() {
         key: commitsForcedKey(stage.key),
         text: 'Confirm Commit',
         checked: confirmed,
-        disabledReason: s[UNDERSTAND_KEY] ? '' : '請先完成 Manager understand',
+        disabledReason: s[PLAN_KEY] ? '' : '請先完成規劃',
         title: '點擊填入各 repository 測試通過版的 commit',
         normal: () =>
           commitDialog.open({
@@ -343,10 +343,10 @@ export function createRequirementFlowView() {
           }),
       })
     );
-    if (forced && !(s[UNDERSTAND_KEY] && commitsCover(s, stage.key))) {
-      box.append(el('div', 'und-summary repo-line repo-branch', '跳階段勾起，未填 commit'));
+    if (forced && !(s[PLAN_KEY] && commitsCover(s, stage.key))) {
+      box.append(el('div', 'check-summary repo-line repo-branch', '跳階段勾起，未填 commit'));
     } else if (commits) {
-      const list = el('div', 'und-summary');
+      const list = el('div', 'check-summary');
       for (const repo of Object.keys(repos)) {
         const line = el('div', 'repo-line');
         line.append(repoTag(repo));
@@ -410,7 +410,7 @@ export function createRequirementFlowView() {
     const doneCount = kids.filter(isDevDone).length;
     const head = el('div', 'sub-head');
     head.append(
-      el('span', null, 'Implement'),
+      el('span', null, '開發'),
       el('span', `count${kids.length && doneCount === kids.length ? ' ok' : ''}`, `${doneCount}/${kids.length}`)
     );
     const list = el('div', 'task-list');
@@ -436,21 +436,21 @@ export function createRequirementFlowView() {
     return td;
   }
 
-  /** Implement 與 Manager understand 同屬一個階段：同一欄，分成上下兩格 */
+  /** Implement 與 規劃 同屬一個階段：同一欄，分成上下兩格 */
   function stageCells(req, stage, idx, curIdx) {
     if (stage.key === 'implement') {
       const impl = el('div', `stage ${progressClass(idx, curIdx, allDevDone(req))}`);
       impl.append(implementCell(req));
-      const mgr = el('div', `stage ${progressClass(idx, curIdx, !!state[req.id]?.[UNDERSTAND_KEY])}`);
+      const mgr = el('div', `stage ${progressClass(idx, curIdx, !!state[req.id]?.[PLAN_KEY])}`);
       const mgrHead = el('div', 'sub-head');
-      mgrHead.append(el('span', null, 'Manager understand'));
-      const note = state[req.id]?.[UNDERSTAND_NOTE_KEY];
+      mgrHead.append(el('span', null, '規劃'));
+      const note = state[req.id]?.[PLAN_NOTE_KEY];
       if (note) {
         const icon = el('span', 'note-icon', '💬');
         icon.title = note; // 滑鼠移上去以 tooltip 顯示 manager 的註解
         mgrHead.append(icon);
       }
-      mgr.append(mgrHead, understandCheck(req, stage));
+      mgr.append(mgrHead, planCheck(req, stage));
       const box = el('div', 'split-box');
       box.append(impl, mgr);
       const td = el('td', 'stage-split');
@@ -495,9 +495,9 @@ export function createRequirementFlowView() {
     top.append(workItemLink(`#${req.id}`, req), stateChip(req));
     const stageName = req.stage === DONE.key ? DONE.label : STAGES[curIdx].label;
     head.append(top, el('div', 'req-title', req.title));
-    // Manager understand 選的 repository：以代表色標示，一眼看出此需求動到哪些 repository
+    // 規劃 選的 repository：以代表色標示，一眼看出此需求動到哪些 repository
     const s = state[req.id] || {};
-    const repoKeys = s[UNDERSTAND_KEY] ? Object.keys(s[UNDERSTAND_REPOS_KEY] || {}) : [];
+    const repoKeys = s[PLAN_KEY] ? Object.keys(s[PLAN_REPOS_KEY] || {}) : [];
     if (repoKeys.length) {
       const tags = el('div', 'req-repos');
       tags.append(...repoKeys.map((k) => repoTag(k, 'repo-chip')));

@@ -1,7 +1,7 @@
 const { runScriptJson } = require('../python');
 const { loadRepoConfig } = require('./repoConfig');
 const { loadFlowState } = require('./requirementFlow');
-const { UNDERSTAND_KEY, UNDERSTAND_REPOS_KEY, COMMIT_STAGES } = require('../../shared/flow-rules.js');
+const { PLAN_KEY, PLAN_REPOS_KEY, COMMIT_STAGES } = require('../../shared/flow-rules.js');
 
 /**
  * 佈版階段的自動佈版 Pipeline：環境 branch push 後由 Azure DevOps Pipeline 自動佈版。
@@ -11,14 +11,14 @@ const { UNDERSTAND_KEY, UNDERSTAND_REPOS_KEY, COMMIT_STAGES } = require('../../s
 const RUNS_TOP = 30;
 
 /**
- * Manager understand 所選 repository 中有設定 Pipeline 的，各自最近的 Run（get_pipeline_runs.py）。
+ * 規劃 所選 repository 中有設定 Pipeline 的，各自最近的 Run（get_pipeline_runs.py）。
  * @returns {{ stage, pipelines: [{ repo, name, pipeline, runs }], unconfigured: string[] }}
  *   runs 新到舊；run.active = 尚未結束（進行中 / 排隊 / 停等）。unconfigured = 沒設定 Pipeline 的 repository。
  */
 async function deployPipelineRuns({ id, stage } = {}) {
   if (!Number.isInteger(id) || !COMMIT_STAGES.includes(stage)) throw new Error('參數錯誤');
   const checks = (await loadFlowState())[id] || {};
-  const repos = checks[UNDERSTAND_KEY] ? Object.keys(checks[UNDERSTAND_REPOS_KEY] || {}) : [];
+  const repos = checks[PLAN_KEY] ? Object.keys(checks[PLAN_REPOS_KEY] || {}) : [];
   const config = await loadRepoConfig();
   const targets = [];
   const unconfigured = [];

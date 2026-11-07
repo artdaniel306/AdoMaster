@@ -10,8 +10,8 @@ contextBridge.exposeInMainWorld('api', {
   updateRequirementState: (id, state) => ipcRenderer.invoke('flow:updateState', { id, state }),
   loadFlowState: () => ipcRenderer.invoke('flow:loadState'),
   setFlowCheck: (id, key, value, force = false) => ipcRenderer.invoke('flow:setCheck', { id, key, value, force }),
-  setUnderstand: (id, repos, migration, note) =>
-    ipcRenderer.invoke('flow:setUnderstand', { id, repos, migration, note }),
+  setPlan: (id, repos, migration, note) =>
+    ipcRenderer.invoke('flow:setPlan', { id, repos, migration, note }),
   setCommits: (id, stage, commits) => ipcRenderer.invoke('flow:setCommits', { id, stage, commits }),
   deployMergeStatus: (id, stage) => ipcRenderer.invoke('flow:mergeStatus', { id, stage }),
   mergeDeploy: (id, stage) => ipcRenderer.invoke('flow:mergeDeploy', { id, stage }),

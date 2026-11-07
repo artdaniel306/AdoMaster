@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const { APP_ENV_FILE, REPOS_FILE } = require('../paths');
 
 /**
- * Manager understand 時可選擇開發的 repository 清單定義在 app/repos.json（每次讀取，修改後不用重開 App）：
+ * 規劃 時可選擇開發的 repository 清單定義在 app/repos.json（每次讀取，修改後不用重開 App）：
  *   { "repos": [{ "key": "crmapp", "label": "crmapp", "color": "#2f6feb", "envPrefix": "CRMAPP" }, ...] }
  *   - key：存進流程狀態（data/requirement_flow_state.json）的識別名稱，改名會讓既有紀錄對不上
  *   - label：畫面顯示名稱（預設 = key）；color：代表色（任何 CSS 顏色，選填）

@@ -3,19 +3,19 @@ import { $, el } from './dom.js';
 import { loadRepos, repoTag } from './repos.js';
 
 /**
- * Manager understand dialog：讓 manager 決定需求要在哪些 repository（清單與代表色由 app/repos.json 設定）開發，
+ * 規劃 dialog：讓 manager 決定需求要在哪些 repository（清單與代表色由 app/repos.json 設定）開發，
  * 以及各自做在哪個 feature branch。可選的 branch 由 app/.env 的 <PREFIX>_BRANCHES 設定（每次開啟時重新讀取）。
  */
-export function createUnderstandDialog() {
-  const dialog = $('understand-dialog');
-  const form = $('und-form');
-  const reqEl = $('und-req');
-  const reposEl = $('und-repos');
-  const errorEl = $('und-error');
-  const clearBtn = $('und-clear');
-  const okBtn = $('und-ok');
-  const migrationEl = $('und-migration');
-  const noteEl = $('und-note');
+export function createPlanDialog() {
+  const dialog = $('plan-dialog');
+  const form = $('plan-form');
+  const reqEl = $('plan-req');
+  const reposEl = $('plan-repos');
+  const errorEl = $('plan-error');
+  const clearBtn = $('plan-clear');
+  const okBtn = $('plan-ok');
+  const migrationEl = $('plan-migration');
+  const noteEl = $('plan-note');
 
   let rows = []; // [{ key, check, select }]
   let onSave = null; // (repos | null, migration, note) => Promise
@@ -27,7 +27,7 @@ export function createUnderstandDialog() {
   }
 
   function repoRow(repo, branch) {
-    const row = el('div', 'und-repo');
+    const row = el('div', 'plan-repo');
     const lab = el('label', 'flow-check');
     const check = el('input');
     check.type = 'checkbox';
@@ -93,8 +93,8 @@ export function createUnderstandDialog() {
     save(repos);
   });
   clearBtn.addEventListener('click', () => save(null));
-  $('und-cancel').addEventListener('click', () => dialog.close());
-  $('und-close').addEventListener('click', () => dialog.close());
+  $('plan-cancel').addEventListener('click', () => dialog.close());
+  $('plan-close').addEventListener('click', () => dialog.close());
 
   /**
    * 開啟 dialog。

@@ -5,11 +5,11 @@ const { runScriptJson, tempFile, removeTemp } = require('../python');
 const { loadRepoConfig } = require('./repoConfig');
 const { checkCommit, checkMerged, mergeNoFf } = require('./gitCommit');
 const {
-  UNDERSTAND_KEY,
-  UNDERSTAND_REPOS_KEY,
-  UNDERSTAND_MIGRATION_KEY,
-  UNDERSTAND_NOTE_KEY,
-  UNDERSTAND_KEYS,
+  PLAN_KEY,
+  PLAN_REPOS_KEY,
+  PLAN_MIGRATION_KEY,
+  PLAN_NOTE_KEY,
+  PLAN_KEYS,
   COMMIT_STAGES,
   COMMIT_RE,
   COMMIT_FORMAT_HINT,
@@ -59,13 +59,34 @@ async function updateRequirementStateInAdo({ id, state } = {}) {
   return runScriptJson('update_state.py', ['--id', String(id), '--state', state]);
 }
 
+/** 舊版（「Manager understand」時期）存的 key → 現在的 key */
+const LEGACY_KEYS = {
+  understand: PLAN_KEY,
+  understandRepos: PLAN_REPOS_KEY,
+  understandMigration: PLAN_MIGRATION_KEY,
+  understandNote: PLAN_NOTE_KEY,
+};
+
+/** 讀檔時把舊 key 轉成新 key（下次寫入時就會以新 key 存回；匯入舊版匯出的檔案也適用） */
+function migrateLegacyKeys(state) {
+  for (const checks of Object.values(state || {})) {
+    if (!checks || typeof checks !== 'object') continue;
+    for (const [oldKey, newKey] of Object.entries(LEGACY_KEYS)) {
+      if (!(oldKey in checks)) continue;
+      if (!(newKey in checks)) checks[newKey] = checks[oldKey];
+      delete checks[oldKey];
+    }
+  }
+  return state;
+}
+
 /**
- * 流程中尚未串接 ADO 的人工步驟（Manager understand、佈版、測試、發表會…）先以 checkbox 記錄在本機：
+ * 流程中尚未串接 ADO 的人工步驟（規劃、佈版、測試、發表會…）先以 checkbox 記錄在本機：
  * data/requirement_flow_state.json → { "<requirementId>": { "<checkKey>": true, ... } }
  */
 async function loadFlowState() {
   try {
-    return JSON.parse(await fs.readFile(FLOW_STATE_FILE, 'utf-8'));
+    return migrateLegacyKeys(JSON.parse(await fs.readFile(FLOW_STATE_FILE, 'utf-8')));
   } catch (err) {
     if (err.code === 'ENOENT') return {};
     throw err;
@@ -119,10 +140,10 @@ async function deployMergeStatus({ id, stage, fetch = true } = {}) {
   if (!Number.isInteger(id) || !COMMIT_STAGES.includes(stage)) throw new Error('參數錯誤');
   const checks = (await loadFlowState())[id] || {};
   if (!commitsConfirmed(checks, stage)) throw new Error('請先完成 Confirm Commit');
-  const repos = Object.keys(checks[UNDERSTAND_REPOS_KEY] || {});
+  const repos = Object.keys(checks[PLAN_REPOS_KEY] || {});
   const commits = checks[commitsKey(stage)] || {};
   // 不需修改 repository（Confirm Commit 自動完成），或跳階段勾起 Confirm Commit 而沒有 commit 可檢查
-  if (!repos.length || !checks[UNDERSTAND_KEY] || !commitsCover(checks, stage)) {
+  if (!repos.length || !checks[PLAN_KEY] || !commitsCover(checks, stage)) {
     return { stage, commits, items: [], allMerged: true };
   }
   const config = await loadRepoConfig();
@@ -145,7 +166,7 @@ async function mergeDeploy({ id, stage } = {}) {
   const status = await deployMergeStatus({ id, stage });
   const blocked = status.items.filter((x) => !x.merged && !x.canMerge);
   if (blocked.length) throw new Error(blocked.map((x) => `${x.repo}：${x.message}`).join('；'));
-  const featureBranches = (await loadFlowState())[id]?.[UNDERSTAND_REPOS_KEY] || {};
+  const featureBranches = (await loadFlowState())[id]?.[PLAN_REPOS_KEY] || {};
   const results = await Promise.allSettled(
     status.items
       .filter((x) => !x.merged)
@@ -167,17 +188,17 @@ async function mergeDeploy({ id, stage } = {}) {
  * 設定某個 Requirement 的一個 checkbox，回傳該 Requirement 更新後的狀態。
  * force = true：跳階段勾選（renderer 已跟使用者確認），不做 merge 檢查等一般勾選的邏輯，只變更勾選狀態。
  *   此時另外允許：
- *   - `understand`：勾起只設 understand: true；取消則連同 repository / migration / 註解一併清除
+ *   - `plan`：勾起只設 plan: true；取消則連同 repository / migration / 註解一併清除
  *   - `<stage>.commitsForced`：直接勾起 Confirm Commit；取消則清除該階段的 commit 與 SaaS / Local
  */
 async function setFlowCheck({ id, key, value, force = false } = {}) {
   if (!Number.isInteger(id) || typeof key !== 'string' || !/^[\w.]+$/.test(key)) throw new Error('參數錯誤');
   const forcedStage = COMMIT_STAGES.find((s) => key === commitsForcedKey(s));
-  if (force && (key === UNDERSTAND_KEY || forcedStage)) {
+  if (force && (key === PLAN_KEY || forcedStage)) {
     return updateRequirementState(id, (checks) => {
-      if (key === UNDERSTAND_KEY) {
-        if (value) checks[UNDERSTAND_KEY] = true;
-        else for (const k of UNDERSTAND_KEYS) delete checks[k];
+      if (key === PLAN_KEY) {
+        if (value) checks[PLAN_KEY] = true;
+        else for (const k of PLAN_KEYS) delete checks[k];
       } else if (value) {
         checks[key] = true;
       } else {
@@ -185,7 +206,7 @@ async function setFlowCheck({ id, key, value, force = false } = {}) {
       }
     });
   }
-  if (key.startsWith(UNDERSTAND_KEY) || key.endsWith('.commits') || forcedStage) throw new Error('參數錯誤');
+  if (key.startsWith(PLAN_KEY) || key.endsWith('.commits') || forcedStage) throw new Error('參數錯誤');
   if (force) {
     return updateRequirementState(id, (checks) => {
       if (value) checks[key] = true;
@@ -213,14 +234,14 @@ async function setFlowCheck({ id, key, value, force = false } = {}) {
 }
 
 /**
- * Manager understand：確認此需求要在哪些 repository 開發、各自的 feature branch。
- *   repos = { crmapp: 'feature/x', upagent: 'feature/y' } → understand: true、understandRepos: repos
- *   repos = {} → understand: true、understandRepos: {}（不需修改 repository，Confirm Commit 自動完成）
- *   migration = true → understandMigration: true（需要 migration）
- *   note = '...'     → understandNote: '...'（manager 的註解，空白則不存）
+ * 規劃：確認此需求要在哪些 repository 開發、各自的 feature branch。
+ *   repos = { crmapp: 'feature/x', upagent: 'feature/y' } → plan: true、planRepos: repos
+ *   repos = {} → plan: true、planRepos: {}（不需修改 repository，Confirm Commit 自動完成）
+ *   migration = true → planMigration: true（需要 migration）
+ *   note = '...'     → planNote: '...'（manager 的註解，空白則不存）
  *   repos = null → 取消確認（全部清除）
  */
-async function setUnderstand({ id, repos, migration, note } = {}) {
+async function setPlan({ id, repos, migration, note } = {}) {
   if (!Number.isInteger(id)) throw new Error('參數錯誤');
   if (note != null && typeof note !== 'string') throw new Error('參數錯誤');
   note = (note || '').trim();
@@ -238,20 +259,20 @@ async function setUnderstand({ id, repos, migration, note } = {}) {
   }
   return updateRequirementState(id, (checks) => {
     if (repos) {
-      checks[UNDERSTAND_KEY] = true;
-      checks[UNDERSTAND_REPOS_KEY] = repos;
-      if (migration === true) checks[UNDERSTAND_MIGRATION_KEY] = true;
-      else delete checks[UNDERSTAND_MIGRATION_KEY];
-      if (note) checks[UNDERSTAND_NOTE_KEY] = note;
-      else delete checks[UNDERSTAND_NOTE_KEY];
+      checks[PLAN_KEY] = true;
+      checks[PLAN_REPOS_KEY] = repos;
+      if (migration === true) checks[PLAN_MIGRATION_KEY] = true;
+      else delete checks[PLAN_MIGRATION_KEY];
+      if (note) checks[PLAN_NOTE_KEY] = note;
+      else delete checks[PLAN_NOTE_KEY];
     } else {
-      for (const k of UNDERSTAND_KEYS) delete checks[k];
+      for (const k of PLAN_KEYS) delete checks[k];
     }
   });
 }
 
 /**
- * Confirm Commit（Test deploy / Prod deploy 佈版前）：manager 填入 Manager understand 所選每個 repository
+ * Confirm Commit（Test deploy / Prod deploy 佈版前）：manager 填入 規劃 所選每個 repository
  * 的測試通過版 commit（縮寫即可），存檔前逐一到 repository 確認 commit 存在。
  *   commits = { crmapp: 'abc1234', ... } → `<stage>.commits`: commits
  *   commits = null → 取消確認（連同該階段已勾的 SaaS / Local 一併清除）
@@ -264,9 +285,9 @@ async function setCommits({ id, stage, commits } = {}) {
     });
   }
   const current = (await loadFlowState())[id] || {};
-  const repos = current[UNDERSTAND_KEY] ? current[UNDERSTAND_REPOS_KEY] || {} : {};
-  if (!current[UNDERSTAND_KEY]) throw new Error('請先完成 Manager understand');
-  if (!Object.keys(repos).length) throw new Error('Manager understand 未選擇 repository，不需要 Confirm Commit');
+  const repos = current[PLAN_KEY] ? current[PLAN_REPOS_KEY] || {} : {};
+  if (!current[PLAN_KEY]) throw new Error('請先完成規劃');
+  if (!Object.keys(repos).length) throw new Error('規劃未選擇 repository，不需要 Confirm Commit');
   if (typeof commits !== 'object') throw new Error('參數錯誤');
 
   const normalized = {};
@@ -284,8 +305,8 @@ async function setCommits({ id, stage, commits } = {}) {
   if (missing.length) throw new Error(missing.map((r) => r.message).join('；'));
 
   return updateRequirementState(id, (checks) => {
-    if (JSON.stringify(checks[UNDERSTAND_REPOS_KEY] || {}) !== JSON.stringify(repos)) {
-      throw new Error('Manager understand 的 repository 已變更，請重新開啟後再確認');
+    if (JSON.stringify(checks[PLAN_REPOS_KEY] || {}) !== JSON.stringify(repos)) {
+      throw new Error('規劃的 repository 已變更，請重新開啟後再確認');
     }
     checks[commitsKey(stage)] = normalized;
     delete checks[commitsForcedKey(stage)]; // 已填入實際 commit，不再是跳階段勾起
@@ -300,7 +321,7 @@ module.exports = {
   replaceFlowState,
   writeFileAtomic,
   setFlowCheck,
-  setUnderstand,
+  setPlan,
   setCommits,
   deployMergeStatus,
   mergeDeploy,

@@ -32,26 +32,26 @@
     </div>
   </dialog>
 
-  <dialog id="understand-dialog">
-    <form id="und-form" class="dlg-box" method="dialog">
+  <dialog id="plan-dialog">
+    <form id="plan-form" class="dlg-box" method="dialog">
       <header class="dlg-head">
-        <h3>Manager understand</h3>
-        <button type="button" id="und-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+        <h3>規劃</h3>
+        <button type="button" id="plan-close" class="btn-icon" title="關閉 (Esc)">✕</button>
       </header>
-      <div class="und-body">
-        <p id="und-req" class="und-req"></p>
+      <div class="dlg-body">
+        <p id="plan-req" class="dlg-req"></p>
         <p class="muted">勾選此需求需要開發的 repository，並選擇要做在哪個 feature branch。不需修改程式（例如只調整 database 資料）時可以都不勾，Confirm Commit 會自動完成。</p>
-        <div id="und-repos" class="und-repos"></div>
-        <label class="flow-check und-migration"><input id="und-migration" type="checkbox" /> 需要 migration</label>
-        <label class="und-note-label" for="und-note">註解</label>
-        <textarea id="und-note" class="und-note" rows="4" maxlength="2000" placeholder="選填：補充說明、注意事項…"></textarea>
-        <p id="und-error" class="status error" hidden></p>
+        <div id="plan-repos" class="plan-repos"></div>
+        <label class="flow-check plan-migration"><input id="plan-migration" type="checkbox" /> 需要 migration</label>
+        <label class="dlg-note-label" for="plan-note">註解</label>
+        <textarea id="plan-note" class="dlg-note" rows="4" maxlength="2000" placeholder="選填：補充說明、注意事項…"></textarea>
+        <p id="plan-error" class="status error" hidden></p>
       </div>
       <footer class="dlg-foot">
-        <button type="button" id="und-clear" class="btn-ghost btn-danger">取消確認</button>
+        <button type="button" id="plan-clear" class="btn-ghost btn-danger">取消確認</button>
         <span class="spacer"></span>
-        <button type="button" id="und-cancel" class="btn-ghost">取消</button>
-        <button type="submit" id="und-ok" class="btn-primary">確認</button>
+        <button type="button" id="plan-cancel" class="btn-ghost">取消</button>
+        <button type="submit" id="plan-ok" class="btn-primary">確認</button>
       </footer>
     </form>
   </dialog>
@@ -62,8 +62,8 @@
         <h3 id="cc-title">Confirm Commit</h3>
         <button type="button" id="cc-close" class="btn-icon" title="關閉 (Esc)">✕</button>
       </header>
-      <div class="und-body">
-        <p id="cc-req" class="und-req"></p>
+      <div class="dlg-body">
+        <p id="cc-req" class="dlg-req"></p>
         <p class="muted">填入此需求開發測試通過版的 commit（縮寫即可），並按「檢查」確認 repository 中存在該 commit。</p>
         <div id="cc-repos" class="cc-repos"></div>
         <p id="cc-error" class="status error" hidden></p>
@@ -83,11 +83,11 @@
         <h3>安排預設 Task</h3>
         <button type="button" id="tk-close" class="btn-icon" title="關閉 (Esc)">✕</button>
       </header>
-      <div class="und-body">
-        <p id="tk-req" class="und-req"></p>
+      <div class="dlg-body">
+        <p id="tk-req" class="dlg-req"></p>
         <p class="muted">將在此 Requirement 底下建立一個同名的 Task（Area / Iteration 沿用 Requirement）。</p>
-        <label class="und-note-label" for="tk-desc">Description</label>
-        <textarea id="tk-desc" class="und-note" rows="6" maxlength="8000" placeholder="Task 的說明…"></textarea>
+        <label class="dlg-note-label" for="tk-desc">Description</label>
+        <textarea id="tk-desc" class="dlg-note" rows="6" maxlength="8000" placeholder="Task 的說明…"></textarea>
         <p id="tk-error" class="status error" hidden></p>
       </div>
       <footer class="dlg-foot">
@@ -104,8 +104,8 @@
         <h3>Description</h3>
         <button type="button" id="ds-close" class="btn-icon" title="關閉 (Esc)">✕</button>
       </header>
-      <div class="und-body">
-        <p id="ds-title" class="und-req"></p>
+      <div class="dlg-body">
+        <p id="ds-title" class="dlg-req"></p>
         <p id="ds-meta" class="muted"></p>
         <div id="ds-body" class="ds-body"></div>
       </div>
@@ -123,8 +123,8 @@
         <h3 id="cf-title">確認</h3>
         <button type="button" id="cf-close" class="btn-icon" title="關閉 (Esc)">✕</button>
       </header>
-      <div class="und-body">
-        <p id="cf-req" class="und-req"></p>
+      <div class="dlg-body">
+        <p id="cf-req" class="dlg-req"></p>
         <p id="cf-msg" class="cf-msg"></p>
       </div>
       <footer class="dlg-foot">
@@ -141,8 +141,8 @@
         <h3 id="mg-title">尚未 merge</h3>
         <button type="button" id="mg-close" class="btn-icon" title="關閉 (Esc)">✕</button>
       </header>
-      <div class="und-body">
-        <p id="mg-req" class="und-req"></p>
+      <div class="dlg-body">
+        <p id="mg-req" class="dlg-req"></p>
         <p class="muted">以下 commit 尚未 merge 進環境 branch，要現在 merge 嗎？</p>
         <div id="mg-list" class="cc-repos"></div>
         <p id="mg-hint" class="muted"></p>
@@ -162,8 +162,8 @@
         <h3 id="dp-title">佈版</h3>
         <button type="button" id="dp-close" class="btn-icon" title="關閉 (Esc)">✕</button>
       </header>
-      <div class="und-body">
-        <p id="dp-req" class="und-req"></p>
+      <div class="dlg-body">
+        <p id="dp-req" class="dlg-req"></p>
         <p id="dp-phase" class="status"></p>
         <h4 class="dp-sec">Merge</h4>
         <div id="dp-merge" class="cc-repos"></div>
@@ -203,13 +203,13 @@
         <table id="flow-table" class="flow" hidden>
           <thead>
             <tr>
-              <th class="req-col">Requirement</th>
-              <th data-stage="pending">Pending</th>
-              <th data-stage="implement">Implement</th>
-              <th data-stage="testDeploy">Test deploy</th>
-              <th data-stage="test">Test</th>
-              <th data-stage="prodDeploy">Prod deploy</th>
-              <th data-stage="recap">Release recap</th>
+              <th class="req-col">需求</th>
+              <th data-stage="pending">待處理</th>
+              <th data-stage="implement">開發</th>
+              <th data-stage="testDeploy">測試環境佈版</th>
+              <th data-stage="test">測試</th>
+              <th data-stage="prodDeploy">正式環境佈版</th>
+              <th data-stage="recap">功能發表</th>
             </tr>
           </thead>
           <tbody></tbody>

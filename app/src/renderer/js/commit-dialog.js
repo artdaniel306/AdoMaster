@@ -5,7 +5,7 @@ import { COMMIT_RE, COMMIT_FORMAT_HINT } from '../../shared/flow-rules.js';
 
 /**
  * Confirm Commit dialog（Test deploy / Prod deploy 勾選 SaaS / Local 之前）：
- * manager 依 Manager understand 選的 repository 各自填入測試通過版的 commit（縮寫即可），
+ * manager 依 規劃 選的 repository 各自填入測試通過版的 commit（縮寫即可），
  * 按「檢查」到 app/.env 設定的 repository（<REPO>_REPO_PATH）確認 commit 存在。
  * 按「確認」時 main process 會再全部檢查一次才存檔。
  */
@@ -130,7 +130,7 @@ export function createCommitDialog() {
    * 開啟 dialog。
    * @param req Requirement（顯示標題用）
    * @param stageLabel 階段名稱（Test deploy / Prod deploy）
-   * @param repos Manager understand 選的 { repoKey: featureBranch }
+   * @param repos 規劃 選的 { repoKey: featureBranch }
    * @param current 目前已確認的 { repoKey: commit }，未確認時為 undefined
    * @param prefill 未確認時預先填入的 commit（例：Prod deploy 帶入 Test deploy 的 commit）
    * @param saveFn (commits | null) => Promise；null 代表取消確認

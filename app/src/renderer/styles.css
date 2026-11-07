@@ -177,7 +177,7 @@ tr.all-done .req-title { color: var(--ok); }
 .stage-mark { color: var(--muted); }
 .stage.past .stage-mark { color: var(--ok); }
 .stage.current .stage-mark { color: var(--fg); font-weight: 600; }
-/* Implement 欄：上下兩格（Implement / Manager understand），各自顯示進度色 */
+/* Implement 欄：上下兩格（Implement / 規劃），各自顯示進度色 */
 td.stage-split { padding: 0; height: 1px; }
 .split-box { display: flex; flex-direction: column; height: 100%; }
 .split-box > .stage { padding: 6px 10px; }
@@ -198,21 +198,21 @@ td.stage-split { padding: 0; height: 1px; }
 .node-row .pin-btn { margin-left: auto; }
 .node-row .node-date + .pin-btn { margin-left: 0; }
 
-/* ---- Manager understand dialog ---- */
-#understand-dialog {
+/* ---- 規劃 dialog ---- */
+#plan-dialog {
   padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
   width: min(560px, 90vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
 }
-#understand-dialog::backdrop { background: rgba(0, 0, 0, .35); }
-.und-body { padding: 0 14px 8px; }
-.und-req { margin: 0 0 4px; font-weight: 600; word-break: break-word; }
-.und-repos { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.und-repo { display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 10px; }
-.und-repo select {
+#plan-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+.dlg-body { padding: 0 14px 8px; }
+.dlg-req { margin: 0 0 4px; font-weight: 600; word-break: break-word; }
+.plan-repos { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.plan-repo { display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 10px; }
+.plan-repo select {
   padding: 5px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit;
 }
-.und-repo select:disabled { opacity: .5; }
-.und-repo .muted { margin: 0; grid-column: 2; }
+.plan-repo select:disabled { opacity: .5; }
+.plan-repo .muted { margin: 0; grid-column: 2; }
 .dlg-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
 .spacer { flex: 1; }
 .btn-primary { background: var(--accent); border: 1px solid var(--accent); color: #fff; border-radius: 6px; padding: 4px 14px; }
@@ -220,14 +220,14 @@ td.stage-split { padding: 0; height: 1px; }
 .btn-danger { color: var(--err); }
 .btn-ghost[hidden] { display: none; }
 /* 流程表中顯示已確認的 repository / branch */
-.und-summary { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
-.und-summary .repo-line { display: flex; gap: 6px; font-size: 11px; }
-.und-summary .repo-name { font-weight: 600; }
-.und-summary .repo-branch { color: var(--muted); word-break: break-all; }
-.und-migration { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--border); }
-.und-summary .migration { color: var(--cur-border); font-weight: 600; }
-.und-note-label { display: block; margin: 12px 0 4px; font-weight: 600; }
-.und-note {
+.check-summary { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.check-summary .repo-line { display: flex; gap: 6px; font-size: 11px; }
+.check-summary .repo-name { font-weight: 600; }
+.check-summary .repo-branch { color: var(--muted); word-break: break-all; }
+.plan-migration { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.check-summary .migration { color: var(--cur-border); font-weight: 600; }
+.dlg-note-label { display: block; margin: 12px 0 4px; font-weight: 600; }
+.dlg-note {
   width: 100%; resize: vertical; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
   background: var(--bg); color: var(--fg); font: inherit;
 }
@@ -255,8 +255,8 @@ td.stage-split { padding: 0; height: 1px; }
 .cc-result.warn { color: var(--cur-border); }
 .cc-result.bad { color: var(--err); }
 .commit-check { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px dashed var(--border); }
-.und-summary .repo-commit { font: 11px Consolas, "Courier New", monospace; color: var(--muted); }
-.und-summary .repo-missing { color: var(--err); }
+.check-summary .repo-commit { font: 11px Consolas, "Courier New", monospace; color: var(--muted); }
+.check-summary .repo-missing { color: var(--err); }
 .flow-check.disabled { opacity: .55; }
 .flow-check.disabled input { cursor: not-allowed; }
 
@@ -317,7 +317,7 @@ td.stage-split { padding: 0; height: 1px; }
 }
 #desc-dialog::backdrop { background: rgba(0, 0, 0, .35); }
 #desc-dialog .dlg-box { max-height: 85vh; }
-#desc-dialog .und-body { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+#desc-dialog .dlg-body { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .ds-body {
   margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg);
   white-space: pre-wrap; word-break: break-word; overflow: auto; min-height: 80px; max-height: 60vh;

@@ -22,7 +22,7 @@ function registerIpcHandlers() {
   ipcMain.handle('flow:updateState', (_e, params) => requirementFlow.updateRequirementStateInAdo(params));
   ipcMain.handle('flow:loadState', () => requirementFlow.loadFlowState());
   ipcMain.handle('flow:setCheck', (_e, params) => requirementFlow.setFlowCheck(params));
-  ipcMain.handle('flow:setUnderstand', (_e, params) => requirementFlow.setUnderstand(params));
+  ipcMain.handle('flow:setPlan', (_e, params) => requirementFlow.setPlan(params));
   ipcMain.handle('flow:setCommits', (_e, params) => requirementFlow.setCommits(params));
   ipcMain.handle('flow:mergeStatus', (_e, { id, stage } = {}) => requirementFlow.deployMergeStatus({ id, stage }));
   ipcMain.handle('flow:mergeDeploy', (_e, { id, stage } = {}) => requirementFlow.mergeDeploy({ id, stage }));
