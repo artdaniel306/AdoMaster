@@ -101,19 +101,20 @@
   <dialog id="test-dialog">
     <form id="tr-form" class="dlg-box" method="dialog">
       <header class="dlg-head">
-        <h3>測試記錄</h3>
+        <h3>測試 / 檢核記錄</h3>
         <button type="button" id="tr-close" class="btn-icon" title="關閉 (Esc)">✕</button>
       </header>
       <div class="dlg-body">
         <p id="tr-req" class="dlg-req"></p>
-        <p class="muted">記下這次的測試場景，之後才能回想起當時的狀況。可以從以下面向記錄：</p>
+        <p class="muted">記下這次的測試場景或驗證方式，之後才能回想起當時的狀況。可以從以下面向記錄：</p>
         <ul class="tr-aspects muted">
           <li><b>時間</b>、<b>地點</b>、<b>人員</b>（誰測、誰陪同）</li>
           <li><b>溝通管道</b>：Teams / SharePoint / Email…</li>
           <li><b>裝置</b>、<b>連線</b>（網路、VPN、環境）、使用的<b>資料</b></li>
+          <li>不是實際測試而是檢查時：<b>怎麼驗證</b>這件事沒問題（查了哪些資料 / 設定、比對的依據、結果）</li>
         </ul>
         <textarea id="tr-note" class="dlg-note" rows="7" maxlength="4000"
-          placeholder="例：11/7 14:00 在客戶會議室，與 PM 小王、使用者 A 透過 Teams 會議測試；使用客戶筆電 + 公司 Wi-Fi；以測試帳號 test01、訂單 #1234 驗證…"></textarea>
+          placeholder="例：11/7 14:00 在客戶會議室，與 PM 小王、使用者 A 透過 Teams 會議測試；使用客戶筆電 + 公司 Wi-Fi；以測試帳號 test01、訂單 #1234 驗證…&#10;或：11/7 查詢正式 DB 的 Customer 資料表，確認 50 筆資料的 Region 已更新為新代碼，與客戶提供的清單逐筆比對一致…"></textarea>
         <div class="dlg-note-label tr-images-head">
           <span>圖片</span>
           <span class="muted">直接按 Ctrl + V 貼上截圖，或拖曳圖片到這裡</span>
@@ -127,7 +128,7 @@
       <footer class="dlg-foot">
         <span class="spacer"></span>
         <button type="button" id="tr-cancel" class="btn-ghost">取消</button>
-        <button type="submit" id="tr-ok" class="btn-primary">確認測試完成</button>
+        <button type="submit" id="tr-ok" class="btn-primary">確認完成</button>
       </footer>
     </form>
   </dialog>
@@ -245,7 +246,7 @@
               <th data-stage="pending">待處理</th>
               <th data-stage="implement">開發</th>
               <th data-stage="testDeploy">測試環境佈版</th>
-              <th data-stage="test">測試</th>
+              <th data-stage="test">測試與檢核</th>
               <th data-stage="prodDeploy">正式環境佈版</th>
               <th data-stage="recap">功能發表</th>
             </tr>

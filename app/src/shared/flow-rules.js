@@ -42,6 +42,14 @@ export function commitsCover(checks, stage) {
 }
 
 /**
+ * 規劃 已確認且沒選任何 repository（不需修改 repository，例如只需調整 database 資料）：
+ * Confirm Commit 自動完成，佈版階段的 SaaS / Local 也省略（不需勾選即視為完成）。
+ */
+export function noRepoChange(checks) {
+  return !!checks[PLAN_KEY] && !Object.keys(checks[PLAN_REPOS_KEY] || {}).length;
+}
+
+/**
  * Confirm Commit 是否已完成：commit 涵蓋所有 repository，或跳階段直接勾起。
  * 規劃 沒選任何 repository（例如只需調整 database 資料）時，視為自動完成。
  */

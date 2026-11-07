@@ -21,6 +21,7 @@ import {
   commitsForcedKey,
   commitsCover,
   commitsConfirmed,
+  noRepoChange,
 } from '../../shared/flow-rules.js';
 
 /**
@@ -34,13 +35,14 @@ import {
  *   各自填入測試通過版的 commit，並確認 repository 中真的有這個 commit。
  * - 勾 SaaS 時若有設定自動佈版 Pipeline（data/repos.json `testPipeline` / `prodPipeline`），
  *   改走 deploy-dialog.js：等進行中的 Run 結束 → merge + push → 監看新 Run → 通知（成功時自動勾起）。
- * - 勾「測試完成」時開啟 test-dialog.js 記錄測試場景（文字 + 圖片），儲存後才勾起。
+ * - 規劃 沒選 repository（不需修改 repository）時，Confirm Commit 自動完成，SaaS / Local 也省略（不需勾選）。
+ * - 勾「測試 / 檢核完成」時開啟 test-dialog.js 記錄測試場景或驗證方式（文字 + 圖片），儲存後才勾起。
  */
 const STAGES = [
   { key: 'pending', label: '待處理' },
   { key: 'implement', label: '開發' },
   { key: 'testDeploy', label: '測試環境佈版', checks: [['testDeploy.saas', 'SaaS'], ['testDeploy.local', 'Local']] },
-  { key: 'test', label: '測試', checks: [[TEST_KEY, '測試完成']] },
+  { key: 'test', label: '測試與檢核', checks: [[TEST_KEY, '測試 / 檢核完成']] },
   { key: 'prodDeploy', label: '正式環境佈版', checks: [['prodDeploy.saas', 'SaaS'], ['prodDeploy.local', 'Local']] },
   { key: 'recap', label: '功能發表', checks: [['recap.meeting', 'Meeting'], ['recap.record', 'Record']] },
 ];
@@ -62,6 +64,8 @@ function computeStage(req, checks) {
   if (!(allDevDone(req) && checks[PLAN_KEY])) return 'implement';
   for (const s of STAGES.slice(2)) {
     if (isCommitStage(s.key) && !commitsConfirmed(checks, s.key)) return s.key;
+    // 不需修改 repository：佈版階段的 SaaS / Local 省略
+    if (isCommitStage(s.key) && noRepoChange(checks)) continue;
     if (!s.checks.every(([k]) => checks[k])) return s.key;
   }
   return DONE.key;
@@ -178,7 +182,7 @@ export function createRequirementFlowView() {
     update(req);
   }
 
-  /** 一般 checkbox（SaaS / Local、測試完成、Meeting / Record…） */
+  /** 一般 checkbox（SaaS / Local、Meeting / Record…） */
   function checkbox(req, stage, key, text, disabledReason = '') {
     return flowCheck(req, {
       stage,
@@ -311,7 +315,7 @@ export function createRequirementFlowView() {
     const confirmed = commitsConfirmed(s, stage.key);
     const forced = !!s[commitsForcedKey(stage.key)];
     // 規劃 沒選 repository（不需修改程式）→ 自動完成，不能點
-    const auto = !!s[PLAN_KEY] && !Object.keys(repos).length;
+    const auto = noRepoChange(s);
 
     const box = el('div', 'commit-check');
     if (auto) {
@@ -394,7 +398,7 @@ export function createRequirementFlowView() {
   }
 
   /**
-   * 測試完成：勾起時先開啟測試記錄 dialog，儲存記錄後才勾起；取消勾選時保留記錄（再次勾選會帶入）。
+   * 測試 / 檢核完成：勾起時先開啟測試 / 檢核記錄 dialog，儲存記錄後才勾起；取消勾選時保留記錄（再次勾選會帶入）。
    * 有記錄時在底下顯示連結，點擊可檢視 / 編輯（不變更勾選狀態）。
    */
   function testCheck(req, stage) {
@@ -415,9 +419,9 @@ export function createRequirementFlowView() {
       flowCheck(req, {
         stage,
         key: TEST_KEY,
-        text: '測試完成',
+        text: '測試 / 檢核完成',
         checked: !!s[TEST_KEY],
-        title: '點擊記錄這次的測試場景',
+        title: '點擊記錄這次的測試場景或驗證方式',
         normal: async (value) => {
           if (value) return openRecord(true);
           state[req.id] = await api.setFlowCheck(req.id, TEST_KEY, false);
@@ -427,7 +431,7 @@ export function createRequirementFlowView() {
     );
     if (record) {
       const n = record.images?.length || 0;
-      const btn = el('button', 'btn-link test-record-link', `📝 測試記錄${n ? `（${n} 張圖）` : ''}`);
+      const btn = el('button', 'btn-link test-record-link', `📝 測試 / 檢核記錄${n ? `（${n} 張圖）` : ''}`);
       btn.type = 'button';
       btn.title = `${record.note || '（無文字記錄）'}
 
@@ -516,6 +520,12 @@ export function createRequirementFlowView() {
       const box = el('div', 'checks');
       const reason = confirmed ? '' : '請先完成 Confirm Commit';
       const deploying = deployDialog.statusOf(req.id, stage.key);
+      if (noRepoChange(state[req.id] || {})) {
+        // 不需修改 repository：沒有東西要佈版，SaaS / Local 省略
+        box.append(el('span', 'muted', '不需佈版（未修改 repository）'));
+        td.append(commitBox, box);
+        return [td];
+      }
       // 已勾選的仍可取消，避免 commit 變更後卡住
       box.append(
         ...stage.checks.map(([k, label]) =>

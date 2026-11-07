@@ -7,8 +7,8 @@ const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 const IMAGES_MAX = 30;
 
 /**
- * 測試記錄 dialog（勾「測試完成」時開啟，也可從流程表中的記錄連結開啟編輯）：
- * 一格文字記錄測試場景（時間、地點、人員、溝通管道、裝置、連線、資料…），
+ * 測試 / 檢核記錄 dialog（勾「測試 / 檢核完成」時開啟，也可從流程表中的記錄連結開啟編輯）：
+ * 一格文字記錄測試場景（時間、地點、人員、溝通管道、裝置、連線、資料…）或驗證方式，
  * 圖片可用 Ctrl + V 貼上截圖 / 複製的圖片、拖曳，或按「上傳圖片…」選檔。
  * 存檔由 main process 寫入 data/test_records/<id>/ 與流程狀態檔的 testRecord。
  */
@@ -173,12 +173,12 @@ export function createTestDialog() {
    * 開啟 dialog。
    * @param req Requirement（顯示標題用；req.id 用來讀取既有圖片）
    * @param record 既有的測試記錄 { note, images: [檔名] }，沒有時為 undefined
-   * @param confirm true = 儲存時同時勾起「測試完成」（按鈕顯示「確認測試完成」）
+   * @param confirm true = 儲存時同時勾起「測試 / 檢核完成」（按鈕顯示「確認完成」）
    * @param saveFn ({ note, keep, images }) => Promise；成功後關閉 dialog
    */
   async function open({ req, record, confirm, saveFn }) {
     onSave = saveFn;
-    okLabel = confirm ? '確認測試完成' : '儲存';
+    okLabel = confirm ? '確認完成' : '儲存';
     releaseUrls();
     setBusy(false);
     showError('');
