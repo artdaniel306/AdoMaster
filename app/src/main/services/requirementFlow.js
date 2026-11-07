@@ -10,6 +10,7 @@ const {
   PLAN_MIGRATION_KEY,
   PLAN_NOTE_KEY,
   PLAN_KEYS,
+  TEST_RECORD_KEY,
   COMMIT_STAGES,
   COMMIT_RE,
   COMMIT_FORMAT_HINT,
@@ -206,7 +207,7 @@ async function setFlowCheck({ id, key, value, force = false } = {}) {
       }
     });
   }
-  if (key.startsWith(PLAN_KEY) || key.endsWith('.commits') || forcedStage) throw new Error('參數錯誤');
+  if (key.startsWith(PLAN_KEY) || key.endsWith('.commits') || forcedStage || key === TEST_RECORD_KEY) throw new Error('參數錯誤');
   if (force) {
     return updateRequirementState(id, (checks) => {
       if (value) checks[key] = true;
@@ -320,6 +321,7 @@ module.exports = {
   loadFlowState,
   replaceFlowState,
   writeFileAtomic,
+  updateRequirementState,
   setFlowCheck,
   setPlan,
   setCommits,

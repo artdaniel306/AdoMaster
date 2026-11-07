@@ -2,8 +2,9 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const AdmZip = require('adm-zip');
 const { dialog } = require('electron');
-const { ROOT_DIR, FLOW_STATE_FILE } = require('../paths');
+const { ROOT_DIR, FLOW_STATE_FILE, TEST_RECORDS_DIR } = require('../paths');
 const { replaceFlowState, writeFileAtomic } = require('./requirementFlow');
+const { TEST_IMAGE_RE } = require('../../shared/flow-rules.js');
 
 /**
  * 匯出 / 匯入「不進 git、也無法從 API 取回」的本地資料。
@@ -18,6 +19,27 @@ const FILES = [
 ];
 // renderer 的 localStorage（固定的 Iteration、側欄收合狀態）不在檔案系統上，由 renderer 傳進來 / 交回去
 const LOCAL_STORAGE = { name: 'localStorage.json', label: '固定的 Iteration 等介面設定' };
+// 測試記錄的圖片：data/test_records/<requirementId>/<檔名>，匯入時只接受符合這個格式的路徑
+const TEST_IMAGES = { name: 'data/test_records/', label: '測試記錄圖片' };
+const TEST_IMAGE_ENTRY = (name) => {
+  const m = /^data\/test_records\/(\d+)\/([^/]+)$/.exec(name);
+  return !!m && TEST_IMAGE_RE.test(m[2]);
+};
+const imagesInfo = (n) => ({ ...TEST_IMAGES, label: `${TEST_IMAGES.label}（${n} 張）` });
+
+/** 列出 data/test_records 下所有圖片（相對專案根目錄、以 / 分隔的路徑） */
+async function listTestImages() {
+  let entries;
+  try {
+    entries = await fs.readdir(TEST_RECORDS_DIR, { recursive: true });
+  } catch (err) {
+    if (err.code === 'ENOENT') return [];
+    throw err;
+  }
+  return entries
+    .map((rel) => `${TEST_IMAGES.name}${rel.split(path.sep).join('/')}`)
+    .filter(TEST_IMAGE_ENTRY);
+}
 
 const DEFAULT_ZIP_NAME = 'adomaster.zip';
 const ZIP_FILTERS = [{ name: 'Zip', extensions: ['zip'] }];
@@ -54,6 +76,12 @@ async function exportLocalData(win, localStorageItems = {}) {
     zip.addFile(f.name, buf);
     files.push(describe(f));
   }
+  const images = await listTestImages();
+  for (const name of images) {
+    const buf = await readIfExists(absPath(name));
+    if (buf) zip.addFile(name, buf);
+  }
+  if (images.length) files.push(imagesInfo(images.length));
   zip.addFile(LOCAL_STORAGE.name, Buffer.from(JSON.stringify(localStorageItems, null, 2), 'utf-8'));
   files.push(describe(LOCAL_STORAGE));
 
@@ -71,6 +99,7 @@ function readImportZip(zipPath) {
     if (f.json) JSON.parse(buf.toString('utf-8'));
     return { ...f, buf };
   });
+  const images = [...entries.keys()].filter(TEST_IMAGE_ENTRY).map((name) => ({ name, buf: entries.get(name).getData() }));
 
   let localStorage = null;
   if (entries.has(LOCAL_STORAGE.name)) {
@@ -80,11 +109,18 @@ function readImportZip(zipPath) {
     }
   }
 
-  if (!files.length && !localStorage) {
+  if (!files.length && !images.length && !localStorage) {
     throw new Error('這個 zip 裡沒有可匯入的本地資料（請選擇由「匯出本地資料」產生的檔案）。');
   }
-  return { files, localStorage };
+  return { files, images, localStorage };
 }
+
+/** 給 renderer 顯示的匯入項目清單 */
+const importList = ({ files, images, localStorage }) => [
+  ...files.map(describe),
+  ...(images.length ? [imagesInfo(images.length)] : []),
+  ...(localStorage ? [describe(LOCAL_STORAGE)] : []),
+];
 
 let pendingImport = null; // 使用者選好、但還沒確認匯入的 zip 路徑（只留在 main，不讓 renderer 指定路徑）
 
@@ -102,9 +138,9 @@ async function pickImportZip(win) {
   if (canceled || !filePaths?.length) return null;
 
   const zipPath = filePaths[0];
-  const { files, localStorage } = readImportZip(zipPath);
+  const content = readImportZip(zipPath);
   pendingImport = zipPath;
-  return { zipPath, files: [...files, ...(localStorage ? [LOCAL_STORAGE] : [])].map(describe) };
+  return { zipPath, files: importList(content) };
 }
 
 /**
@@ -116,16 +152,15 @@ async function applyImport() {
   const zipPath = pendingImport;
   pendingImport = null;
 
-  const { files, localStorage } = readImportZip(zipPath); // 重新讀一次，確認後檔案若被換掉也不會寫入壞資料
-  for (const f of files) {
+  const content = readImportZip(zipPath); // 重新讀一次，確認後檔案若被換掉也不會寫入壞資料
+  // 先寫圖片，再寫流程狀態（狀態中的 testRecord 才找得到圖片）
+  for (const img of content.images) await writeFileAtomic(absPath(img.name), img.buf);
+  for (const f of content.files) {
     const file = absPath(f.name);
     if (file === FLOW_STATE_FILE) await replaceFlowState(f.buf.toString('utf-8'));
     else await writeFileAtomic(file, f.buf);
   }
-  return {
-    files: [...files, ...(localStorage ? [LOCAL_STORAGE] : [])].map(describe),
-    localStorage,
-  };
+  return { files: importList(content), localStorage: content.localStorage };
 }
 
 module.exports = { exportLocalData, pickImportZip, applyImport };

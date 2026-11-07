@@ -6,6 +6,7 @@ import { createMergeDialog } from './merge-dialog.js';
 import { createDeployDialog } from './deploy-dialog.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 import { createTaskDialog } from './task-dialog.js';
+import { createTestDialog } from './test-dialog.js';
 import { workItemLink } from './description-dialog.js';
 import { loadRepos, repoTag } from './repos.js';
 import {
@@ -13,6 +14,8 @@ import {
   PLAN_REPOS_KEY,
   PLAN_MIGRATION_KEY,
   PLAN_NOTE_KEY,
+  TEST_KEY,
+  TEST_RECORD_KEY,
   isCommitStage,
   commitsKey,
   commitsForcedKey,
@@ -31,12 +34,13 @@ import {
  *   各自填入測試通過版的 commit，並確認 repository 中真的有這個 commit。
  * - 勾 SaaS 時若有設定自動佈版 Pipeline（data/repos.json `testPipeline` / `prodPipeline`），
  *   改走 deploy-dialog.js：等進行中的 Run 結束 → merge + push → 監看新 Run → 通知（成功時自動勾起）。
+ * - 勾「測試完成」時開啟 test-dialog.js 記錄測試場景（文字 + 圖片），儲存後才勾起。
  */
 const STAGES = [
   { key: 'pending', label: '待處理' },
   { key: 'implement', label: '開發' },
   { key: 'testDeploy', label: '測試環境佈版', checks: [['testDeploy.saas', 'SaaS'], ['testDeploy.local', 'Local']] },
-  { key: 'test', label: '測試', checks: [['test', '測試完成']] },
+  { key: 'test', label: '測試', checks: [[TEST_KEY, '測試完成']] },
   { key: 'prodDeploy', label: '正式環境佈版', checks: [['prodDeploy.saas', 'SaaS'], ['prodDeploy.local', 'Local']] },
   { key: 'recap', label: '功能發表', checks: [['recap.meeting', 'Meeting'], ['recap.record', 'Record']] },
 ];
@@ -94,6 +98,7 @@ export function createRequirementFlowView() {
   const deployDialog = createDeployDialog();
   const confirmDialog = createConfirmDialog();
   const taskDialog = createTaskDialog();
+  const testDialog = createTestDialog();
 
   function renderSummary() {
     const counts = new Map([...STAGES, DONE].map((s) => [s.key, 0]));
@@ -388,6 +393,51 @@ export function createRequirementFlowView() {
     return btn;
   }
 
+  /**
+   * 測試完成：勾起時先開啟測試記錄 dialog，儲存記錄後才勾起；取消勾選時保留記錄（再次勾選會帶入）。
+   * 有記錄時在底下顯示連結，點擊可檢視 / 編輯（不變更勾選狀態）。
+   */
+  function testCheck(req, stage) {
+    const s = state[req.id] || {};
+    const record = s[TEST_RECORD_KEY];
+    const openRecord = (confirm) =>
+      testDialog.open({
+        req,
+        record,
+        confirm,
+        saveFn: async (data) => {
+          state[req.id] = await api.setTestRecord(req.id, { ...data, check: confirm });
+          update(req);
+        },
+      });
+    const box = el('div', 'checks');
+    box.append(
+      flowCheck(req, {
+        stage,
+        key: TEST_KEY,
+        text: '測試完成',
+        checked: !!s[TEST_KEY],
+        title: '點擊記錄這次的測試場景',
+        normal: async (value) => {
+          if (value) return openRecord(true);
+          state[req.id] = await api.setFlowCheck(req.id, TEST_KEY, false);
+          update(req);
+        },
+      })
+    );
+    if (record) {
+      const n = record.images?.length || 0;
+      const btn = el('button', 'btn-link test-record-link', `📝 測試記錄${n ? `（${n} 張圖）` : ''}`);
+      btn.type = 'button';
+      btn.title = `${record.note || '（無文字記錄）'}
+
+點擊檢視 / 編輯`;
+      btn.addEventListener('click', () => openRecord(false));
+      box.append(btn);
+    }
+    return box;
+  }
+
   /** Pending 且尚未展開 Task：開啟 dialog 輸入 Description，在 ADO 建立與 Requirement 同名的 Task */
   function defaultTaskButton(req) {
     const btn = el('button', 'btn-ghost btn-default-task', '安排預設 Task');
@@ -475,6 +525,8 @@ export function createRequirementFlowView() {
       const line = deployStatusLine(req, stage);
       if (line) box.append(line);
       td.append(commitBox, box);
+    } else if (stage.key === 'test') {
+      td.append(testCheck(req, stage));
     } else {
       const box = el('div', 'checks');
       box.append(...stage.checks.map(([k, label]) => checkbox(req, stage, k, label)));

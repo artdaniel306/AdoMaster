@@ -13,6 +13,10 @@ contextBridge.exposeInMainWorld('api', {
   setPlan: (id, repos, migration, note) =>
     ipcRenderer.invoke('flow:setPlan', { id, repos, migration, note }),
   setCommits: (id, stage, commits) => ipcRenderer.invoke('flow:setCommits', { id, stage, commits }),
+  /** images: [{ type, data: Uint8Array }]；keep: 保留的既有圖片檔名；check: 同時勾起「測試完成」 */
+  setTestRecord: (id, { note, keep, images, check }) =>
+    ipcRenderer.invoke('flow:setTestRecord', { id, note, keep, images, check }),
+  loadTestImages: (id) => ipcRenderer.invoke('flow:testImages', { id }),
   deployMergeStatus: (id, stage) => ipcRenderer.invoke('flow:mergeStatus', { id, stage }),
   mergeDeploy: (id, stage) => ipcRenderer.invoke('flow:mergeDeploy', { id, stage }),
   deployPipelineRuns: (id, stage) => ipcRenderer.invoke('flow:pipelineRuns', { id, stage }),
