@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('api', {
   deployPipelineRuns: (id, stage) => ipcRenderer.invoke('flow:pipelineRuns', { id, stage }),
   loadRepoConfig:() => ipcRenderer.invoke('repos:config'),
   checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
+  branchGraph: (repo, branch, { fetch = false, all = false } = {}) =>
+    ipcRenderer.invoke('repos:branchGraph', { repo, branch, fetch, all }),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
   exportLocalData: (localStorageItems) => ipcRenderer.invoke('localData:export', localStorageItems),
   pickImportZip: () => ipcRenderer.invoke('localData:pickImport'),

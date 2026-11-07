@@ -29,6 +29,7 @@ function registerIpcHandlers() {
   ipcMain.handle('flow:pipelineRuns', (_e, { id, stage } = {}) => pipelines.deployPipelineRuns({ id, stage }));
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());
   ipcMain.handle('repos:checkCommit', (_e, params) => gitCommit.checkCommit(params));
+  ipcMain.handle('repos:branchGraph', (_e, params) => gitCommit.branchGraph(params));
 
   const senderWindow = (e) => BrowserWindow.fromWebContents(e.sender);
   ipcMain.handle('localData:export', (e, localStorageItems) => localData.exportLocalData(senderWindow(e), localStorageItems));

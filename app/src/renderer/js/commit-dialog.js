@@ -1,6 +1,7 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
 import { repoTag, repoLabel } from './repos.js';
+import { createBranchGraph } from './branch-graph.js';
 import { COMMIT_RE, COMMIT_FORMAT_HINT } from '../../shared/flow-rules.js';
 
 /**
@@ -8,6 +9,7 @@ import { COMMIT_RE, COMMIT_FORMAT_HINT } from '../../shared/flow-rules.js';
  * manager 依 規劃 選的 repository 各自填入測試通過版的 commit（縮寫即可），
  * 按「檢查」到 data/repos.json 設定的本機 clone（path）確認 commit 存在。
  * 按「確認」時 main process 會再全部檢查一次才存檔。
+ * 每個 repository 可展開「分支圖」（branch-graph.js），看 feature branch 與 developer branch 的關係並點選 commit。
  */
 export function createCommitDialog() {
   const dialog = $('commit-dialog');
@@ -51,6 +53,33 @@ export function createCommitDialog() {
     btn.type = 'button';
     const result = el('div', 'cc-result');
 
+    // 分支圖：未填 commit 時預設展開
+    const graphBtn = el('button', 'btn-ghost cc-graph-btn', '分支圖');
+    graphBtn.type = 'button';
+    graphBtn.title = '顯示 feature branch 與 developer branch 的 commit 關係，點選 commit 帶入';
+    const graph = createBranchGraph({
+      repo,
+      branch,
+      onPick: (c) => {
+        input.value = c.full.slice(0, 10);
+        setResult(result, '', '');
+        showError('');
+        btn.click(); // 選了就直接檢查
+      },
+    });
+    let graphLoaded = false;
+    function toggleGraph(show) {
+      graph.el.hidden = !show;
+      graphBtn.classList.toggle('active', show);
+      graphBtn.textContent = show ? '分支圖 ▴' : '分支圖 ▾';
+      if (show && !graphLoaded) {
+        graphLoaded = true;
+        graph.highlight(input.value.trim().toLowerCase());
+        graph.load();
+      }
+    }
+    graphBtn.addEventListener('click', () => toggleGraph(graph.el.hidden));
+
     const seq = openSeq;
     btn.addEventListener('click', async () => {
       const c = input.value.trim().toLowerCase();
@@ -77,6 +106,7 @@ export function createCommitDialog() {
     input.addEventListener('input', () => {
       setResult(result, '', '');
       showError('');
+      graph.highlight(input.value.trim().toLowerCase());
     });
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -85,7 +115,8 @@ export function createCommitDialog() {
       }
     });
 
-    row.append(name, input, btn, result);
+    row.append(name, input, btn, graphBtn, result, graph.el);
+    toggleGraph(!input.value);
     rows.push({ repo, input });
     return row;
   }

@@ -236,11 +236,13 @@ td.stage-split { padding: 0; height: 1px; }
 /* ---- Confirm Commit（Test deploy / Prod deploy 佈版前）---- */
 #commit-dialog {
   padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(620px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+  width: min(900px, 94vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
 }
 #commit-dialog::backdrop { background: rgba(0, 0, 0, .35); }
 .cc-repos { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
-.cc-repo { display: grid; grid-template-columns: 150px 1fr auto; align-items: center; gap: 4px 10px; }
+.cc-repo { display: grid; grid-template-columns: 150px 1fr auto auto; align-items: center; gap: 4px 10px; }
+.cc-repo .cc-result { grid-column: 2 / -1; }
+.cc-graph-btn.active { background: var(--sel); }
 .cc-name { display: flex; flex-direction: column; min-width: 0; }
 .cc-name .repo-name { font-weight: 600; }
 .cc-name .repo-branch { font-size: 11px; color: var(--muted); word-break: break-all; }
@@ -254,6 +256,53 @@ td.stage-split { padding: 0; height: 1px; }
 .cc-result.ok { color: var(--ok); }
 .cc-result.warn { color: var(--cur-border); }
 .cc-result.bad { color: var(--err); }
+/* 分支圖（branch-graph.js：git log --graph 的 feature / developer branch 關係）*/
+.bg-panel { grid-column: 1 / -1; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); min-width: 0; }
+.bg-panel[hidden] { display: none; }
+.bg-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.bg-legend { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 12px; }
+.bg-all { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.bg-refresh { font-size: 12px; padding: 2px 8px; }
+.muted-inline { color: var(--muted); }
+.bg-status { font-size: 12px; padding: 4px 8px; white-space: pre-line; color: var(--muted); }
+.bg-status:empty { display: none; }
+.bg-status.warn { color: var(--warn); }
+.bg-status.bad { color: var(--err); }
+.bg-list { max-height: 300px; overflow: auto; padding: 2px 0; }
+.bg-line {
+  display: flex; align-items: center; gap: 8px; padding: 0 8px; min-height: 16px;
+  font-size: 12px; line-height: 16px; white-space: nowrap;
+}
+.bg-line.commit { cursor: pointer; min-height: 22px; border-radius: 4px; }
+.bg-line.commit:hover, .bg-line.commit:focus-visible { background: var(--hover); outline: none; }
+.bg-line.selected { background: var(--sel); box-shadow: inset 3px 0 0 var(--accent); }
+.bg-line.boundary { opacity: .55; }
+.bg-graph { flex: none; font: 12px/16px Consolas, "Courier New", monospace; white-space: pre; }
+.bg-hash { flex: none; font: 12px Consolas, "Courier New", monospace; color: var(--accent); }
+.bg-info { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; }
+.bg-subject { overflow: hidden; text-overflow: ellipsis; }
+.bg-meta { flex: none; color: var(--muted); font-size: 11px; }
+.bg-chip { flex: none; font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--border); }
+.bg-chip.feature { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.bg-chip.dev { background: var(--panel); }
+.bg-off { flex: none; font-size: 11px; color: var(--warn); }
+/* git graph 的 lane 顏色（anser 轉出的 class） */
+.bg-graph .ansi-red { color: #d73a49; }
+.bg-graph .ansi-green { color: #22863a; }
+.bg-graph .ansi-yellow { color: #b08800; }
+.bg-graph .ansi-blue { color: #0366d6; }
+.bg-graph .ansi-magenta { color: #8a3ffc; }
+.bg-graph .ansi-cyan { color: #0598a8; }
+.bg-graph .bold { font-weight: 700; filter: brightness(.7); }
+@media (prefers-color-scheme: dark) {
+  .bg-graph .ansi-red { color: #f47067; }
+  .bg-graph .ansi-green { color: #57ab5a; }
+  .bg-graph .ansi-yellow { color: #c69026; }
+  .bg-graph .ansi-blue { color: #539bf5; }
+  .bg-graph .ansi-magenta { color: #b083f0; }
+  .bg-graph .ansi-cyan { color: #39c5cf; }
+  .bg-graph .bold { filter: brightness(1.35); }
+}
 .commit-check { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px dashed var(--border); }
 .check-summary .repo-commit { font: 11px Consolas, "Courier New", monospace; color: var(--muted); }
 .check-summary .repo-missing { color: var(--err); }
