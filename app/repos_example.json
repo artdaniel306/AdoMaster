@@ -1,0 +1,37 @@
+{
+  "repos": [
+    {
+      "key": "crmapp",
+      "label": "crmapp",
+      "color": "#2f6feb",
+      "path": "C:\\source\\crmapp",
+      "branches": ["feature/xxx", "feature/yyy"],
+      "testBranch": "test",
+      "prodBranch": "master",
+      "testPipeline": "",
+      "prodPipeline": ""
+    },
+    {
+      "key": "crmappui",
+      "label": "crmappui",
+      "color": "#e3a008",
+      "path": "C:\\source\\crmappui",
+      "branches": ["feature/xxx"],
+      "testBranch": "test",
+      "prodBranch": "master",
+      "testPipeline": "",
+      "prodPipeline": ""
+    },
+    {
+      "key": "upagent",
+      "label": "upagent",
+      "color": "#8b5cf6",
+      "path": "C:\\source\\upagent",
+      "branches": ["feature/xxx"],
+      "testBranch": "test",
+      "prodBranch": "master",
+      "testPipeline": "",
+      "prodPipeline": ""
+    }
+  ]
+}

@@ -1,7 +1,0 @@
-{
-  "repos": [
-    { "key": "crmapp", "label": "crmapp", "color": "#2f6feb" },
-    { "key": "crmappui", "label": "crmappui", "color": "#e3a008" },
-    { "key": "upagent", "label": "upagent", "color": "#8b5cf6" }
-  ]
-}

@@ -5,7 +5,7 @@ const { PLAN_KEY, PLAN_REPOS_KEY, COMMIT_STAGES } = require('../../shared/flow-r
 
 /**
  * 佈版階段的自動佈版 Pipeline：環境 branch push 後由 Azure DevOps Pipeline 自動佈版。
- * Pipeline 名稱由 app/.env 的 `<REPO>_TEST_PIPELINE` / `<REPO>_PROD_PIPELINE` 設定（見 repoConfig.js）。
+ * Pipeline 名稱由 data/repos.json 各 repository 的 `testPipeline` / `prodPipeline` 設定（見 repoConfig.js）。
  */
 
 const RUNS_TOP = 30;

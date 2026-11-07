@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { FLOW_STATE_FILE } = require('../paths');
 const { runScriptJson, tempFile, removeTemp } = require('../python');
-const { loadRepoConfig } = require('./repoConfig');
+const { loadRepoConfig, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
 const { checkCommit, checkMerged, mergeNoFf } = require('./gitCommit');
 const {
   PLAN_KEY,
@@ -133,7 +133,7 @@ function replaceFlowState(text) {
 
 /**
  * 佈版階段：Confirm Commit 的每個 commit 是否已進到該 repository 的環境 branch
- * （app/.env 的 `<REPO>_TEST_BRANCH` / `<REPO>_PROD_BRANCH`）。
+ * （data/repos.json 的 `testBranch` / `prodBranch`）。
  * @returns {{ stage, commits, items: [{ repo, commit, envBranch, merged, canMerge, conflicts, message }], allMerged }}
  */
 async function deployMergeStatus({ id, stage, fetch = true } = {}) {
@@ -151,7 +151,7 @@ async function deployMergeStatus({ id, stage, fetch = true } = {}) {
     const r = config.repos.find((x) => x.key === repo);
     if (!r) throw new Error(`未知的 repository：${repo}`);
     const envBranch = r.deployBranches[stage];
-    if (!envBranch) throw new Error(`尚未設定 ${repo} 的環境 branch，請在 app/.env 設定 ${r.deployEnvKeys[stage]}`);
+    if (!envBranch) throw new Error(`尚未設定 ${repo} 的環境 branch，請在 ${fieldHint(repo, DEPLOY_BRANCH_FIELDS[stage])} 設定`);
     return { repo, commit: commits[repo], envBranch };
   });
   const items = await Promise.all(targets.map((t) => checkMerged({ ...t, fetch })));
@@ -252,7 +252,7 @@ async function setPlan({ id, repos, migration, note } = {}) {
     // 可以不選任何 repository（例如只需調整 database 資料），此時 Confirm Commit 自動完成
     const entries = Object.entries(repos);
     for (const [k, branch] of entries) {
-      if (!validKeys.has(k)) throw new Error(`未知的 repository：${k}（不在 app/repos.json 中）`);
+      if (!validKeys.has(k)) throw new Error(`未知的 repository：${k}（不在 data/repos.json 中）`);
       if (typeof branch !== 'string' || !branch.trim()) throw new Error(`${k} 尚未選擇 feature branch`);
     }
     repos = Object.fromEntries(entries.map(([k, b]) => [k, b.trim()]));

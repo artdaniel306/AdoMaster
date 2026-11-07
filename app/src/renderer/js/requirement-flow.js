@@ -29,7 +29,7 @@ import {
  * - 規劃 點擊時開啟 dialog，決定要在哪些 repository 開發、各自的 feature branch。
  * - Test deploy / Prod deploy 勾選 SaaS / Local 前要先 Confirm Commit：依 規劃 選的 repository
  *   各自填入測試通過版的 commit，並確認 repository 中真的有這個 commit。
- * - 勾 SaaS 時若有設定自動佈版 Pipeline（app/.env `<REPO>_TEST_PIPELINE` / `<REPO>_PROD_PIPELINE`），
+ * - 勾 SaaS 時若有設定自動佈版 Pipeline（data/repos.json `testPipeline` / `prodPipeline`），
  *   改走 deploy-dialog.js：等進行中的 Run 結束 → merge + push → 監看新 Run → 通知（成功時自動勾起）。
  */
 const STAGES = [

@@ -12,7 +12,7 @@ const { replaceFlowState, writeFileAtomic } = require('./requirementFlow');
  */
 const FILES = [
   { name: 'script/.env', label: 'Python 腳本設定（ADO / Azure 連線）' },
-  { name: 'app/.env', label: 'App 設定（repo 路徑、branch、pipeline）' },
+  { name: 'data/repos.json', label: 'Repository 設定（路徑、branch、pipeline）', json: true },
   { name: 'data/requirement_flow_state.json', label: 'Requirement 流程勾選狀態', json: true },
   { name: 'feature/restore_workitem/.env', label: 'restore_workitem 腳本設定' },
 ];

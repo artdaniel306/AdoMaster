@@ -2,7 +2,7 @@ import { api } from './api.js';
 import { el } from './dom.js';
 
 /**
- * Repository 顯示資訊（名稱 / 代表色）的快取，來源是 app/repos.json（經 repos:config 讀取）。
+ * Repository 顯示資訊（名稱 / 代表色）的快取，來源是 data/repos.json（經 repos:config 讀取）。
  * 流程表載入或 規劃 dialog 開啟時會重新讀取；不在設定檔中的 key 直接顯示 key、不上色。
  */
 let byKey = new Map();

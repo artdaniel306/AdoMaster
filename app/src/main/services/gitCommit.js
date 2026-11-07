@@ -1,11 +1,11 @@
 const { execFile } = require('node:child_process');
 const fs = require('node:fs/promises');
-const { loadRepoConfig } = require('./repoConfig');
+const { loadRepoConfig, fieldHint } = require('./repoConfig');
 const { COMMIT_RE, COMMIT_FORMAT_HINT } = require('../../shared/flow-rules.js');
 
 /**
  * Confirm Commit：到本機 clone 的 repository 確認指定 commit 是否存在。
- * repository 的位置由 app/.env 的 `<REPO>_REPO_PATH` 設定（見 repoConfig.js）。
+ * repository 的位置由 data/repos.json 各 repository 的 `path` 設定（見 repoConfig.js）。
  * 本機找不到（或不在 feature branch 上）時會 `git fetch` 一次再重查。
  */
 
@@ -61,16 +61,16 @@ async function lookup(cwd, commit, branch) {
  * @returns {{ ok, repo, commit, full?, subject?, author?, date?, branch?, onBranch?, fetched, message }}
  *   ok=false 代表找不到；設定錯誤（未設定路徑、路徑不存在、git 錯誤）則直接 throw。
  */
-/** 讀取 app/.env 中 repo 的設定，並確認本機 clone 的路徑存在 */
+/** 讀取 data/repos.json 中 repo 的設定，並確認本機 clone 的路徑存在 */
 async function resolveRepo(repo) {
   const config = await loadRepoConfig();
   const r = config.repos.find((x) => x.key === repo);
   if (!r) throw new Error(`未知的 repository：${repo}`);
-  if (!r.path) throw new Error(`尚未設定 ${repo} 的位置，請在 app/.env 設定 ${r.pathEnvKey}（本機 clone 的路徑）`);
+  if (!r.path) throw new Error(`尚未設定 ${repo} 的位置，請在 ${fieldHint(repo, 'path')} 設定本機 clone 的路徑`);
   try {
     if (!(await fs.stat(r.path)).isDirectory()) throw new Error();
   } catch {
-    throw new Error(`${r.pathEnvKey} 指定的路徑不存在：${r.path}`);
+    throw new Error(`${fieldHint(repo, 'path')} 指定的路徑不存在：${r.path}`);
   }
   return r;
 }
