@@ -7,6 +7,7 @@ import { createDeployDialog } from './deploy-dialog.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 import { createTaskDialog } from './task-dialog.js';
 import { workItemLink } from './description-dialog.js';
+import { loadRepos, repoTag } from './repos.js';
 import {
   UNDERSTAND_KEY,
   UNDERSTAND_REPOS_KEY,
@@ -288,7 +289,7 @@ export function createRequirementFlowView() {
       if (!repos.length) list.append(el('div', 'repo-line repo-branch', '不需修改 repository'));
       for (const [repo, branch] of repos) {
         const line = el('div', 'repo-line');
-        line.append(el('span', 'repo-name', repo), el('span', 'repo-branch', branch));
+        line.append(repoTag(repo), el('span', 'repo-branch', branch));
         list.append(line);
       }
       if (s[UNDERSTAND_MIGRATION_KEY]) list.append(el('div', 'repo-line migration', '⚠ 需要 migration'));
@@ -348,7 +349,7 @@ export function createRequirementFlowView() {
       const list = el('div', 'und-summary');
       for (const repo of Object.keys(repos)) {
         const line = el('div', 'repo-line');
-        line.append(el('span', 'repo-name', repo));
+        line.append(repoTag(repo));
         if (commits[repo]) line.append(el('code', 'repo-commit', commits[repo]));
         else line.append(el('span', 'repo-missing', '⚠ 尚未填入（repository 已變更）'));
         list.append(line);
@@ -493,7 +494,16 @@ export function createRequirementFlowView() {
     const top = el('div', 'req-top');
     top.append(workItemLink(`#${req.id}`, req), stateChip(req));
     const stageName = req.stage === DONE.key ? DONE.label : STAGES[curIdx].label;
-    head.append(top, el('div', 'req-title', req.title), el('div', 'req-meta muted', `${req.assignedTo || '未指派'} · ${stageName}`));
+    head.append(top, el('div', 'req-title', req.title));
+    // Manager understand 選的 repository：以代表色標示，一眼看出此需求動到哪些 repository
+    const s = state[req.id] || {};
+    const repoKeys = s[UNDERSTAND_KEY] ? Object.keys(s[UNDERSTAND_REPOS_KEY] || {}) : [];
+    if (repoKeys.length) {
+      const tags = el('div', 'req-repos');
+      tags.append(...repoKeys.map((k) => repoTag(k, 'repo-chip')));
+      head.append(tags);
+    }
+    head.append(el('div', 'req-meta muted', `${req.assignedTo || '未指派'} · ${stageName}`));
     head.title = req.description ? req.description.slice(0, 300) : '';
 
     tr.append(head, ...STAGES.flatMap((s, i) => stageCells(req, s, i, curIdx)));
@@ -523,12 +533,21 @@ export function createRequirementFlowView() {
     table.hidden = true;
 
     try {
-      const [result, st] = await Promise.all([api.fetchRequirementFlow(node.iterationPath, exact), api.loadFlowState()]);
+      let repoError = '';
+      const [result, st] = await Promise.all([
+        api.fetchRequirementFlow(node.iterationPath, exact),
+        api.loadFlowState(),
+        // repository 設定讀不到時只影響顏色 / 名稱顯示，不擋流程表
+        loadRepos().catch((err) => {
+          repoError = cleanError(err);
+        }),
+      ]);
       if (seq !== requestSeq) return;
       requirements = result.requirements;
       state = st || {};
       statusEl.className = 'status';
       statusEl.textContent = `共 ${result.count} 筆 ${result.type} · 取得時間 ${result.fetchedAt.replace('T', ' ')}`;
+      if (repoError) statusEl.textContent += ` · ⚠ 讀取 repository 設定失敗：${repoError}`;
       if (!requirements.length) {
         statusEl.textContent += `（此 Iteration 沒有 ${result.type}）`;
         return;

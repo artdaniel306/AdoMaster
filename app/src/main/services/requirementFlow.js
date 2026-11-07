@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { FLOW_STATE_FILE } = require('../paths');
 const { runScriptJson, tempFile, removeTemp } = require('../python');
-const { REPOS, loadRepoConfig } = require('./repoConfig');
+const { loadRepoConfig } = require('./repoConfig');
 const { checkCommit, checkMerged, mergeNoFf } = require('./gitCommit');
 const {
   UNDERSTAND_KEY,
@@ -98,6 +98,14 @@ function updateRequirementState(id, mutate) {
     await writeFileAtomic(FLOW_STATE_FILE, JSON.stringify(state, null, 2));
     return checks;
   });
+  writeQueue = task.catch(() => {});
+  return task;
+}
+
+/** 整份覆蓋流程狀態檔（匯入本地資料用）；同樣排進 writeQueue，不會和勾選的寫入互相覆蓋。 */
+function replaceFlowState(text) {
+  JSON.parse(text); // 不是合法 JSON 就直接丟錯，不寫入
+  const task = writeQueue.then(() => writeFileAtomic(FLOW_STATE_FILE, text));
   writeQueue = task.catch(() => {});
   return task;
 }
@@ -212,19 +220,19 @@ async function setFlowCheck({ id, key, value, force = false } = {}) {
  *   note = '...'     → understandNote: '...'（manager 的註解，空白則不存）
  *   repos = null → 取消確認（全部清除）
  */
-function setUnderstand({ id, repos, migration, note } = {}) {
-  if (!Number.isInteger(id)) return Promise.reject(new Error('參數錯誤'));
-  if (note != null && typeof note !== 'string') return Promise.reject(new Error('參數錯誤'));
+async function setUnderstand({ id, repos, migration, note } = {}) {
+  if (!Number.isInteger(id)) throw new Error('參數錯誤');
+  if (note != null && typeof note !== 'string') throw new Error('參數錯誤');
   note = (note || '').trim();
-  if (note.length > NOTE_MAX) return Promise.reject(new Error(`註解最多 ${NOTE_MAX} 字`));
+  if (note.length > NOTE_MAX) throw new Error(`註解最多 ${NOTE_MAX} 字`);
   if (repos != null) {
-    const validKeys = new Set(REPOS.map((r) => r.key));
-    if (typeof repos !== 'object') return Promise.reject(new Error('參數錯誤'));
+    if (typeof repos !== 'object') throw new Error('參數錯誤');
+    const validKeys = new Set((await loadRepoConfig()).repos.map((r) => r.key));
     // 可以不選任何 repository（例如只需調整 database 資料），此時 Confirm Commit 自動完成
     const entries = Object.entries(repos);
     for (const [k, branch] of entries) {
-      if (!validKeys.has(k)) return Promise.reject(new Error(`未知的 repository：${k}`));
-      if (typeof branch !== 'string' || !branch.trim()) return Promise.reject(new Error(`${k} 尚未選擇 feature branch`));
+      if (!validKeys.has(k)) throw new Error(`未知的 repository：${k}（不在 app/repos.json 中）`);
+      if (typeof branch !== 'string' || !branch.trim()) throw new Error(`${k} 尚未選擇 feature branch`);
     }
     repos = Object.fromEntries(entries.map(([k, b]) => [k, b.trim()]));
   }
@@ -289,6 +297,8 @@ module.exports = {
   createDefaultTask,
   updateRequirementStateInAdo,
   loadFlowState,
+  replaceFlowState,
+  writeFileAtomic,
   setFlowCheck,
   setUnderstand,
   setCommits,

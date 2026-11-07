@@ -1,9 +1,10 @@
-import { api, cleanError } from './api.js';
+import { cleanError } from './api.js';
 import { $, el } from './dom.js';
+import { loadRepos, repoTag } from './repos.js';
 
 /**
- * Manager understand dialog：讓 manager 決定需求要在哪些 repository（crmapp / crmappui / upagent）開發，
- * 以及各自做在哪個 feature branch。可選的 branch 由 app/.env 的 <REPO>_BRANCHES 設定（每次開啟時重新讀取）。
+ * Manager understand dialog：讓 manager 決定需求要在哪些 repository（清單與代表色由 app/repos.json 設定）開發，
+ * 以及各自做在哪個 feature branch。可選的 branch 由 app/.env 的 <PREFIX>_BRANCHES 設定（每次開啟時重新讀取）。
  */
 export function createUnderstandDialog() {
   const dialog = $('understand-dialog');
@@ -31,7 +32,7 @@ export function createUnderstandDialog() {
     const check = el('input');
     check.type = 'checkbox';
     check.checked = !!branch;
-    lab.append(check, el('span', null, repo.label));
+    lab.append(check, repoTag(repo.key));
 
     const select = el('select');
     select.append(new Option(repo.branches.length ? '— 選擇 feature branch —' : '— 未設定 branch —', ''));
@@ -109,10 +110,10 @@ export function createUnderstandDialog() {
     clearBtn.hidden = !current;
     migrationEl.checked = !!current?.migration;
     noteEl.value = current?.note || '';
-    reposEl.replaceChildren(el('span', 'muted', '讀取 app/.env 設定中…'));
+    reposEl.replaceChildren(el('span', 'muted', '讀取 repository 設定中…'));
     dialog.showModal();
     try {
-      const config = await api.loadRepoConfig();
+      const config = await loadRepos();
       reposEl.replaceChildren(...config.repos.map((r) => repoRow(r, current?.repos?.[r.key])));
       if (!config.envFound) showError('找不到 app/.env（可複製 app/env_example.txt 為 .env 後設定各 repository 的 feature branch）');
     } catch (err) {

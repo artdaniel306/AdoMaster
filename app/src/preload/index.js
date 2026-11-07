@@ -19,4 +19,9 @@ contextBridge.exposeInMainWorld('api', {
   loadRepoConfig:() => ipcRenderer.invoke('repos:config'),
   checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
+  exportLocalData: (localStorageItems) => ipcRenderer.invoke('localData:export', localStorageItems),
+  pickImportZip: () => ipcRenderer.invoke('localData:pickImport'),
+  applyImport: () => ipcRenderer.invoke('localData:applyImport'),
+  /** 選單「檔案 → 匯出 / 匯入本地資料」被點擊時呼叫 cb('export' | 'import') */
+  onLocalDataMenu: (cb) => ipcRenderer.on('menu:localData', (_e, action) => cb(action)),
 });

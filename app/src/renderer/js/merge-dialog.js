@@ -1,5 +1,6 @@
 import { cleanError } from './api.js';
 import { $, el } from './dom.js';
+import { repoTag } from './repos.js';
 
 /**
  * 勾 Test deploy / Prod deploy 的 SaaS / Local 時，若 Confirm Commit 的 commit 尚未進到環境 branch，
@@ -28,7 +29,7 @@ export function createMergeDialog() {
       ...items.map((x) => {
         const row = el('div', 'mg-item');
         const name = el('div', 'cc-name');
-        name.append(el('span', 'repo-name', x.repo), el('code', 'repo-commit', `${x.commit} → ${x.envBranch}`));
+        name.append(repoTag(x.repo), el('code', 'repo-commit', `${x.commit} → ${x.envBranch}`));
         const cls = x.merged ? 'ok' : x.canMerge ? 'warn' : 'bad';
         const result = el('div', `cc-result ${cls}`, x.message);
         result.title = x.subject ? `${x.full}\n${x.subject}` : x.message;

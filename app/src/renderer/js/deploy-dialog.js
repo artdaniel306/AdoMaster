@@ -1,5 +1,6 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
+import { repoTag } from './repos.js';
 
 /** 查詢 Pipeline Run 的間隔 */
 const POLL_MS = 15_000;
@@ -82,7 +83,7 @@ export function createDeployDialog() {
       ...j.mergeStatus.items.map((x) => {
         const row = el('div', 'mg-item');
         const name = el('div', 'cc-name');
-        name.append(el('span', 'repo-name', x.repo), el('code', 'repo-commit', `${x.commit} → ${x.envBranch}`));
+        name.append(repoTag(x.repo), el('code', 'repo-commit', `${x.commit} → ${x.envBranch}`));
         const cls = x.merged ? 'ok' : x.canMerge ? 'warn' : 'bad';
         row.append(name, el('div', `cc-result ${cls}`, x.message));
         return row;
@@ -95,7 +96,7 @@ export function createDeployDialog() {
     const rows = j.pipelines.map((p) => {
       const row = el('div', 'dp-pipe');
       const name = el('div', 'cc-name');
-      name.append(el('span', 'repo-name', p.repo), el('span', 'repo-branch', p.pipeline?.name || p.name));
+      name.append(repoTag(p.repo), el('span', 'repo-branch', p.pipeline?.name || p.name));
       const runs = el('div', 'dp-runs');
       const target = j.targets.find((t) => t.repo === p.repo);
       // 等待過的 Run + 目前尚未結束的 Run（確認畫面時還沒開始等待）

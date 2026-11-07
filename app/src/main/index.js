@@ -1,6 +1,7 @@
 const { app, BrowserWindow } = require('electron');
 const { PRELOAD_FILE, RENDERER_HTML } = require('./paths');
 const { registerIpcHandlers } = require('./ipc');
+const { buildMenu } = require('./menu');
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -18,6 +19,7 @@ function createWindow() {
 registerIpcHandlers();
 
 app.whenReady().then(() => {
+  buildMenu();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -322,3 +322,18 @@ td.stage-split { padding: 0; height: 1px; }
   margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg);
   white-space: pre-wrap; word-break: break-word; overflow: auto; min-height: 80px; max-height: 60vh;
 }
+
+/* repository 代表色（app/repos.json 的 color，以 CSS 變數 --repo-color 帶入） */
+.repo-tag.has-color {
+  background: color-mix(in srgb, var(--repo-color) 16%, transparent);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-weight: 600;
+}
+.repo-tag.has-color::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--repo-color); margin-right: 4px; vertical-align: 0;
+}
+.req-repos { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.repo-chip { font-size: 11px; line-height: 16px; border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; }
+.repo-chip.has-color { border-color: color-mix(in srgb, var(--repo-color) 45%, transparent); }

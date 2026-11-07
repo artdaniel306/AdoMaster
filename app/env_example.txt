@@ -1,4 +1,5 @@
 # 複製為 app/.env 後填入設定
+# 有哪些 repository（名稱、代表色）定義在 app/repos.json；以下設定名稱的前綴 = 該 repository 的 envPrefix（預設為 key 轉大寫）
 # Manager understand 時可選擇的 feature branch（逗號分隔）
 CRMAPP_BRANCHES=feature/xxx,feature/yyy
 CRMAPPUI_BRANCHES=feature/xxx

@@ -1,5 +1,6 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
+import { repoTag, repoLabel } from './repos.js';
 import { COMMIT_RE, COMMIT_FORMAT_HINT } from '../../shared/flow-rules.js';
 
 /**
@@ -37,7 +38,7 @@ export function createCommitDialog() {
   function repoRow(repo, branch, commit) {
     const row = el('div', 'cc-repo');
     const name = el('div', 'cc-name');
-    name.append(el('span', 'repo-name', repo), el('span', 'repo-branch', branch));
+    name.append(repoTag(repo), el('span', 'repo-branch', branch));
 
     const input = el('input');
     input.type = 'text';
@@ -115,8 +116,8 @@ export function createCommitDialog() {
     const commits = {};
     for (const { repo, input } of rows) {
       const c = input.value.trim().toLowerCase();
-      if (!c) return showError(`請填入 ${repo} 的 commit`);
-      if (!COMMIT_RE.test(c)) return showError(`${repo} 的 commit 格式錯誤（${COMMIT_FORMAT_HINT}）`);
+      if (!c) return showError(`請填入 ${repoLabel(repo)} 的 commit`);
+      if (!COMMIT_RE.test(c)) return showError(`${repoLabel(repo)} 的 commit 格式錯誤（${COMMIT_FORMAT_HINT}）`);
       commits[repo] = c;
     }
     save(commits);

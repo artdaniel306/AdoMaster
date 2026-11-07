@@ -12,6 +12,7 @@ module.exports = {
   ITERATIONS_FILE: path.join(ROOT_DIR, 'data', 'iterations.json'),
   FLOW_STATE_FILE: path.join(ROOT_DIR, 'data', 'requirement_flow_state.json'),
   APP_ENV_FILE: path.join(APP_DIR, '.env'),
+  REPOS_FILE: path.join(APP_DIR, 'repos.json'),
   PRELOAD_FILE: path.join(APP_SRC_DIR, 'preload', 'index.js'),
   RENDERER_HTML: path.join(APP_SRC_DIR, 'renderer', 'index.html'),
 };

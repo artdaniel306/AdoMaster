@@ -1,4 +1,5 @@
-const { ipcMain, shell } = require('electron');
+const { BrowserWindow, ipcMain, shell } = require('electron');
+const localData = require('./services/localData');
 const iterations = require('./services/iterations');
 const workItems = require('./services/workItems');
 const requirementFlow = require('./services/requirementFlow');
@@ -28,6 +29,11 @@ function registerIpcHandlers() {
   ipcMain.handle('flow:pipelineRuns', (_e, { id, stage } = {}) => pipelines.deployPipelineRuns({ id, stage }));
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());
   ipcMain.handle('repos:checkCommit', (_e, params) => gitCommit.checkCommit(params));
+
+  const senderWindow = (e) => BrowserWindow.fromWebContents(e.sender);
+  ipcMain.handle('localData:export', (e, localStorageItems) => localData.exportLocalData(senderWindow(e), localStorageItems));
+  ipcMain.handle('localData:pickImport', (e) => localData.pickImportZip(senderWindow(e)));
+  ipcMain.handle('localData:applyImport', () => localData.applyImport());
 
   ipcMain.handle('shell:open', (_e, url) => {
     if (typeof url === 'string' && /^https:\/\//i.test(url)) return shell.openExternal(url);
