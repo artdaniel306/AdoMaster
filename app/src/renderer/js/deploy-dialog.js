@@ -1,6 +1,7 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
 import { repoTag } from './repos.js';
+import { backMergeRows, backMergeProblems, hasBackMerges } from './back-merge.js';
 
 /** 查詢 Pipeline Run 的間隔 */
 const POLL_MS = 15_000;
@@ -92,6 +93,12 @@ export function createDeployDialog() {
         return row;
       })
     );
+    // Prod deploy：prodBranch 反向 merge 回 feature branch 的結果
+    const { backMerges } = j.mergeStatus;
+    if (hasBackMerges(backMerges)) {
+      const fromOf = (repo) => j.mergeStatus.items.find((x) => x.repo === repo)?.envBranch;
+      mergeEl.append(el('div', 'muted', '反向 merge 回 feature branch：'), ...backMergeRows(backMerges, fromOf));
+    }
   }
 
   /** 每個 Pipeline 顯示：等待中的 Run（waiting）或 push 觸發的 Run（watching / done） */
@@ -243,6 +250,8 @@ export function createDeployDialog() {
     else if (results.some((r) => !r)) message = '佈版結束：有 repository 找不到 push 後觸發的 Run';
     else if (!runsOk) message = `佈版結束：有 Run 未成功（${results.filter((r) => r.result !== 'succeeded').map(runText).join('、')}）`;
     else message = `佈版結束：Run 都已成功，但佈版後動作失敗（${afterFailed.map((t) => t.repo).join('、')}）`;
+    // 反向 merge 回 feature branch 失敗不影響佈版結果（正式環境已 push），只提醒手動處理
+    if (backMergeProblems(j.mergeStatus.backMerges)) message += '（有 feature branch 反向 merge 失敗，請手動處理）';
     j.outcome = { success, message, error: error ? cleanError(error) : '', canCheck: !error };
     if (success) {
       try {

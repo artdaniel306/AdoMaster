@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const { runScriptJson, tempFile, removeTemp } = require('../python');
 const { loadFlowState, updateRequirementState } = require('./flowState');
 const { loadRepoConfig, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
-const { checkCommit, checkMerged, mergeNoFf } = require('./gitCommit');
+const { checkCommit, checkMerged, mergeNoFf, mergeBackToFeatures } = require('./gitCommit');
 const {
   PLAN_KEY,
   PLAN_REPOS_KEY,
@@ -89,9 +89,41 @@ async function deployMergeStatus({ id, stage, fetch = true } = {}) {
   return { stage, commits, items, allMerged: items.every((x) => x.merged) };
 }
 
+/** 反向 merge 回 feature branch 的階段：正式環境 merge 完後，feature branch 都要以 production 為基礎 */
+const MERGE_BACK_STAGE = 'prodDeploy';
+
+/**
+ * 正式環境：把這次有 merge 進 prodBranch 的 repository，再把 prodBranch 反向 merge 回其所有 feature branch。
+ * 不丟錯（正式環境已 push），失敗記在結果裡。
+ * @returns {{ [repo]: [{ branch, state, message, mergeCommit? }] }}
+ */
+async function mergeBack(id, merged) {
+  const entries = await Promise.all(
+    merged.map(async (v) => {
+      try {
+        return [v.repo, (await mergeBackToFeatures({ repo: v.repo, fromBranch: v.envBranch, reqId: id })).items];
+      } catch (err) {
+        return [v.repo, [{ branch: '', state: 'failed', message: `反向 merge 回 feature branch 失敗：${err.message}` }]];
+      }
+    })
+  );
+  return Object.fromEntries(entries);
+}
+
+const BACK_MERGE_PROBLEM = new Set(['conflict', 'failed']);
+
+/** 錯誤訊息用：反向 merge 有問題的 branch */
+function backMergeProblems(backMerges) {
+  return Object.entries(backMerges).flatMap(([repo, items]) =>
+    items.filter((x) => BACK_MERGE_PROBLEM.has(x.state)).map((x) => `${repo}${x.branch ? ` ${x.branch}` : ''}：${x.message}`)
+  );
+}
+
 /**
  * 把尚未 merge 的 commit 以 merge commit（--no-ff）merge 進環境 branch，
  * 回傳最新的 deployMergeStatus，另加 mergeCommits: { repo: 這次 push 的 merge commit }。
+ * Prod deploy：merge 進 prodBranch 之後，再把 prodBranch 反向 merge 回該 repository 的所有 feature branch
+ * （一律建立 merge commit），結果放在 backMerges: { repo: [{ branch, state, message, mergeCommit? }] }。
  */
 async function mergeDeploy({ id, stage } = {}) {
   const status = await deployMergeStatus({ id, stage });
@@ -106,13 +138,20 @@ async function mergeDeploy({ id, stage } = {}) {
         return mergeNoFf({ ...x, message: `Merge ${from} into ${x.envBranch}\n\nRequirement #${id}` });
       })
   );
+  const merged = results.filter((r) => r.status === 'fulfilled' && r.value.mergeCommit).map((r) => r.value);
+  // 已 merge 進 prodBranch 的 repository 先反向 merge 回 feature branch，即使其他 repository 失敗也照做
+  const backMerges = stage === MERGE_BACK_STAGE && merged.length ? await mergeBack(id, merged) : {};
   // 等全部做完再回報失敗：已 push 成功的 repository 不會因為另一個失敗而被漏掉
   const failed = results.filter((r) => r.status === 'rejected');
-  if (failed.length) throw new Error(failed.map((r) => r.reason?.message || r.reason).join('；'));
-  const mergeCommits = Object.fromEntries(
-    results.map((r) => r.value).filter((v) => v.mergeCommit).map((v) => [v.repo, v.mergeCommit])
-  );
-  return { ...(await deployMergeStatus({ id, stage, fetch: false })), mergeCommits };
+  if (failed.length) {
+    const problems = backMergeProblems(backMerges);
+    throw new Error(
+      failed.map((r) => r.reason?.message || r.reason).join('；') +
+        (problems.length ? `（另外反向 merge 回 feature branch 有問題：${problems.join('；')}）` : '')
+    );
+  }
+  const mergeCommits = Object.fromEntries(merged.map((v) => [v.repo, v.mergeCommit]));
+  return { ...(await deployMergeStatus({ id, stage, fetch: false })), mergeCommits, backMerges };
 }
 
 /**

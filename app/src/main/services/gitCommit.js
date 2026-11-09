@@ -211,19 +211,89 @@ async function mergeNoFf({ repo, commit, envBranch, message } = {}) {
   const msg = typeof message === 'string' && message.trim()
     ? message.trim()
     : `Merge commit '${status.full.slice(0, 10)}' into ${status.envBranch}`;
-  let mergeCommit;
-  try {
-    mergeCommit = (await git(r.path, ['commit-tree', tree, '-p', base, '-p', status.full, '-m', msg])).trim();
-  } catch (err) {
-    throw new Error(`${repo} 建立 merge commit 失敗：${(err.stderr || err.message).trim()}`);
-  }
-  try {
-    await git(r.path, ['push', '--quiet', REMOTE, `${mergeCommit}:refs/heads/${status.envBranch}`], FETCH_TIMEOUT);
-  } catch (err) {
-    throw new Error(`${repo} push 到 ${REMOTE}/${status.envBranch} 失敗：${(err.stderr || err.message).trim()}`);
-  }
+  const mergeCommit = await commitAndPush(r, { tree, base, source: status.full, target: status.envBranch, message: msg });
   // mergeCommit：push 上去的 merge commit（用來找出 push 觸發的 Pipeline Run）
   return { ...(await checkMerged({ repo, commit, envBranch })), mergeCommit };
+}
+
+/**
+ * 以 trialMerge 算出的 tree 建立 merge commit（第一個 parent = base、第二個 = source）並 push 到 origin/<target>。
+ * base 必須是 origin/<target> 目前的 commit；push 不加 --force，remote 期間有變動會被拒絕。
+ * @returns 建立的 merge commit
+ */
+async function commitAndPush(r, { tree, base, source, target, message }) {
+  let mergeCommit;
+  try {
+    mergeCommit = (await git(r.path, ['commit-tree', tree, '-p', base, '-p', source, '-m', message])).trim();
+  } catch (err) {
+    throw new Error(`${r.key} 建立 merge commit 失敗：${(err.stderr || err.message).trim()}`);
+  }
+  try {
+    await git(r.path, ['push', '--quiet', REMOTE, `${mergeCommit}:refs/heads/${target}`], FETCH_TIMEOUT);
+  } catch (err) {
+    throw new Error(`${r.key} push 到 ${REMOTE}/${target} 失敗：${(err.stderr || err.message).trim()}`);
+  }
+  return mergeCommit;
+}
+
+/**
+ * 正式環境 merge 完之後：把 origin/<fromBranch>（prodBranch）反向 merge 回該 repository 設定的所有 feature branch
+ * （data/config.json repos 的 `branches`；環境 branch 本身除外），讓 feature branch 都以 production 為基礎。
+ * 跟 mergeNoFf 一樣一律建立 merge commit（即使可以 fast-forward）、不動本機 working tree、不 --force push。
+ * 個別 branch 失敗不影響其他 branch，也不丟錯（正式環境已經 push 了），結果逐一回報：
+ *   state：'merged' 已建立 merge commit 並 push | 'upToDate' 已包含 | 'missing' remote 沒有此 branch
+ *          | 'conflict' 有衝突（請手動處理）| 'failed' 其他錯誤
+ * @param reqId Requirement id（寫進 merge commit 訊息，方便追蹤）
+ * @returns {{ repo, from, items: [{ branch, state, message, mergeCommit? }] }}
+ */
+async function mergeBackToFeatures({ repo, fromBranch, reqId } = {}) {
+  if (typeof repo !== 'string' || typeof fromBranch !== 'string' || !fromBranch.trim()) throw new Error('參數錯誤');
+  fromBranch = fromBranch.trim();
+  const r = await resolveRepo(repo);
+  try {
+    await git(r.path, ['fetch', REMOTE, '--quiet', '--no-tags'], FETCH_TIMEOUT);
+  } catch (err) {
+    throw new Error(`${repo} git fetch ${REMOTE} 失敗：${(err.stderr || err.message).trim()}`);
+  }
+  let source;
+  try {
+    source = (await git(r.path, ['rev-parse', '--verify', `refs/remotes/${REMOTE}/${fromBranch}^{commit}`])).trim();
+  } catch {
+    throw new Error(`${repo} 的 remote 沒有 ${REMOTE}/${fromBranch}`);
+  }
+
+  const envBranches = new Set(Object.values(r.deployBranches).filter(Boolean));
+  const branches = r.branches.filter((b) => !envBranches.has(b));
+  const items = [];
+  // 同一個 repository 依序處理（同一個 clone 的 git 指令不並行）
+  for (const branch of branches) {
+    const item = { branch };
+    try {
+      await git(r.path, ['check-ref-format', `refs/heads/${branch}`]).catch(() => {
+        throw new Error(`branch 名稱不正確：${branch}`);
+      });
+      const ref = `refs/remotes/${REMOTE}/${branch}`;
+      const base = await git(r.path, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).then((s) => s.trim(), () => null);
+      if (!base) {
+        Object.assign(item, { state: 'missing', message: `remote 沒有 ${REMOTE}/${branch}，略過` });
+      } else if (await isAncestor(r.path, source, base)) {
+        Object.assign(item, { state: 'upToDate', message: `✓ ${branch} 已包含 ${fromBranch}` });
+      } else {
+        const { tree, conflicts } = await trialMerge(r.path, base, source);
+        if (!tree) {
+          Object.assign(item, { state: 'conflict', message: `merge 會有衝突，請手動處理：${conflicts.join(', ')}` });
+        } else {
+          const message = `Merge ${fromBranch} (${source.slice(0, 10)}) into ${branch}${reqId ? `\n\nRequirement #${reqId}` : ''}`;
+          item.mergeCommit = await commitAndPush(r, { tree, base, source, target: branch, message });
+          Object.assign(item, { state: 'merged', message: `✓ 已建立 merge commit ${item.mergeCommit.slice(0, 10)} 並 push` });
+        }
+      }
+    } catch (err) {
+      Object.assign(item, { state: 'failed', message: err.message });
+    }
+    items.push(item);
+  }
+  return { repo, from: fromBranch, items };
 }
 
 /* ---------- 分支圖（Confirm Commit 選 commit 用）---------- */
@@ -365,4 +435,4 @@ async function branchGraph({ repo, branch, fetch = false, all = false } = {}) {
   return result;
 }
 
-module.exports = { checkCommit, checkMerged, mergeNoFf, branchGraph };
+module.exports = { checkCommit, checkMerged, mergeNoFf, mergeBackToFeatures, branchGraph };

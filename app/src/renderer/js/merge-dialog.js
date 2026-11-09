@@ -1,10 +1,12 @@
 import { cleanError } from './api.js';
 import { $, el } from './dom.js';
 import { repoTag } from './repos.js';
+import { backMergeRows, backMergeProblems, hasBackMerges } from './back-merge.js';
 
 /**
  * 勾 Test deploy / Prod deploy 的 SaaS / Local 時，若 Confirm Commit 的 commit 尚未進到環境 branch，
  * 跳出此 dialog 詢問是否現在 merge；確認後由 main process 建立 merge commit（--no-ff）並 push 到環境 branch。
+ * Prod deploy 另會把 prodBranch 反向 merge 回 feature branch，完成後停在畫面上顯示結果。
  */
 export function createMergeDialog() {
   const dialog = $('merge-dialog');
@@ -15,9 +17,11 @@ export function createMergeDialog() {
   const errorEl = $('mg-error');
   const okBtn = $('mg-ok');
 
+  const okLabel = okBtn.textContent;
   let onMerge = null; // () => Promise
   let resolveOpen = null; // 關閉時回傳是否已 merge
   let busy = false;
+  let done = false; // 已全部 merge，停在畫面上顯示反向 merge 回 feature branch 的結果
 
   function showError(msg) {
     errorEl.textContent = msg;
@@ -51,28 +55,42 @@ export function createMergeDialog() {
     r?.(merged);
   }
 
+  /** Prod deploy：merge 完成後顯示 prodBranch 反向 merge 回 feature branch 的結果，按「完成」才關閉 */
+  function showBackMerges(status) {
+    const fromOf = (repo) => status.items.find((x) => x.repo === repo)?.envBranch;
+    listEl.append(el('div', 'muted', '反向 merge 回 feature branch：'), ...backMergeRows(status.backMerges, fromOf));
+    hintEl.textContent = backMergeProblems(status.backMerges)
+      ? '已 merge 進正式環境 branch；有 feature branch 反向 merge 失敗或有衝突，請手動處理。'
+      : '已 merge 進正式環境 branch，並已把它反向 merge 回 feature branch（一律建立 merge commit）。';
+    done = true;
+    okBtn.disabled = false;
+    okBtn.textContent = '完成';
+  }
+
   okBtn.addEventListener('click', async () => {
+    if (done) return finish(true);
     if (busy) return;
     busy = true;
     okBtn.disabled = true;
-    const label = okBtn.textContent;
     okBtn.textContent = 'merge 中…';
     showError('');
     try {
       const status = await onMerge();
       renderItems(status.items);
-      if (status.allMerged) finish(true);
-      else showError('仍有 repository 尚未 merge');
+      okBtn.textContent = okLabel;
+      if (!status.allMerged) showError('仍有 repository 尚未 merge');
+      else if (hasBackMerges(status.backMerges)) showBackMerges(status);
+      else finish(true);
     } catch (err) {
       showError(`merge 失敗：${cleanError(err)}`);
       okBtn.disabled = false;
+      okBtn.textContent = okLabel;
     } finally {
       busy = false;
-      okBtn.textContent = label;
     }
   });
   const cancel = () => {
-    if (!busy) finish(false);
+    if (!busy) finish(done);
   };
   $('mg-cancel').addEventListener('click', cancel);
   $('mg-close').addEventListener('click', cancel);
@@ -90,6 +108,8 @@ export function createMergeDialog() {
    */
   function open({ req, stageLabel, status, mergeFn }) {
     onMerge = mergeFn;
+    done = false;
+    okBtn.textContent = okLabel;
     showError('');
     titleEl.textContent = `尚未 merge · ${stageLabel}`;
     reqEl.textContent = `#${req.id} ${req.title}`;
