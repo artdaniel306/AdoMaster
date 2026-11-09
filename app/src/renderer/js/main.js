@@ -4,6 +4,7 @@ import { createWorkItemsView } from './work-items.js';
 import { createRequirementFlowView } from './requirement-flow.js';
 import { initSidebarToggle } from './sidebar-toggle.js';
 import { initLocalData } from './local-data.js';
+import { initRepoSettings } from './repo-settings-dialog.js';
 
 const exactEl = $('exact');
 const views = {
@@ -44,4 +45,5 @@ for (const tab of document.querySelectorAll('.tab')) {
 
 initSidebarToggle();
 initLocalData();
+initRepoSettings({ onSaved: () => views.flow.view.repaint() });
 tree.load();

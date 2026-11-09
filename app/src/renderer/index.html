@@ -56,6 +56,26 @@
     </form>
   </dialog>
 
+  <dialog id="repo-settings-dialog">
+    <form id="rs-form" class="dlg-box" method="dialog">
+      <header class="dlg-head">
+        <h3>Repository 設定</h3>
+        <button type="button" id="rs-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <p class="muted">編輯 data/repos.json。key 是流程紀錄使用的識別名稱，已有紀錄的 repository 請勿改 key。</p>
+        <div id="rs-repos" class="rs-repos"></div>
+        <p id="rs-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" id="rs-add" class="btn-ghost">＋ 新增 repository</button>
+        <span class="spacer"></span>
+        <button type="button" id="rs-cancel" class="btn-ghost">取消</button>
+        <button type="submit" id="rs-ok" class="btn-primary">儲存</button>
+      </footer>
+    </form>
+  </dialog>
+
   <dialog id="commit-dialog">
     <form id="cc-form" class="dlg-box" method="dialog">
       <header class="dlg-head">

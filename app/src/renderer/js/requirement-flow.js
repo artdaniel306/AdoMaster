@@ -624,5 +624,12 @@ export function createRequirementFlowView() {
     }
   }
 
-  return { show };
+  /** 只用目前資料重繪整張表（不重新查詢 ADO），例如 repository 設定（名稱 / 代表色）改變後 */
+  function repaint() {
+    if (table.hidden || !requirements.length) return;
+    tbody.replaceChildren(...requirements.map(renderRow));
+    renderSummary();
+  }
+
+  return { show, repaint };
 }

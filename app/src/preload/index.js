@@ -24,10 +24,15 @@ contextBridge.exposeInMainWorld('api', {
   checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
   branchGraph: (repo, branch, { fetch = false, all = false } = {}) =>
     ipcRenderer.invoke('repos:branchGraph', { repo, branch, fetch, all }),
+  loadRepoSettings: () => ipcRenderer.invoke('repos:loadSettings'),
+  saveRepoSettings: (repos) => ipcRenderer.invoke('repos:saveSettings', { repos }),
+  pickRepoFolder: (defaultPath) => ipcRenderer.invoke('repos:pickFolder', defaultPath),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
   exportLocalData: (localStorageItems) => ipcRenderer.invoke('localData:export', localStorageItems),
   pickImportZip: () => ipcRenderer.invoke('localData:pickImport'),
   applyImport: () => ipcRenderer.invoke('localData:applyImport'),
   /** 選單「檔案 → 匯出 / 匯入本地資料」被點擊時呼叫 cb('export' | 'import') */
   onLocalDataMenu: (cb) => ipcRenderer.on('menu:localData', (_e, action) => cb(action)),
+  /** 選單「設定 → Repository 設定…」被點擊時呼叫 cb() */
+  onRepoSettingsMenu: (cb) => ipcRenderer.on('menu:repoSettings', () => cb()),
 });

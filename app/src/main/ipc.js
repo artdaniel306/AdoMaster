@@ -35,6 +35,9 @@ function registerIpcHandlers() {
   ipcMain.handle('repos:branchGraph', (_e, params) => gitCommit.branchGraph(params));
 
   const senderWindow = (e) => BrowserWindow.fromWebContents(e.sender);
+  ipcMain.handle('repos:loadSettings', () => repoConfig.loadRepoSettings());
+  ipcMain.handle('repos:saveSettings', (_e, params) => repoConfig.saveRepoSettings(params));
+  ipcMain.handle('repos:pickFolder', (e, defaultPath) => repoConfig.pickRepoFolder(senderWindow(e), defaultPath));
   ipcMain.handle('localData:export', (e, localStorageItems) => localData.exportLocalData(senderWindow(e), localStorageItems));
   ipcMain.handle('localData:pickImport', (e) => localData.pickImportZip(senderWindow(e)));
   ipcMain.handle('localData:applyImport', () => localData.applyImport());
