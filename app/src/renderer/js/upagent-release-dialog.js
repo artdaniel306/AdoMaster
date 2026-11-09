@@ -1,6 +1,6 @@
 import { api, cleanError } from './api.js';
 import { $ } from './dom.js';
-import { RELEASE_STEPS, RELEASE_ENV_LABEL } from '../../shared/flow-rules.js';
+import { RELEASE_STEPS, RELEASE_DB_LABEL } from '../../shared/flow-rules.js';
 
 /** 保留在畫面上的輸出行數上限 */
 const LOG_MAX_LINES = 3000;
@@ -20,9 +20,9 @@ const willRun = (plan, step) => RELEASE_STEPS.indexOf(step) >= RELEASE_STEPS.ind
 
 /**
  * UpAgent 發佈（規劃含 upagent，勾測試 / 正式環境佈版的 SaaS / Local 前執行 shell/Release-UpAgent.ps1）：
- *   - 尚未發佈：選 minor / patch、填資料庫備註 → 更版、等 GitHub Action、簽署、上傳 Blob… → 寫入該環境資料庫
+ *   - 尚未發佈：選 minor / patch、填資料庫備註 → 更版、等 GitHub Action、簽署、上傳 Blob… → 寫入該環境 SaaS / Local 的資料庫
  *   - 上次中途失敗：從失敗的步驟接續
- *   - 已上傳過 Blob：只寫入該環境的資料庫
+ *   - 已上傳過 Blob：只寫入該環境 SaaS / Local 的資料庫（SaaS 與 Local 各有自己的資料庫）
  * 執行中可按「背景執行」關閉視窗，結束時再通知。一次只能有一個發佈。
  */
 export function createUpagentReleaseDialog() {
@@ -46,7 +46,7 @@ export function createUpagentReleaseDialog() {
   let job = null;
 
   function planText(j) {
-    const env = RELEASE_ENV_LABEL[j.plan.env];
+    const env = ` ${RELEASE_DB_LABEL[j.plan.db]} `;
     if (j.plan.startFrom === 'Bump') {
       const branch = j.planRepos?.upagent;
       return `規劃含 upagent，勾「${j.stage.label} ${j.checkLabel}」前要先發佈 UpAgent：\n在 feature branch ${branch || '—'} 更版（npm version，upagent 本機 clone 需無未提交的變更）→ 等 GitHub Action → 下載 → 簽署 → 重算 latest.yml → 上傳 Blob → 清 staging → 寫入${env}資料庫。\n整個流程可能需要一段時間（GitHub Action 建置）。`;
@@ -121,11 +121,11 @@ export function createUpagentReleaseDialog() {
     render();
     j.onChange?.(j.req.id);
     try {
-      const checks = await api.runUpagentRelease(j.req.id, j.stage.key, {
+      const checks = await api.runUpagentRelease(j.req.id, j.stage.key, j.plan.target, {
         bump: j.plan.startFrom === 'Bump' ? bumpEl.value : undefined,
         remark: remarkEl.value,
       });
-      j.doneMessage = `UpAgent 發佈完成，已寫入${RELEASE_ENV_LABEL[j.plan.env]}資料庫`;
+      j.doneMessage = `UpAgent 發佈完成，已寫入 ${RELEASE_DB_LABEL[j.plan.db]} 資料庫`;
       j.phase = 'done';
       render();
       finish(true, checks);
@@ -137,7 +137,7 @@ export function createUpagentReleaseDialog() {
       // 回到確認畫面：重新查詢從哪一步接續（已完成的步驟已記錄在流程狀態）
       j.error = `發佈失敗：${cleanError(err)}`;
       try {
-        const status = await api.upagentReleaseStatus(j.req.id, j.stage.key);
+        const status = await api.upagentReleaseStatus(j.req.id, j.stage.key, j.plan.target);
         if (status.plan) j.plan = status.plan;
       } catch {
         // 查不到就沿用原本的 plan

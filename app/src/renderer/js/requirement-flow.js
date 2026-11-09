@@ -26,6 +26,9 @@ import {
   upagentReleasePlan,
   UPAGENT_RELEASE_KEY,
   RELEASE_ENV,
+  RELEASE_TARGETS,
+  releaseDbKey,
+  releaseTargetOf,
 } from '../../shared/flow-rules.js';
 
 /**
@@ -201,7 +204,7 @@ export function createRequirementFlowView() {
         if (value && isCommitStage(stage.key) && key === saasKey(stage)) return deploySaas(req, stage, key, text);
         // 勾佈版階段的 Local 前，確認 commit 已 merge 進環境 branch；規劃含 upagent 時再執行 UpAgent 發佈
         if (value && isCommitStage(stage.key) && !(await ensureMerged(req, stage))) return;
-        if (value && isCommitStage(stage.key) && !(await ensureReleased(req, stage, text))) return;
+        if (value && isCommitStage(stage.key) && !(await ensureReleased(req, stage, key, text))) return;
         state[req.id] = await api.setFlowCheck(req.id, key, value);
         update(req);
       },
@@ -228,12 +231,14 @@ export function createRequirementFlowView() {
   }
 
   /**
-   * 規劃含 upagent：勾佈版階段的 SaaS / Local 前執行 UpAgent 發佈（第一次完整發佈；已上傳過 Blob 則只寫入該環境的資料庫）。
+   * 規劃含 upagent：勾佈版階段的 SaaS / Local 前執行 UpAgent 發佈
+   * （第一次完整發佈；已上傳過 Blob 則只寫入該環境 SaaS / Local 各自的資料庫）。
    * 回傳 true 代表可以勾選（不需發佈或已完成）。
    */
-  async function ensureReleased(req, stage, text) {
-    if (!upagentReleasePlan(state[req.id] || {}, stage.key)) return true;
-    const status = await api.upagentReleaseStatus(req.id, stage.key);
+  async function ensureReleased(req, stage, key, text) {
+    const target = releaseTargetOf(key);
+    if (!upagentReleasePlan(state[req.id] || {}, stage.key, target)) return true;
+    const status = await api.upagentReleaseStatus(req.id, stage.key, target);
     if (!status.plan) return true;
     const { ok, checks } = await releaseDialog.open({
       req,
@@ -268,7 +273,7 @@ export function createRequirementFlowView() {
     };
     // merge 完成後：規劃含 upagent 時先執行 UpAgent 發佈，再勾選
     const save = async () => {
-      if (await ensureReleased(req, stage, text)) await check();
+      if (await ensureReleased(req, stage, key, text)) await check();
     };
     if (!pipelineRuns.pipelines.length) {
       if (mergeStatus.allMerged || (await mergeDialog.open({ req, stageLabel: stage.label, status: mergeStatus, mergeFn: () => api.mergeDeploy(req.id, stage.key) }))) {
@@ -288,7 +293,7 @@ export function createRequirementFlowView() {
       runsFn: () => api.deployPipelineRuns(req.id, stage.key),
       // 佈版 dialog 以 checkFn 是否成功判斷「已勾起」：UpAgent 發佈沒完成要丟錯，dialog 會提供「仍然勾起」重試
       checkFn: async () => {
-        if (!(await ensureReleased(req, stage, text))) throw new Error('UpAgent 發佈未完成，尚未勾起');
+        if (!(await ensureReleased(req, stage, key, text))) throw new Error('UpAgent 發佈未完成，尚未勾起');
         await check();
       },
       onChange: refresh,
@@ -317,18 +322,21 @@ export function createRequirementFlowView() {
     return btn;
   }
 
-  /** 已發佈的 UpAgent 版本與此環境資料庫是否已寫入 */
+  /** 已發佈的 UpAgent 版本與此環境 SaaS / Local 資料庫是否已寫入 */
   function releaseSummary(release, stage) {
     const env = RELEASE_ENV[stage.key];
     const time = (iso) => new Date(iso).toLocaleString('zh-TW', { hour12: false });
     const published = !!release.publishedAt;
-    const written = !!release.db?.[env];
-    const text = `UpAgent ${release.version}${published ? '' : '（Blob 未上傳完成）'} · ${written ? '已寫入 DB' : '尚未寫入 DB'}`;
-    const line = el('div', `check-summary repo-line ${written ? 'repo-branch' : 'repo-missing'}`, text);
+    const label = { saas: 'SaaS', local: 'Local' };
+    const writtenAt = Object.fromEntries(RELEASE_TARGETS.map((t) => [t, release.db?.[releaseDbKey(env, t)]]));
+    const allWritten = RELEASE_TARGETS.every((t) => writtenAt[t]);
+    const dbText = RELEASE_TARGETS.map((t) => `${label[t]} ${writtenAt[t] ? '✓' : '—'}`).join(' / ');
+    const text = `UpAgent ${release.version}${published ? '' : '（Blob 未上傳完成）'} · DB：${dbText}`;
+    const line = el('div', `check-summary repo-line ${allWritten ? 'repo-branch' : 'repo-missing'}`, text);
     line.title = [
       release.remark ? `備註：${release.remark}` : '',
       release.publishedAt ? `上傳 Blob：${time(release.publishedAt)}` : `最後完成步驟：${release.completed || '—'}`,
-      written ? `寫入 DB：${time(release.db[env])}` : '',
+      ...RELEASE_TARGETS.map((t) => (writtenAt[t] ? `寫入 ${label[t]} DB：${time(writtenAt[t])}` : `${label[t]} DB 尚未寫入`)),
     ].filter(Boolean).join('\n');
     return line;
   }

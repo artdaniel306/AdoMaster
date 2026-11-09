@@ -20,6 +20,7 @@ const {
   commitsCover,
   commitsConfirmed,
   upagentReleasePlan,
+  releaseTargetOf,
 } = require('../../shared/flow-rules.js');
 
 const NOTE_MAX = 2000;
@@ -230,8 +231,8 @@ async function setFlowCheck({ id, key, value, force = false } = {}) {
     if (value && stage) {
       if (!commitsConfirmed(checks, stage)) throw new Error('請先完成 Confirm Commit');
       if (JSON.stringify(checks[commitsKey(stage)] || {}) !== verifiedCommits) throw new Error('Confirm Commit 已變更，請重新勾選');
-      // 規劃含 upagent：要先完成 UpAgent 發佈（含寫入此環境的資料庫）
-      if (upagentReleasePlan(checks, stage)) throw new Error('請先完成 UpAgent 發佈');
+      // 規劃含 upagent：要先完成 UpAgent 發佈（含寫入此環境 SaaS / Local 的資料庫）
+      if (upagentReleasePlan(checks, stage, releaseTargetOf(key))) throw new Error('請先完成 UpAgent 發佈');
     }
     if (value) checks[key] = true;
     else delete checks[key];

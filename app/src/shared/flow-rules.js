@@ -10,8 +10,8 @@
  *   <stage>.commits: { repoKey: commit }   Confirm Commit 的 commit
  *   <stage>.commitsForced: true            跳階段直接勾起 Confirm Commit（沒有實際填 commit）
  *   testRecord: { note, images, updatedAt } 測試完成時記錄的測試場景（images 為 data/test_records/<id>/ 下的檔名）
- *   upagentRelease: { version, bump, remark, completed, publishedAt, db: { test, prod } }
- *                                          UpAgent 發佈進度（completed = 最後完成的發佈步驟；db 為各環境寫入資料庫的時間）
+ *   upagentRelease: { version, bump, remark, completed, publishedAt, db: { test_saas, test_local, prod_saas, prod_local } }
+ *                                          UpAgent 發佈進度（completed = 最後完成的發佈步驟；db 為各環境 SaaS / Local 寫入資料庫的時間）
  *   <checkKey>: true                       其他 checkbox（SaaS / Local、測試完成…）
  */
 
@@ -61,13 +61,29 @@ export function commitsConfirmed(checks, stage) {
 
 /**
  * UpAgent 發佈（shell/Release-UpAgent.ps1）：規劃選了 upagent 時，勾佈版階段的 SaaS / Local 會先執行。
- * Bump～CleanStaging 只需做一次（測試 / 正式環境共用 Blob 上的同一個版本），Database 則每個環境各寫一次。
+ * Bump～CleanStaging 只需做一次（測試 / 正式環境共用 Blob 上的同一個版本），Database 則每個環境的 SaaS / Local 各寫一次
+ * （4 個資料庫各自的連線）。
  */
 export const UPAGENT_REPO = 'upagent';
 export const UPAGENT_RELEASE_KEY = 'upagentRelease';
 export const RELEASE_STEPS = ['Bump', 'WaitAction', 'Download', 'Sign', 'UpdateYml', 'Publish', 'CleanStaging', 'Database'];
 export const RELEASE_ENV = { testDeploy: 'test', prodDeploy: 'prod' };
-export const RELEASE_ENV_LABEL = { test: '測試環境', prod: '正式環境' };
+/** SaaS / Local 各有自己的資料庫：checkbox key 的後綴（<stage>.saas / <stage>.local） */
+export const RELEASE_TARGETS = ['saas', 'local'];
+/** 資料庫代號（upagentRelease.db 的 key；對應設定檔區段 [upagent_db_<代號>]） */
+export const releaseDbKey = (env, target) => `${env}_${target}`;
+export const RELEASE_DB_LABEL = {
+  test_saas: '測試環境 SaaS',
+  test_local: '測試環境 Local',
+  prod_saas: '正式環境 SaaS',
+  prod_local: '正式環境 Local',
+};
+
+/** 佈版階段 checkbox key（testDeploy.saas…）對應的 target（saas / local）；不是 SaaS / Local 時回傳 null */
+export function releaseTargetOf(key) {
+  const target = key.slice(key.lastIndexOf('.') + 1);
+  return RELEASE_TARGETS.includes(target) ? target : null;
+}
 
 /** 規劃的 repository 是否含 upagent */
 export function needsUpagentRelease(checks) {
@@ -75,19 +91,21 @@ export function needsUpagentRelease(checks) {
 }
 
 /**
- * 勾某個佈版階段的 SaaS / Local 時，UpAgent 發佈要從哪一步開始：
- *   null              不需執行（規劃沒有 upagent，或此環境的資料庫已寫入）
+ * 勾某個佈版階段的 SaaS / Local（target = 'saas' | 'local'）時，UpAgent 發佈要從哪一步開始：
+ *   null              不需執行（規劃沒有 upagent，或此環境此 target 的資料庫已寫入）
  *   { startFrom: 'Bump' }                         尚未開始：完整發佈（需選 minor / patch）
  *   { startFrom: 'Sign', version }                上次中途失敗：從下一步接續
- *   { startFrom: 'Database', version }            已上傳過 Blob：只寫入此環境的資料庫
+ *   { startFrom: 'Database', version }            已上傳過 Blob：只寫入此資料庫
+ * 回傳的物件另含 env（test / prod）、target、db（資料庫代號，例如 test_saas）。
  */
-export function upagentReleasePlan(checks, stage) {
+export function upagentReleasePlan(checks, stage, target) {
   const env = RELEASE_ENV[stage];
-  if (!env || !needsUpagentRelease(checks)) return null;
+  if (!env || !RELEASE_TARGETS.includes(target) || !needsUpagentRelease(checks)) return null;
+  const db = releaseDbKey(env, target);
   const rel = checks[UPAGENT_RELEASE_KEY] || {};
-  if (rel.db?.[env]) return null;
-  // completed 只記 Bump～CleanStaging；Database 是否完成看 db[env]
+  if (rel.db?.[db]) return null;
+  // completed 只記 Bump～CleanStaging；Database 是否完成看 db[<env>_<target>]
   const done = rel.version ? RELEASE_STEPS.indexOf(rel.completed) : -1;
   const startFrom = RELEASE_STEPS[Math.min(done + 1, RELEASE_STEPS.length - 1)];
-  return { env, startFrom, version: startFrom === 'Bump' ? undefined : rel.version };
+  return { env, target, db, startFrom, version: startFrom === 'Bump' ? undefined : rel.version };
 }

@@ -14,20 +14,23 @@
       5. (UpdateYml)    呼叫 2-Update-LatestYml.ps1 依簽署後的 exe 重算 latest.yml / .blockmap
       6. (Publish)      呼叫 3-Publish-BlobArtifacts.ps1 上傳到 releases/<版號>/，並確認 latest.yml 確實已在 Blob 上
       7. (CleanStaging) 刪除 Blob 中 staging/ 底下的所有檔案
-      8. (Database)     在 -Environment 對應環境的 public.public_db_upagentrelease 新增此版本紀錄，
+      8. (Database)     在 -Environment + -Target 對應資料庫（[upagent_db_<環境>_<saas|local>]）的
+                        public.public_db_upagentrelease 新增此版本紀錄，
                         並把執行的 SQL 附加到 data\upagent_release.sql
 
     1-、2-、3- 子腳本與本檔同在 shell\ 底下（複製自 crmapp_AI\.manage\scripts），不呼叫其他專案的檔案。
 
     1～7 只需要做一次（同一個版本測試 / 正式環境共用 Blob 上的檔案）；之後其他環境 / 勾選只需以
-    -StartFrom Database -Version <版號> 寫入該環境的資料庫。
+    -StartFrom Database -Version <版號> 寫入該資料庫。測試 / 正式環境的 SaaS 與 Local 各有自己的資料庫（共 4 組連線）。
 
     連線資訊讀取 data\upagent_release.config（INI 格式，範本：app\upagent_release_example.config），用到的區段：
       [upagent_release]  storage_account / container / staging_folder / release_folder
       [github]           owner / repo / workflow_file / token
       [codesign]         signtool / cert_subject / timestamp_url
-      [upagent_db_test]  測試環境資料庫：psql / host / port / dbname / user / password / sslmode
-      [upagent_db_prod]  正式環境資料庫：同上
+      [upagent_db_test_saas]   測試環境 SaaS 資料庫：psql / host / port / dbname / user / password / sslmode
+      [upagent_db_test_local]  測試環境 Local 資料庫：同上
+      [upagent_db_prod_saas]   正式環境 SaaS 資料庫：同上
+      [upagent_db_prod_local]  正式環境 Local 資料庫：同上
     GitHub token 也可改用環境變數 GITHUB_TOKEN，環境變數優先度高於設定檔。
 
     app 以 -NonInteractive 執行，本腳本不做任何互動確認：
@@ -40,7 +43,10 @@
     本檔需存成 UTF-8 with BOM，Windows PowerShell 5.1 才能正確讀取中文。
 
 .PARAMETER Environment
-    寫入哪個環境的資料庫：test（[upagent_db_test]）或 prod（[upagent_db_prod]）
+    寫入哪個環境的資料庫：test 或 prod
+
+.PARAMETER Target
+    寫入 SaaS 或 Local 的資料庫：saas 或 local（與 -Environment 組成設定檔區段 [upagent_db_<Environment>_<Target>]）
 
 .PARAMETER UpagentDir
     upagent repository 的本機 clone 路徑（data/repos.json 中 upagent 的 path）
@@ -72,12 +78,12 @@
     結果 JSON 的輸出路徑
 
 .EXAMPLE
-    # 測試環境：完整發佈 minor 版並寫入測試環境資料庫
-    powershell -NoProfile -ExecutionPolicy Bypass -File shell\Release-UpAgent.ps1 -Environment test -UpagentDir C:\src\upagent -Branch peach_upagent -Bump minor -Remark "新增檔案上傳功能"
+    # 測試環境 SaaS：完整發佈 minor 版並寫入測試環境 SaaS 資料庫
+    powershell -NoProfile -ExecutionPolicy Bypass -File shell\Release-UpAgent.ps1 -Environment test -Target saas -UpagentDir C:\src\upagent -Branch peach_upagent -Bump minor -Remark "新增檔案上傳功能"
 
 .EXAMPLE
-    # 正式環境：Blob 已上傳過，只寫入正式環境資料庫
-    powershell -NoProfile -ExecutionPolicy Bypass -File shell\Release-UpAgent.ps1 -Environment prod -UpagentDir C:\src\upagent -StartFrom Database -Version 1.3.0 -Remark "Sprint 20 Release"
+    # 正式環境 Local：Blob 已上傳過，只寫入正式環境 Local 資料庫
+    powershell -NoProfile -ExecutionPolicy Bypass -File shell\Release-UpAgent.ps1 -Environment prod -Target local -UpagentDir C:\src\upagent -StartFrom Database -Version 1.3.0 -Remark "Sprint 20 Release"
 #>
 
 [CmdletBinding()]
@@ -85,6 +91,10 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidateSet("test", "prod")]
     [string]$Environment,
+
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("saas", "local")]
+    [string]$Target,
 
     [Parameter(Mandatory = $true)]
     [string]$UpagentDir,
@@ -112,7 +122,7 @@ $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 $Steps = @("Bump", "WaitAction", "Download", "Sign", "UpdateYml", "Publish", "CleanStaging", "Database")
-$EnvLabel = @{ test = "測試環境"; prod = "正式環境" }[$Environment]
+$EnvLabel = "{0} {1}" -f @{ test = "測試環境"; prod = "正式環境" }[$Environment], @{ saas = "SaaS"; local = "Local" }[$Target]
 
 # GitHub Action 輪詢設定
 $ActionPollSeconds    = 30
@@ -312,8 +322,8 @@ try {
         if (-not (Test-Path -LiteralPath $signtool)) { throw "找不到 signtool：$signtool" }
     }
 
-    # 每個環境各自的資料庫：[upagent_db_test] / [upagent_db_prod]
-    $dbSection  = "upagent_db_$Environment"
+    # 每個環境的 SaaS / Local 各自的資料庫：[upagent_db_test_saas] / [upagent_db_test_local] / [upagent_db_prod_saas] / [upagent_db_prod_local]
+    $dbSection  = "upagent_db_${Environment}_$Target"
     $psqlPath   = Get-Setting -Section $dbSection -Key "psql"     -Default "psql"
     $dbHost     = Get-Setting -Section $dbSection -Key "host"     -Required
     $dbPort     = Get-Setting -Section $dbSection -Key "port"     -Default "5432"
@@ -622,7 +632,7 @@ VALUES
                 Remove-Item -LiteralPath $sqlFile -Force -ErrorAction SilentlyContinue
             }
 
-            $log = "`n`n-- [$Environment] $dbUser@${dbHost}:$dbPort/$dbName $releasedOn`n$sql"
+            $log = "`n`n-- [${Environment}_$Target] $dbUser@${dbHost}:$dbPort/$dbName $releasedOn`n$sql"
             [System.IO.File]::AppendAllText((Join-Path $dataDir "upagent_release.sql"), $log, (New-Object System.Text.UTF8Encoding($false)))
             Write-Host "已寫入 $EnvLabel 資料庫，並附加到 data\upagent_release.sql。"
         }
@@ -636,6 +646,7 @@ if ($Out) {
     $result = [ordered]@{
         version     = $Version
         environment = $Environment
+        target      = $Target
         startFrom   = $StartFrom
         steps       = $completedSteps
         folderUrl   = $folderUrl
