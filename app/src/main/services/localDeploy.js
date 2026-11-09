@@ -11,6 +11,7 @@ const {
   commitsKey,
   localDeployKey,
   DEPLOY_ENV,
+  UPAGENT_REPO,
 } = require('../../shared/flow-rules.js');
 
 /**
@@ -57,14 +58,19 @@ async function deployTargets(id, stage) {
   const checks = (await loadFlowState())[id] || {};
   const planRepos = checks[PLAN_KEY] ? Object.keys(checks[PLAN_REPOS_KEY] || {}) : [];
   const section = (await readConfig())?.[SECTION];
-  if (!planRepos.length || !section) return { env, checks, targets: [] };
+  // unconfigured：規劃中沒有設定此環境 Local 佈版的 repository（upagent 走 UpAgent 發佈，不列入）
+  const unconfigured = [];
+  if (!planRepos.length) return { env, checks, targets: [], unconfigured };
   const config = await loadRepoConfig();
   const commits = checks[commitsKey(stage)] || {};
   const records = checks[localDeployKey(stage)] || {};
   const targets = [];
   for (const repo of planRepos) {
     const s = effectiveSettings(section, repo, env);
-    if (!s) continue;
+    if (!s) {
+      if (repo !== UPAGENT_REPO) unconfigured.push(repo);
+      continue;
+    }
     const r = config.repos.find((x) => x.key === repo);
     const envBranch = r?.deployBranches[stage] || '';
     const projectDir = str(s.projectDir);
@@ -89,13 +95,13 @@ async function deployTargets(id, stage) {
       upToDate: !!records[repo] && (records[repo].forCommit || '') === (commits[repo] || ''),
     });
   }
-  return { env, checks, targets };
+  return { env, checks, targets, unconfigured };
 }
 
 /** 勾 Local 前查詢要佈版哪些 repository */
 async function localDeployStatus({ id, stage } = {}) {
-  const { env, targets } = await deployTargets(id, stage);
-  return { env, targets, running: running && { id: running.id, stage: running.stage, repo: running.repo } };
+  const { env, targets, unconfigured } = await deployTargets(id, stage);
+  return { env, targets, unconfigured, running: running && { id: running.id, stage: running.stage, repo: running.repo } };
 }
 
 /**

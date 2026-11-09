@@ -4,6 +4,7 @@ import { createMergeDialog } from './merge-dialog.js';
 import { createDeployDialog } from './deploy-dialog.js';
 import { createUpagentReleaseDialog } from './upagent-release-dialog.js';
 import { createLocalDeployDialog } from './local-deploy-dialog.js';
+import { createConfirmDialog } from './confirm-dialog.js';
 import { saasKey } from './flow-stages.js';
 import {
   PLAN_REPOS_KEY,
@@ -32,6 +33,7 @@ export function createFlowDeploy(ctx) {
   const deployDialog = createDeployDialog();
   const releaseDialog = createUpagentReleaseDialog();
   const localDialog = createLocalDeployDialog();
+  const confirmDialog = createConfirmDialog();
 
   /**
    * 勾佈版階段的 SaaS / Local 前：確認 Confirm Commit 的 commit 都已進到環境 branch。
@@ -80,7 +82,19 @@ export function createFlowDeploy(ctx) {
    */
   async function ensureLocalDeployed(req, stage, text) {
     const status = await api.localDeployStatus(req.id, stage.key);
-    if (!status.targets.length) return true;
+    if (!status.targets.length) {
+      if (!status.unconfigured.length) return true;
+      // 規劃的 repository 都沒設定 Local 佈版：明確提示，避免以為已經佈版
+      return confirmDialog.open({
+        title: `${stage.label} ${text}：沒有設定 Local 佈版`,
+        req,
+        message:
+          `以下 repository 沒有設定${status.env === 'prod' ? '正式' : '測試'}環境的 Local 佈版：${status.unconfigured.join('、')}\n` +
+          `（data/config.json 的 localDeploy.repos.<repo>.${status.env}，範本見 templates/config_example.json）\n\n` +
+          '繼續的話只會確認 merge 後勾起 Local，不會佈版到地端主機。',
+        okLabel: '不佈版，直接勾起',
+      });
+    }
     const { ok, checks } = await localDialog.open({ req, stage, checkLabel: text, status, onChange: ctx.refresh });
     if (checks) ctx.setChecks(req.id, checks);
     return ok;

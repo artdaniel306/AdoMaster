@@ -74,7 +74,7 @@ export function createLocalDeployDialog() {
     if (!j) return;
     titleEl.textContent = `Local 佈版 · ${j.stage.label} ${j.checkLabel}`;
     reqEl.textContent = `#${j.req.id} ${j.req.title}`;
-    planEl.textContent = `勾「${j.stage.label} ${j.checkLabel}」前，將勾選的 repository 佈版到${ENV_LABEL[j.env]}地端主機：\n部署用資料夾切到環境 branch → (前置指令) → build 成 image tar（data/local_deploy/）→ docker load + push → ssh 到主機換掉 container（會有短暫停機）。\n同一個 commit 已 build 過 tar 時直接推送，不重新 build。\n已手動佈版可取消全部勾選，直接勾起。`;
+    planEl.textContent = `勾「${j.stage.label} ${j.checkLabel}」前，將勾選的 repository 佈版到${ENV_LABEL[j.env]}地端主機：\n部署用資料夾切到環境 branch → (前置指令) → build 成 image tar（data/local_deploy/）→ docker load + push → ssh 到主機換掉 container（會有短暫停機）。\n同一個 commit 已 build 過 tar 時直接推送，不重新 build。\n已手動佈版可取消全部勾選，直接勾起。${j.unconfigured.length ? `\n未設定 Local 佈版（不會佈版）：${j.unconfigured.join('、')}` : ''}`;
     renderRepos(j);
     rebuildRow.hidden = j.phase !== 'confirm' || !j.selected.size;
 
@@ -218,6 +218,7 @@ export function createLocalDeployDialog() {
         checkLabel,
         env: status.env,
         targets: status.targets,
+        unconfigured: status.unconfigured || [],
         selected: new Set(),
         phase: 'confirm',
         repo: null,
