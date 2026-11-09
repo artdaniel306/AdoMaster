@@ -18,7 +18,7 @@ def load_env(path):
     if path == ENV_PATH and not os.path.isfile(path) and os.path.isfile(LEGACY_ENV_PATH):
         path = LEGACY_ENV_PATH
     if not os.path.isfile(path):
-        raise AdoError(f"[錯誤] 找不到設定檔：{path}（可複製 templates/env_example.txt 為 data/.env 後填入設定）")
+        raise AdoError(f"[錯誤] 找不到設定檔：{path}（可在 App 的「設定 → 連線與機密設定…」填入，或複製 templates/env_example.txt 為 data/.env 後填入設定）")
     env = {}
     with open(path, encoding="utf-8-sig") as f:
         for raw in f:
@@ -55,7 +55,7 @@ def get_config(env_path=ENV_PATH):
     def need(key):
         val = os.environ.get(key) or env.get(key)
         if not val:
-            raise AdoError(f"[錯誤] .env 缺少必要設定：{key}")
+            raise AdoError(f"[錯誤] .env 缺少必要設定：{key}（可在 App 的「設定 → 連線與機密設定…」填入）")
         return val
 
     def opt(key, default):

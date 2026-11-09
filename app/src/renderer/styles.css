@@ -265,6 +265,28 @@ td.stage-split { padding: 0; height: 1px; }
 }
 .rs-branches { resize: vertical; font: 13px Consolas, "Courier New", monospace; }
 
+/* ---- 連線與機密設定（選單「設定 → 連線與機密設定…」，編輯 data/.env；沿用 Repository 設定的 rs-* 樣式）---- */
+#env-settings-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(720px, 94vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#env-settings-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#env-settings-dialog .dlg-box { max-height: 90vh; }
+#env-settings-dialog .dlg-body { overflow: auto; }
+#es-file { word-break: break-all; }
+.es-groups { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.es-title { margin: 0; font-size: 14px; }
+.es-hint { margin: 2px 0 0; font-size: 12px; }
+.es-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 10px; }
+.es-required { color: var(--err); }
+.es-key { margin-left: 6px; font: 11px Consolas, "Courier New", monospace; font-weight: normal; color: var(--muted); }
+.es-input-box { display: flex; gap: 6px; }
+.es-input {
+  flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--fg); font: 13px Consolas, "Courier New", monospace;
+}
+.rs-field .rs-warn { margin: 0; }
+
 /* ---- Confirm Commit（Test deploy / Prod deploy 佈版前）---- */
 #commit-dialog {
   padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);

@@ -5,6 +5,7 @@ const workItems = require('./services/workItems');
 const requirementFlow = require('./services/requirementFlow');
 const flowState = require('./services/flowState');
 const repoConfig = require('./services/repoConfig');
+const appConfig = require('./services/appConfig');
 const gitCommit = require('./services/gitCommit');
 const pipelines = require('./services/pipelines');
 const afterDeploy = require('./services/afterDeploy');
@@ -53,6 +54,8 @@ function registerIpcHandlers() {
   ipcMain.handle('repos:loadSettings', () => repoConfig.loadRepoSettings());
   ipcMain.handle('repos:saveSettings', (_e, params) => repoConfig.saveRepoSettings(params));
   ipcMain.handle('repos:pickFolder', (e, defaultPath) => repoConfig.pickRepoFolder(senderWindow(e), defaultPath));
+  ipcMain.handle('env:loadSettings', () => appConfig.loadEnvSettings());
+  ipcMain.handle('env:saveSettings', (_e, params) => appConfig.saveEnvSettings(params));
   ipcMain.handle('localData:export', (e, localStorageItems) => localData.exportLocalData(senderWindow(e), localStorageItems));
   ipcMain.handle('localData:pickImport', (e) => localData.pickImportZip(senderWindow(e)));
   ipcMain.handle('localData:applyImport', () => localData.applyImport());

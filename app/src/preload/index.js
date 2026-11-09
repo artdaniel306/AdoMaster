@@ -46,6 +46,9 @@ contextBridge.exposeInMainWorld('api', {
   loadRepoSettings: () => ipcRenderer.invoke('repos:loadSettings'),
   saveRepoSettings: (repos) => ipcRenderer.invoke('repos:saveSettings', { repos }),
   pickRepoFolder: (defaultPath) => ipcRenderer.invoke('repos:pickFolder', defaultPath),
+  loadEnvSettings: () => ipcRenderer.invoke('env:loadSettings'),
+  /** values: { KEY: value }，空字串 = 從 .env 刪掉該 key */
+  saveEnvSettings: (values) => ipcRenderer.invoke('env:saveSettings', { values }),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
   exportLocalData: (localStorageItems) => ipcRenderer.invoke('localData:export', localStorageItems),
   pickImportZip: () => ipcRenderer.invoke('localData:pickImport'),
@@ -54,4 +57,6 @@ contextBridge.exposeInMainWorld('api', {
   onLocalDataMenu: (cb) => ipcRenderer.on('menu:localData', (_e, action) => cb(action)),
   /** 選單「設定 → Repository 設定…」被點擊時呼叫 cb() */
   onRepoSettingsMenu: (cb) => ipcRenderer.on('menu:repoSettings', () => cb()),
+  /** 選單「設定 → 連線與機密設定…」被點擊時呼叫 cb() */
+  onEnvSettingsMenu: (cb) => ipcRenderer.on('menu:envSettings', () => cb()),
 });

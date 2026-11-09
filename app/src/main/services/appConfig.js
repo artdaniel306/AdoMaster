@@ -73,18 +73,120 @@ function envValue(v) {
   return v.includes('"') ? `'${v}'` : `"${v}"`;
 }
 
-/** 在 .env 文字中設定 key（已有則取代該行，否則加在最後），保留其他行與註解；空值略過 */
-function setEnvKeys(text, values) {
-  const lines = text ? text.replace(/\r?\n$/, '').split(/\r?\n/) : [];
+/**
+ * 在 .env 文字中設定 key（已有則取代該行，否則加在最後），保留其他行與註解。
+ * 空值預設略過；removeEmpty = true 時改成刪掉該 key 的設定行（註解掉的範例行不動）。
+ */
+function setEnvKeys(text, values, { removeEmpty = false } = {}) {
+  let lines = text ? text.replace(/\r?\n$/, '').split(/\r?\n/) : [];
   for (const [key, value] of Object.entries(values)) {
-    if (value == null || value === '') continue;
-    const line = `${key}=${envValue(String(value))}`;
     const re = new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`);
+    if (value == null || value === '') {
+      if (removeEmpty) lines = lines.filter((l) => !re.test(l));
+      continue;
+    }
+    const line = `${key}=${envValue(String(value))}`;
     const i = lines.findIndex((l) => re.test(l));
     if (i >= 0) lines[i] = line;
     else lines.push(line);
   }
   return `${lines.join('\n')}\n`;
+}
+
+let envQueue = Promise.resolve(); // 序列化 .env 的讀改寫
+
+/** 依序執行 .env 的讀改寫（fn 丟錯不影響後續） */
+function withEnvLock(fn) {
+  const run = envQueue.then(fn);
+  envQueue = run.catch(() => {});
+  return run;
+}
+
+/**
+ * 讀取 .env 的 KEY=VALUE，規則與 script/ado/config.py 的 load_env、shell 的 Read-DotEnv 相同：
+ * # 開頭為註解、可加 export 前綴、成對引號去掉、未加引號時去掉行尾「 #」之後的註解。
+ * 不用 node:util 的 parseEnv：它的引號 / 註解處理和 Python / PowerShell 不完全一樣，這裡要顯示腳本實際讀到的值。
+ */
+function readEnvValues(text) {
+  const env = {};
+  for (const raw of (text || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    const eq = line.indexOf('=');
+    if (!line || line.startsWith('#') || eq < 0) continue;
+    let key = line.slice(0, eq).trim();
+    if (key.startsWith('export ')) key = key.slice(7).trim();
+    let value = line.slice(eq + 1).trim();
+    const q = value[0];
+    if (q !== "'" && q !== '"') value = value.split(' #')[0].trim();
+    if (value.length >= 2 && (q === "'" || q === '"') && value.at(-1) === q) value = value.slice(1, -1);
+    env[key] = value;
+  }
+  return env;
+}
+
+/**
+ * 「設定 → 連線與機密設定」dialog 可編輯的 .env key（範本：templates/env_example.txt）。
+ * 不在清單中的 key（例如 OUTPUT_CSV）與註解會原樣保留；新增 .env key 時也要加到這裡。
+ */
+const ENV_GROUPS = [
+  {
+    title: 'Azure DevOps',
+    hint: 'Python 腳本（Iteration / Work Items / Requirement 流程 / Pipeline）連線用',
+    fields: [
+      { key: 'AZDO_ORG', label: 'Organization', required: true, placeholder: 'my-org', hint: 'https://dev.azure.com/<organization>' },
+      { key: 'AZDO_PROJECT', label: 'Project', required: true, placeholder: 'MyProject' },
+      { key: 'AZDO_PAT', label: 'Personal Access Token', required: true, secret: true, hint: '需 Work Items (Read & write)；讀 Pipeline 需 Build (Read)' },
+      { key: 'AZDO_BASE_URL', label: 'Base URL', placeholder: 'https://dev.azure.com', hint: '選填；Azure DevOps Server (on-prem) 才需要改' },
+      { key: 'AZDO_API_VERSION', label: 'API version', placeholder: '7.1', hint: '選填' },
+    ],
+  },
+  {
+    title: 'UpAgent 發佈',
+    hint: 'shell/Release-UpAgent.ps1 使用；資料庫連線資訊（host / user …）在 data/config.json 的 upagentRelease.db',
+    fields: [
+      { key: 'GITHUB_TOKEN', label: 'GitHub Token', secret: true, hint: '需能讀 upagent repo 的 Actions；「重跑 GitHub Action」需 Actions 寫入權限' },
+      ...UPAGENT_DB_KEYS.map((db) => ({ key: upagentDbPasswordKey(db), label: `${RELEASE_DB_LABEL[db]} 資料庫密碼`, secret: true })),
+    ],
+  },
+];
+const ENV_FIELD_KEYS = ENV_GROUPS.flatMap((g) => g.fields.map((f) => f.key));
+
+/** 給「連線與機密設定」dialog 用：欄位定義 + 目前 .env 的值；envOverride = 同名環境變數已設定（腳本會優先用它） */
+async function loadEnvSettings() {
+  const text = await readText(ENV_FILE);
+  const values = readEnvValues(text);
+  return {
+    file: ENV_FILE,
+    exists: text != null,
+    groups: ENV_GROUPS.map((g) => ({
+      ...g,
+      fields: g.fields.map((f) => ({ ...f, value: values[f.key] ?? '', envOverride: !!process.env[f.key] })),
+    })),
+  };
+}
+
+/**
+ * 儲存「連線與機密設定」dialog 的內容到 data/.env：只改清單內的 key，空值 = 刪掉該行，其他行與註解保留（暫存檔 + rename）。
+ * @param values { [key]: string }
+ */
+async function saveEnvSettings({ values } = {}) {
+  if (!values || typeof values !== 'object') throw new Error('values 必須是物件');
+  const clean = {};
+  for (const key of ENV_FIELD_KEYS) {
+    if (!(key in values)) continue;
+    const v = values[key] == null ? '' : String(values[key]).trim();
+    if (/[\r\n]/.test(v)) throw new Error(`${key} 不能包含換行`);
+    clean[key] = v;
+  }
+  if (clean.AZDO_BASE_URL && !/^https?:\/\//i.test(clean.AZDO_BASE_URL)) {
+    throw new Error('AZDO_BASE_URL 必須是 http:// 或 https:// 開頭的網址');
+  }
+  await withEnvLock(async () => {
+    const text = (await readText(ENV_FILE))
+      ?? `# 連線身分與機密（扁平 KEY=VALUE）。本檔含有存取憑證，請勿提交到版控或外流。同名的環境變數優先於本檔。\n`;
+    await writeFileAtomic(ENV_FILE, setEnvKeys(text, clean, { removeEmpty: true }));
+  });
+  return loadEnvSettings();
 }
 
 /**
@@ -164,10 +266,12 @@ async function applyLegacy({ env, repos, upagent } = {}) {
     });
   }
   if (env != null || up) {
-    let text = await readText(ENV_FILE);
-    if (env != null) text = text == null ? env : setEnvKeys(text, parseEnv(env)); // 沒有 data/.env 時整檔沿用（保留註解）
-    if (up) text = setEnvKeys(text, up.secrets);
-    await writeFileAtomic(ENV_FILE, text);
+    await withEnvLock(async () => {
+      let text = await readText(ENV_FILE);
+      if (env != null) text = text == null ? env : setEnvKeys(text, parseEnv(env)); // 沒有 data/.env 時整檔沿用（保留註解）
+      if (up) text = setEnvKeys(text, up.secrets);
+      await writeFileAtomic(ENV_FILE, text);
+    });
   }
 }
 
@@ -208,6 +312,8 @@ module.exports = {
   parseConfig,
   readConfig,
   updateConfig,
+  loadEnvSettings,
+  saveEnvSettings,
   applyLegacy,
   migrateLegacyConfig,
 };

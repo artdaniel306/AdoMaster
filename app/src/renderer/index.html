@@ -76,6 +76,25 @@
     </form>
   </dialog>
 
+  <dialog id="env-settings-dialog">
+    <form id="es-form" class="dlg-box" method="dialog">
+      <header class="dlg-head">
+        <h3>連線與機密設定</h3>
+        <button type="button" id="es-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <p id="es-file" class="muted"></p>
+        <div id="es-groups" class="es-groups"></div>
+        <p id="es-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" id="es-cancel" class="btn-ghost">取消</button>
+        <button type="submit" id="es-ok" class="btn-primary">儲存</button>
+      </footer>
+    </form>
+  </dialog>
+
   <dialog id="commit-dialog">
     <form id="cc-form" class="dlg-box" method="dialog">
       <header class="dlg-head">
