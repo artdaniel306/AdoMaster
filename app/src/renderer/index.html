@@ -240,6 +240,40 @@
     </div>
   </dialog>
 
+  <dialog id="release-dialog">
+    <div class="dlg-box">
+      <header class="dlg-head">
+        <h3 id="ur-title">UpAgent 發佈</h3>
+        <button type="button" id="ur-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <p id="ur-req" class="dlg-req"></p>
+        <p id="ur-plan" class="cf-msg"></p>
+        <div id="ur-form">
+          <div id="ur-bump-row" class="ur-row">
+            <label for="ur-bump">版號遞增</label>
+            <select id="ur-bump">
+              <option value="patch">patch（x.y.Z）</option>
+              <option value="minor">minor（x.Y.0）</option>
+            </select>
+          </div>
+          <label class="dlg-note-label" for="ur-remark">資料庫備註 remark（可留空）</label>
+          <textarea id="ur-remark" class="dlg-note" rows="2" maxlength="500" placeholder="例：Sprint 20 Release"></textarea>
+          <p id="ur-hsm" class="ur-hsm">🔑 會執行簽署：請先插上 HSM USB，簽署時會跳出 PIN 輸入視窗。</p>
+        </div>
+        <p id="ur-phase" class="status"></p>
+        <pre id="ur-log" class="ur-log" hidden></pre>
+        <p id="ur-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" id="ur-stop" class="btn-ghost btn-danger">停止</button>
+        <span class="spacer"></span>
+        <button type="button" id="ur-bg" class="btn-ghost">背景執行</button>
+        <button type="button" id="ur-ok" class="btn-primary">開始發佈</button>
+      </footer>
+    </div>
+  </dialog>
+
   <main id="content">
     <header class="content-head">
       <div>

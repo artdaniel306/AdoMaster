@@ -8,6 +8,7 @@ const gitCommit = require('./services/gitCommit');
 const pipelines = require('./services/pipelines');
 const testRecord = require('./services/testRecord');
 const powershellExample = require('./services/powershellExample');
+const upagentRelease = require('./services/upagentRelease');
 
 /**
  * IPC channel → service 對照。renderer 只能透過 preload 暴露的 window.api 呼叫這些 channel。
@@ -31,6 +32,11 @@ function registerIpcHandlers() {
   ipcMain.handle('flow:mergeStatus', (_e, { id, stage } = {}) => requirementFlow.deployMergeStatus({ id, stage }));
   ipcMain.handle('flow:mergeDeploy', (_e, { id, stage } = {}) => requirementFlow.mergeDeploy({ id, stage }));
   ipcMain.handle('flow:pipelineRuns', (_e, { id, stage } = {}) => pipelines.deployPipelineRuns({ id, stage }));
+  ipcMain.handle('upagentRelease:status', (_e, { id, stage } = {}) => upagentRelease.releaseStatus({ id, stage }));
+  ipcMain.handle('upagentRelease:run', (e, params) =>
+    upagentRelease.runRelease((channel, payload) => !e.sender.isDestroyed() && e.sender.send(channel, payload), params)
+  );
+  ipcMain.handle('upagentRelease:cancel', () => upagentRelease.cancelRelease());
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());
   ipcMain.handle('repos:checkCommit', (_e, params) => gitCommit.checkCommit(params));
   ipcMain.handle('repos:branchGraph', (_e, params) => gitCommit.branchGraph(params));

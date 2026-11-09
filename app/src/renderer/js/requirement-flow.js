@@ -7,6 +7,7 @@ import { createDeployDialog } from './deploy-dialog.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 import { createTaskDialog } from './task-dialog.js';
 import { createTestDialog } from './test-dialog.js';
+import { createUpagentReleaseDialog } from './upagent-release-dialog.js';
 import { workItemLink } from './description-dialog.js';
 import { loadRepos, repoTag } from './repos.js';
 import {
@@ -22,6 +23,9 @@ import {
   commitsCover,
   commitsConfirmed,
   noRepoChange,
+  upagentReleasePlan,
+  UPAGENT_RELEASE_KEY,
+  RELEASE_ENV,
 } from '../../shared/flow-rules.js';
 
 /**
@@ -36,6 +40,8 @@ import {
  * - 勾 SaaS 時若有設定自動佈版 Pipeline（data/repos.json `testPipeline` / `prodPipeline`），
  *   改走 deploy-dialog.js：等進行中的 Run 結束 → merge + push → 監看新 Run → 通知（成功時自動勾起）。
  * - 規劃 沒選 repository（不需修改 repository）時，Confirm Commit 自動完成，SaaS / Local 也省略（不需勾選）。
+ * - 規劃含 upagent 時，勾佈版階段的 SaaS / Local 前（merge 之後）先執行 UpAgent 發佈（upagent-release-dialog.js →
+ *   shell/Release-UpAgent.ps1）；已上傳過 Blob 的版本只寫入該環境的資料庫。
  * - 勾「測試 / 檢核完成」時開啟 test-dialog.js 記錄測試場景或驗證方式（文字 + 圖片），儲存後才勾起。
  */
 const STAGES = [
@@ -103,6 +109,7 @@ export function createRequirementFlowView() {
   const confirmDialog = createConfirmDialog();
   const taskDialog = createTaskDialog();
   const testDialog = createTestDialog();
+  const releaseDialog = createUpagentReleaseDialog();
 
   function renderSummary() {
     const counts = new Map([...STAGES, DONE].map((s) => [s.key, 0]));
@@ -192,8 +199,9 @@ export function createRequirementFlowView() {
       disabledReason,
       normal: async (value) => {
         if (value && isCommitStage(stage.key) && key === saasKey(stage)) return deploySaas(req, stage, key, text);
-        // 勾佈版階段的 Local 前，確認 commit 已 merge 進環境 branch
+        // 勾佈版階段的 Local 前，確認 commit 已 merge 進環境 branch；規劃含 upagent 時再執行 UpAgent 發佈
         if (value && isCommitStage(stage.key) && !(await ensureMerged(req, stage))) return;
+        if (value && isCommitStage(stage.key) && !(await ensureReleased(req, stage, text))) return;
         state[req.id] = await api.setFlowCheck(req.id, key, value);
         update(req);
       },
@@ -220,6 +228,26 @@ export function createRequirementFlowView() {
   }
 
   /**
+   * 規劃含 upagent：勾佈版階段的 SaaS / Local 前執行 UpAgent 發佈（第一次完整發佈；已上傳過 Blob 則只寫入該環境的資料庫）。
+   * 回傳 true 代表可以勾選（不需發佈或已完成）。
+   */
+  async function ensureReleased(req, stage, text) {
+    if (!upagentReleasePlan(state[req.id] || {}, stage.key)) return true;
+    const status = await api.upagentReleaseStatus(req.id, stage.key);
+    if (!status.plan) return true;
+    const { ok, checks } = await releaseDialog.open({
+      req,
+      stage,
+      checkLabel: text,
+      status,
+      planRepos: state[req.id]?.[PLAN_REPOS_KEY],
+      onChange: refresh,
+    });
+    if (checks) state[req.id] = checks;
+    return ok;
+  }
+
+  /**
    * 勾佈版階段的 SaaS：
    *   - 相關 repository 都沒設定 Pipeline → 同 Local（確認 / merge 後勾選）
    *   - 已全部 merge 且 Pipeline 沒有進行中的 Run → 直接勾選
@@ -234,9 +262,13 @@ export function createRequirementFlowView() {
     ]);
     statusEl.className = 'status';
     statusEl.textContent = '';
-    const save = async () => {
+    const check = async () => {
       state[req.id] = await api.setFlowCheck(req.id, key, true);
       refresh(req.id);
+    };
+    // merge 完成後：規劃含 upagent 時先執行 UpAgent 發佈，再勾選
+    const save = async () => {
+      if (await ensureReleased(req, stage, text)) await check();
     };
     if (!pipelineRuns.pipelines.length) {
       if (mergeStatus.allMerged || (await mergeDialog.open({ req, stageLabel: stage.label, status: mergeStatus, mergeFn: () => api.mergeDeploy(req.id, stage.key) }))) {
@@ -254,7 +286,11 @@ export function createRequirementFlowView() {
       pipelineRuns,
       mergeFn: () => api.mergeDeploy(req.id, stage.key),
       runsFn: () => api.deployPipelineRuns(req.id, stage.key),
-      checkFn: save,
+      // 佈版 dialog 以 checkFn 是否成功判斷「已勾起」：UpAgent 發佈沒完成要丟錯，dialog 會提供「仍然勾起」重試
+      checkFn: async () => {
+        if (!(await ensureReleased(req, stage, text))) throw new Error('UpAgent 發佈未完成，尚未勾起');
+        await check();
+      },
       onChange: refresh,
     });
   }
@@ -268,6 +304,33 @@ export function createRequirementFlowView() {
     btn.title = '開啟佈版視窗';
     btn.addEventListener('click', () => deployDialog.show());
     return btn;
+  }
+
+  /** UpAgent 發佈進行中 / 失敗時，在 SaaS / Local 底下顯示狀態，點擊重新開啟發佈視窗 */
+  function releaseStatusLine(req, stage) {
+    const text = releaseDialog.statusOf(req.id, stage.key);
+    if (!text) return null;
+    const btn = el('button', 'btn-link release-status', `📦 ${text}`);
+    btn.type = 'button';
+    btn.title = '開啟 UpAgent 發佈視窗';
+    btn.addEventListener('click', () => releaseDialog.show());
+    return btn;
+  }
+
+  /** 已發佈的 UpAgent 版本與此環境資料庫是否已寫入 */
+  function releaseSummary(release, stage) {
+    const env = RELEASE_ENV[stage.key];
+    const time = (iso) => new Date(iso).toLocaleString('zh-TW', { hour12: false });
+    const published = !!release.publishedAt;
+    const written = !!release.db?.[env];
+    const text = `UpAgent ${release.version}${published ? '' : '（Blob 未上傳完成）'} · ${written ? '已寫入 DB' : '尚未寫入 DB'}`;
+    const line = el('div', `check-summary repo-line ${written ? 'repo-branch' : 'repo-missing'}`, text);
+    line.title = [
+      release.remark ? `備註：${release.remark}` : '',
+      release.publishedAt ? `上傳 Blob：${time(release.publishedAt)}` : `最後完成步驟：${release.completed || '—'}`,
+      written ? `寫入 DB：${time(release.db[env])}` : '',
+    ].filter(Boolean).join('\n');
+    return line;
   }
 
   /** 規劃：checkbox 本身不直接切換，點擊時開啟 dialog 選擇 repository / feature branch */
@@ -520,6 +583,7 @@ export function createRequirementFlowView() {
       const box = el('div', 'checks');
       const reason = confirmed ? '' : '請先完成 Confirm Commit';
       const deploying = deployDialog.statusOf(req.id, stage.key);
+      const releasing = releaseDialog.statusOf(req.id, stage.key);
       if (noRepoChange(state[req.id] || {})) {
         // 不需修改 repository：沒有東西要佈版，SaaS / Local 省略
         box.append(el('span', 'muted', '不需佈版（未修改 repository）'));
@@ -529,11 +593,21 @@ export function createRequirementFlowView() {
       // 已勾選的仍可取消，避免 commit 變更後卡住
       box.append(
         ...stage.checks.map(([k, label]) =>
-          checkbox(req, stage, k, label, state[req.id]?.[k] ? '' : k === saasKey(stage) && deploying ? '佈版流程進行中' : reason)
+          checkbox(
+            req,
+            stage,
+            k,
+            label,
+            state[req.id]?.[k] ? '' : releasing ? 'UpAgent 發佈進行中' : k === saasKey(stage) && deploying ? '佈版流程進行中' : reason
+          )
         )
       );
       const line = deployStatusLine(req, stage);
       if (line) box.append(line);
+      const releaseLine = releaseStatusLine(req, stage);
+      if (releaseLine) box.append(releaseLine);
+      const release = state[req.id]?.[UPAGENT_RELEASE_KEY];
+      if (release?.version) box.append(releaseSummary(release, stage));
       td.append(commitBox, box);
     } else if (stage.key === 'test') {
       td.append(testCheck(req, stage));

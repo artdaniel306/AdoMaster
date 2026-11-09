@@ -16,6 +16,7 @@ const FILES = [
   { name: 'data/repos.json', label: 'Repository 設定（路徑、branch、pipeline）', json: true },
   { name: 'data/requirement_flow_state.json', label: 'Requirement 流程勾選狀態', json: true },
   { name: 'feature/restore_workitem/.env', label: 'restore_workitem 腳本設定' },
+  { name: 'data/upagent_release.config', label: 'UpAgent 發佈設定（GitHub / 簽署 / 測試與正式環境資料庫）' },
 ];
 // renderer 的 localStorage（固定的 Iteration、側欄收合狀態）不在檔案系統上，由 renderer 傳進來 / 交回去
 const LOCAL_STORAGE = { name: 'localStorage.json', label: '固定的 Iteration 等介面設定' };

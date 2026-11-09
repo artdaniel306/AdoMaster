@@ -383,6 +383,29 @@ td.stage-split { padding: 0; height: 1px; }
 .dp-run .muted { font-size: 11px; }
 .deploy-status { display: block; margin-top: 4px; font-size: 12px; text-align: left; }
 
+/* ---- UpAgent 發佈（規劃含 upagent，勾佈版階段的 SaaS / Local 前執行 shell/Release-UpAgent.ps1）---- */
+#release-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(760px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#release-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#release-dialog .status { margin: 6px 0; }
+#release-dialog .status.ok { color: var(--ok); font-weight: 600; }
+#release-dialog #ur-phase.error { font-weight: 600; }
+#release-dialog #ur-phase:empty { display: none; }
+#ur-form[hidden], #ur-bump-row[hidden], #ur-hsm[hidden] { display: none; }
+.ur-row { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+.ur-row label { font-weight: 600; }
+.ur-row select {
+  padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit;
+}
+.ur-hsm { margin: 8px 0 0; color: var(--cur-border); }
+.ur-log {
+  margin: 6px 0 0; padding: 8px 10px; max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); font: 12px/1.45 Consolas, "Cascadia Mono", monospace; white-space: pre-wrap; word-break: break-all;
+}
+.release-status { display: block; margin-top: 4px; font-size: 12px; text-align: left; }
+
 /* ---- 安排預設 Task（Pending 階段、尚未展開 Task）---- */
 #task-dialog {
   padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);

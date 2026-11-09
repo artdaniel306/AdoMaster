@@ -10,6 +10,8 @@
  *   <stage>.commits: { repoKey: commit }   Confirm Commit 的 commit
  *   <stage>.commitsForced: true            跳階段直接勾起 Confirm Commit（沒有實際填 commit）
  *   testRecord: { note, images, updatedAt } 測試完成時記錄的測試場景（images 為 data/test_records/<id>/ 下的檔名）
+ *   upagentRelease: { version, bump, remark, completed, publishedAt, db: { test, prod } }
+ *                                          UpAgent 發佈進度（completed = 最後完成的發佈步驟；db 為各環境寫入資料庫的時間）
  *   <checkKey>: true                       其他 checkbox（SaaS / Local、測試完成…）
  */
 
@@ -55,4 +57,37 @@ export function noRepoChange(checks) {
  */
 export function commitsConfirmed(checks, stage) {
   return !!checks[commitsForcedKey(stage)] || (!!checks[PLAN_KEY] && commitsCover(checks, stage));
+}
+
+/**
+ * UpAgent 發佈（shell/Release-UpAgent.ps1）：規劃選了 upagent 時，勾佈版階段的 SaaS / Local 會先執行。
+ * Bump～CleanStaging 只需做一次（測試 / 正式環境共用 Blob 上的同一個版本），Database 則每個環境各寫一次。
+ */
+export const UPAGENT_REPO = 'upagent';
+export const UPAGENT_RELEASE_KEY = 'upagentRelease';
+export const RELEASE_STEPS = ['Bump', 'WaitAction', 'Download', 'Sign', 'UpdateYml', 'Publish', 'CleanStaging', 'Database'];
+export const RELEASE_ENV = { testDeploy: 'test', prodDeploy: 'prod' };
+export const RELEASE_ENV_LABEL = { test: '測試環境', prod: '正式環境' };
+
+/** 規劃的 repository 是否含 upagent */
+export function needsUpagentRelease(checks) {
+  return !!checks[PLAN_KEY] && Object.prototype.hasOwnProperty.call(checks[PLAN_REPOS_KEY] || {}, UPAGENT_REPO);
+}
+
+/**
+ * 勾某個佈版階段的 SaaS / Local 時，UpAgent 發佈要從哪一步開始：
+ *   null              不需執行（規劃沒有 upagent，或此環境的資料庫已寫入）
+ *   { startFrom: 'Bump' }                         尚未開始：完整發佈（需選 minor / patch）
+ *   { startFrom: 'Sign', version }                上次中途失敗：從下一步接續
+ *   { startFrom: 'Database', version }            已上傳過 Blob：只寫入此環境的資料庫
+ */
+export function upagentReleasePlan(checks, stage) {
+  const env = RELEASE_ENV[stage];
+  if (!env || !needsUpagentRelease(checks)) return null;
+  const rel = checks[UPAGENT_RELEASE_KEY] || {};
+  if (rel.db?.[env]) return null;
+  // completed 只記 Bump～CleanStaging；Database 是否完成看 db[env]
+  const done = rel.version ? RELEASE_STEPS.indexOf(rel.completed) : -1;
+  const startFrom = RELEASE_STEPS[Math.min(done + 1, RELEASE_STEPS.length - 1)];
+  return { env, startFrom, version: startFrom === 'Bump' ? undefined : rel.version };
 }

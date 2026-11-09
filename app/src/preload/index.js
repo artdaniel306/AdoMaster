@@ -20,6 +20,13 @@ contextBridge.exposeInMainWorld('api', {
   deployMergeStatus: (id, stage) => ipcRenderer.invoke('flow:mergeStatus', { id, stage }),
   mergeDeploy: (id, stage) => ipcRenderer.invoke('flow:mergeDeploy', { id, stage }),
   deployPipelineRuns: (id, stage) => ipcRenderer.invoke('flow:pipelineRuns', { id, stage }),
+  upagentReleaseStatus: (id, stage) => ipcRenderer.invoke('upagentRelease:status', { id, stage }),
+  /** 執行 UpAgent 發佈（shell/Release-UpAgent.ps1），完成後回傳該 Requirement 更新後的狀態 */
+  runUpagentRelease: (id, stage, { bump, remark } = {}) => ipcRenderer.invoke('upagentRelease:run', { id, stage, bump, remark }),
+  cancelUpagentRelease: () => ipcRenderer.invoke('upagentRelease:cancel'),
+  /** UpAgent 發佈的即時輸出：cb({ id, stage, line })；步驟開始：cb({ id, stage, step }) */
+  onUpagentReleaseLog: (cb) => ipcRenderer.on('upagentRelease:log', (_e, data) => cb(data)),
+  onUpagentReleaseStep: (cb) => ipcRenderer.on('upagentRelease:step', (_e, data) => cb(data)),
   loadRepoConfig:() => ipcRenderer.invoke('repos:config'),
   checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
   branchGraph: (repo, branch, { fetch = false, all = false } = {}) =>

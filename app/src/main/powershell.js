@@ -27,18 +27,24 @@ function resolveScript(scriptName) {
  * 執行腳本，回傳 stdout（字串）。exit code 非 0 時 reject，訊息為 stderr。
  * @param {string} scriptName shell/ 底下的檔名，例如 'example.ps1'
  * @param {string[]} args 傳給腳本的參數，例如 ['-Name', 'foo', '-Force']
+ * @param {object} [options]
+ * @param {number} [options.timeout] 毫秒，0 = 不限時（預設 2 分鐘）
+ * @param {(text: string) => void} [options.onStdout] 即時收到 stdout（長時間執行的腳本顯示進度用）
+ * @param {AbortSignal} [options.signal] abort 時以 taskkill /T 結束腳本與它啟動的子程序（git、az…）
  */
-function runPowerShell(scriptName, args = [], { timeout = DEFAULT_TIMEOUT } = {}) {
+function runPowerShell(scriptName, args = [], { timeout = DEFAULT_TIMEOUT, onStdout, signal } = {}) {
   const file = resolveScript(scriptName);
   const exe = process.env.POWERSHELL || 'powershell.exe';
   return new Promise((resolve, reject) => {
-    execFile(
+    const child = execFile(
       exe,
       ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', file, ...args.map(String)],
-      { cwd: SHELL_DIR, timeout, windowsHide: true, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 },
+      { cwd: SHELL_DIR, timeout, windowsHide: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
       (err, stdout, stderr) => {
+        signal?.removeEventListener('abort', onAbort);
         if (!err) return resolve(String(stdout));
-        if (err.code === 'ENOENT') err.message = `找不到 PowerShell 執行檔（${exe}），可用環境變數 POWERSHELL 指定`;
+        if (signal?.aborted) err.message = `PowerShell 腳本 ${scriptName} 已停止`;
+        else if (err.code === 'ENOENT') err.message = `找不到 PowerShell 執行檔（${exe}），可用環境變數 POWERSHELL 指定`;
         else if (err.killed) err.message = `PowerShell 腳本 ${scriptName} 執行逾時`;
         else if (String(stderr).trim()) err.message = String(stderr).trim();
         err.stdout = String(stdout || '');
@@ -46,6 +52,14 @@ function runPowerShell(scriptName, args = [], { timeout = DEFAULT_TIMEOUT } = {}
         reject(err);
       }
     );
+    // encoding 已設定，stdout 的 data 事件是字串（多位元組字元不會被切斷）
+    if (onStdout) child.stdout.on('data', onStdout);
+    // 只 kill powershell.exe 的話，它啟動的 git / az / signtool 仍會繼續跑，所以連同子程序一起結束
+    function onAbort() {
+      execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true }, () => {});
+    }
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener('abort', onAbort, { once: true });
   });
 }
 

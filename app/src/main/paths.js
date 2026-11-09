@@ -13,6 +13,7 @@ module.exports = {
   FLOW_STATE_FILE: path.join(ROOT_DIR, 'data', 'requirement_flow_state.json'),
   TEST_RECORDS_DIR: path.join(ROOT_DIR, 'data', 'test_records'),
   REPOS_FILE: path.join(ROOT_DIR, 'data', 'repos.json'),
+  UPAGENT_CONFIG_FILE: path.join(ROOT_DIR, 'data', 'upagent_release.config'),
   PRELOAD_FILE: path.join(APP_SRC_DIR, 'preload', 'index.js'),
   RENDERER_HTML: path.join(APP_SRC_DIR, 'renderer', 'index.html'),
 };
