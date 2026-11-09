@@ -1,0 +1,44 @@
+/* 使用手冊視窗（help.html）：左側目錄 + 右側內容，色票與主視窗一致 */
+:root {
+  color-scheme: light dark;
+  --bg: #f5f6f8; --panel: #fff; --fg: #1f2328; --muted: #6b7280; --border: #e3e5e8;
+  --accent: #2f6feb; --hover: #eef2f8; --code-bg: #eff1f3; --err: #c62828;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181d; --panel: #1e2127; --fg: #e6e6e6; --muted: #9aa0a6; --border: #30343b;
+    --hover: #272b33; --code-bg: #2a2e36; --err: #ef6c6c;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  display: flex; font: 14px/1.7 "Segoe UI", "Microsoft JhengHei", sans-serif;
+  background: var(--bg); color: var(--fg);
+}
+#toc {
+  width: 260px; flex: none; overflow-y: auto; padding: 16px 8px;
+  background: var(--panel); border-right: 1px solid var(--border);
+}
+#toc a {
+  display: block; padding: 3px 10px; border-radius: 6px; color: var(--fg);
+  text-decoration: none; font-size: 13px; line-height: 1.5;
+}
+#toc a.lv3 { padding-left: 24px; color: var(--muted); font-size: 12px; }
+#toc a:hover { background: var(--hover); }
+#toc a.active { background: var(--hover); color: var(--accent); }
+#doc { flex: 1; overflow-y: auto; padding: 20px 40px 80px; }
+#doc > * { max-width: 860px; }
+#doc h1 { font-size: 24px; margin: 0 0 12px; }
+#doc h2 { font-size: 19px; margin: 32px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+#doc h3 { font-size: 15px; margin: 22px 0 6px; }
+#doc a { color: var(--accent); }
+#doc code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px; font: 12.5px Consolas, monospace; }
+#doc pre { background: var(--code-bg); border-radius: 6px; padding: 10px 12px; overflow-x: auto; }
+#doc pre code { padding: 0; background: none; }
+#doc table { border-collapse: collapse; margin: 8px 0; }
+#doc th, #doc td { border: 1px solid var(--border); padding: 4px 10px; text-align: left; vertical-align: top; }
+#doc th { background: var(--panel); }
+#doc blockquote { margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--accent); color: var(--muted); }
+.loading { color: var(--muted); }
+.error { color: var(--err); }

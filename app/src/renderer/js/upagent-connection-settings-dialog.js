@@ -96,9 +96,8 @@ export function initUpagentConnectionSettings() {
   }
 
   function render(s) {
-    fileEl.textContent = s.exists
-      ? `編輯 ${s.file} 的 upagentConnection。`
-      : `${s.file} 尚未設定 upagentConnection，儲存後會自動建立。`;
+    fileEl.textContent = s.exists ? '' : `${s.file} 尚未設定 upagentConnection，儲存後會自動建立。`;
+    fileEl.hidden = s.exists;
     // 尚未設定時先帶入預設路徑（檔案不存在也可以，切換時會略過）
     paths = s.configFile.length ? [...s.configFile] : [s.defaultConfigFile];
     renderPaths();

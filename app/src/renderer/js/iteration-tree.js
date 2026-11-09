@@ -130,7 +130,7 @@ export function createIterationTree({ onSelect }) {
     if (nodes.length) {
       children.push(...nodes.map(pinnedItem));
     } else if (roots.length) {
-      children.push(el('p', 'muted pin-empty', '尚未固定任何 Iteration。按上方「選擇 Iteration…」，在清單中按 ☆ 即可固定到這裡。'));
+      children.push(el('p', 'muted pin-empty', '尚未固定任何 Iteration'));
     }
 
     // 同步後已不存在的 Iteration：提示並可移除

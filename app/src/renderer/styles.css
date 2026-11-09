@@ -87,7 +87,6 @@ button { font: inherit; cursor: pointer; }
 }
 #tree { flex: 1; overflow: auto; padding: 0 8px 8px; }
 .tree-empty { padding: 8px; }
-.dlg-hint { margin: 0; padding: 8px 14px 10px; border-top: 1px solid var(--border); }
 .node-date { margin-left: auto; font-size: 11px; color: var(--muted); padding-left: 8px; }
 #tree-status { padding: 6px 12px 10px; border-top: 1px solid var(--border); margin: 0; }
 .node-row {
@@ -276,7 +275,6 @@ td.stage-split { padding: 0; height: 1px; }
 #es-file { word-break: break-all; }
 .es-groups { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .es-title { margin: 0; font-size: 14px; }
-.es-hint { margin: 2px 0 0; font-size: 12px; }
 .es-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-top: 10px; }
 .es-required { color: var(--err); }
 .es-key { margin-left: 6px; font: 11px Consolas, "Courier New", monospace; font-weight: normal; color: var(--muted); }
@@ -520,10 +518,7 @@ td.stage-split { padding: 0; height: 1px; }
 #test-dialog .dlg-box { max-height: 90vh; }
 #test-dialog .dlg-body { overflow: auto; }
 #test-dialog.drag-over .tr-images { border-color: var(--accent); background: var(--sel); }
-.tr-aspects { margin: 2px 0 8px; padding-left: 20px; }
-.tr-aspects b { color: var(--fg); font-weight: 600; }
 .tr-images-head { display: flex; align-items: center; gap: 8px; }
-.tr-images-head .muted { margin: 0; font-weight: normal; }
 .tr-images {
   display: flex; flex-wrap: wrap; gap: 8px; min-height: 64px; padding: 8px;
   border: 1px dashed var(--border); border-radius: 6px; background: var(--bg);

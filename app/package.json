@@ -13,6 +13,7 @@
   "dependencies": {
     "adm-zip": "^0.6.1",
     "anser": "^2.3.5",
+    "marked": "^18.1.3",
     "python-shell": "^5.0.0"
   },
   "devDependencies": {
@@ -43,6 +44,13 @@
         "to": "shell",
         "filter": [
           "*.ps1"
+        ]
+      },
+      {
+        "from": "../docs",
+        "to": "docs",
+        "filter": [
+          "user-guide.md"
         ]
       }
     ],

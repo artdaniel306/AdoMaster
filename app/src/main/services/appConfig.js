@@ -131,20 +131,18 @@ function readEnvValues(text) {
 const ENV_GROUPS = [
   {
     title: 'Azure DevOps',
-    hint: 'Python 腳本（Iteration / Work Items / Requirement 流程 / Pipeline）連線用',
     fields: [
-      { key: 'AZDO_ORG', label: 'Organization', required: true, placeholder: 'my-org', hint: 'https://dev.azure.com/<organization>' },
+      { key: 'AZDO_ORG', label: 'Organization', required: true, placeholder: 'my-org' },
       { key: 'AZDO_PROJECT', label: 'Project', required: true, placeholder: 'MyProject' },
-      { key: 'AZDO_PAT', label: 'Personal Access Token', required: true, secret: true, hint: '需 Work Items (Read & write)；讀 Pipeline 需 Build (Read)' },
-      { key: 'AZDO_BASE_URL', label: 'Base URL', placeholder: 'https://dev.azure.com', hint: '選填；Azure DevOps Server (on-prem) 才需要改' },
-      { key: 'AZDO_API_VERSION', label: 'API version', placeholder: '7.1', hint: '選填' },
+      { key: 'AZDO_PAT', label: 'Personal Access Token', required: true, secret: true },
+      { key: 'AZDO_BASE_URL', label: 'Base URL', placeholder: 'https://dev.azure.com' },
+      { key: 'AZDO_API_VERSION', label: 'API version', placeholder: '7.1' },
     ],
   },
   {
     title: 'UpAgent 發佈',
-    hint: 'shell/Release-UpAgent.ps1 使用；資料庫連線資訊（host / user …）與密碼可在「設定 → UpAgent 發佈資料庫設定…」一起編輯',
     fields: [
-      { key: 'GITHUB_TOKEN', label: 'GitHub Token', secret: true, hint: '需能讀 upagent repo 的 Actions；「重跑 GitHub Action」需 Actions 寫入權限' },
+      { key: 'GITHUB_TOKEN', label: 'GitHub Token', secret: true },
       ...UPAGENT_DB_KEYS.map((db) => ({ key: upagentDbPasswordKey(db), label: `${RELEASE_DB_LABEL[db]} 資料庫密碼`, secret: true })),
     ],
   },

@@ -164,18 +164,7 @@ export function createDeployDialog() {
     phaseEl.className = `status${j.phase === 'done' ? (j.outcome.success ? ' ok' : ' error') : j.phase === 'confirm' ? '' : ' loading'}`;
     renderMerge(j);
     renderPipelines(j);
-    hintEl.textContent =
-      j.phase === 'confirm'
-        ? blocked(j)
-          ? '有 repository merge 會發生衝突，請先手動處理後再勾選。'
-          : needsMerge(j)
-            ? '開始後會先等待上列 Pipeline 沒有進行中 / 停等的 Run，再在環境 branch 建立 merge commit 並 push（觸發自動佈版），接著監看新的 Run 直到結束。'
-            : '已全部 merge，會等待上列 Pipeline 的 Run 結束。'
-        : j.phase === 'done'
-          ? ''
-          : j.phase === 'afterDeploy'
-            ? '佈版後動作執行中（重啟 App Service 並等待網站回應），可以按「背景執行」關閉此視窗。'
-            : '可以按「背景執行」關閉此視窗，佈版結束時會再通知。';
+    hintEl.textContent = j.phase === 'confirm' && blocked(j) ? '有 repository merge 會發生衝突，請先手動處理後再勾選。' : '';
     const err = j.phase === 'done' ? j.outcome.error : j.pollError;
     errorEl.textContent = err || '';
     errorEl.hidden = !err;

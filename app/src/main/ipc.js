@@ -14,6 +14,7 @@ const upagentRelease = require('./services/upagentRelease');
 const localDeploy = require('./services/localDeploy');
 const upagentConnection = require('./services/upagentConnection');
 const upagentReleaseDb = require('./services/upagentReleaseDb');
+const userGuide = require('./services/userGuide');
 
 /**
  * IPC channel → service 對照。renderer 只能透過 preload 暴露的 window.api 呼叫這些 channel。
@@ -70,6 +71,7 @@ function registerIpcHandlers() {
   ipcMain.handle('localData:pickImport', (e) => localData.pickImportZip(senderWindow(e)));
   ipcMain.handle('localData:applyImport', () => localData.applyImport());
 
+  ipcMain.handle('help:load', () => userGuide.loadUserGuide());
   ipcMain.handle('shell:open', (_e, url) => {
     if (typeof url === 'string' && /^https:\/\//i.test(url)) return shell.openExternal(url);
   });

@@ -66,6 +66,8 @@ contextBridge.exposeInMainWorld('api', {
   /** values: { KEY: value }，空字串 = 從 .env 刪掉該 key */
   saveEnvSettings: (values) => ipcRenderer.invoke('env:saveSettings', { values }),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
+  /** 使用手冊（docs/user-guide.md）轉好的 HTML：{ html } */
+  loadUserGuide: () => ipcRenderer.invoke('help:load'),
   exportLocalData: (localStorageItems) => ipcRenderer.invoke('localData:export', localStorageItems),
   pickImportZip: () => ipcRenderer.invoke('localData:pickImport'),
   applyImport: () => ipcRenderer.invoke('localData:applyImport'),

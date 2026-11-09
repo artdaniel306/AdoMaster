@@ -42,10 +42,9 @@ export function initRepoSettings({ onSaved } = {}) {
     return i;
   }
 
-  function field(label, control, hint) {
+  function field(label, control) {
     const wrap = el('label', 'rs-field');
     wrap.append(el('span', 'rs-label', label), control);
-    if (hint) wrap.append(el('span', 'muted', hint));
     return wrap;
   }
 
@@ -139,14 +138,14 @@ export function initRepoSettings({ onSaved } = {}) {
 
     const grid = el('div', 'rs-grid');
     grid.append(
-      field('本機資料夾', pathBox, 'Confirm Commit 檢查 commit、merge / push 用的本機 clone'),
-      field('Feature branches', branches, '規劃 時可選的 branch，一行一個'),
+      field('本機資料夾', pathBox),
+      field('Feature branches', branches),
       field('測試環境 branch', testBranch),
       field('正式環境 branch', prodBranch),
-      field('測試環境 Pipeline', testPipeline, '可寫「資料夾\\名稱」'),
-      field('正式環境 Pipeline', prodPipeline, '可寫「資料夾\\名稱」'),
-      field('測試環境 App Service', testAppService, '測試環境 Pipeline Run 成功後重啟（需先 az login）；正式環境不會重啟'),
-      field('測試環境 Resource Group', testResourceGroup, 'App Service 所在的 Resource Group'),
+      field('測試環境 Pipeline', testPipeline),
+      field('正式環境 Pipeline', prodPipeline),
+      field('測試環境 App Service', testAppService),
+      field('測試環境 Resource Group', testResourceGroup),
     );
 
     box.append(head, keyWarn, grid);
@@ -181,7 +180,7 @@ export function initRepoSettings({ onSaved } = {}) {
   }
 
   function renderEmpty() {
-    if (!rows.length) listEl.replaceChildren(el('p', 'muted', '尚未設定任何 repository，按「＋ 新增 repository」開始。'));
+    if (!rows.length) listEl.replaceChildren(el('p', 'muted', '尚未設定任何 repository'));
   }
 
   function addRow(repo) {

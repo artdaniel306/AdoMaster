@@ -9,7 +9,7 @@ AdoMaster is an Azure DevOps (ADO) Iteration / Work Item viewer plus a Requireme
 - `script/` — Python CLI scripts that call the ADO REST API (**standard library only**, no pip dependencies).
 - `app/` — Electron desktop UI; runs the Python scripts via `main/python.js` and PowerShell scripts in `shell/` via `main/powershell.js`.
 - `shell/` — PowerShell scripts run by the app (conventions in `shell/CLAUDE.md`).
-- `docs/` — `requirement-flow.md` (detailed flow spec — **read it before touching the flow**), `flow.pptx` (original flow design), `reference/` (scripts copied from other projects; reference only, never called by the app).
+- `docs/` — `user-guide.md` (end-user manual, shown in-app via 「說明 → 使用手冊」/ F1), `requirement-flow.md` (detailed flow spec — **read it before touching the flow**), `flow.pptx` (original flow design), `reference/` (scripts copied from other projects; reference only, never called by the app).
 - `feature/restore_workitem/` — standalone older scripts (recycle-bin listing / restore) that do **not** use the `ado` package and read their own `.env` in that folder.
 
 Code comments, docstrings, CLI messages, and UI strings are written in Traditional Chinese; keep that convention.
@@ -61,6 +61,7 @@ There is no test suite, linter, or build step. Verify JS syntax with `node --che
 - Content area has two tabs: **Requirement 流程** (default, `requirement-flow.js`) and **Work Items** (`work-items.js`); only refetches when iteration/exact changed.
 - Iteration picker (`iteration-tree.js`): sidebar shows pinned iterations; full tree in a `<dialog>`. Pins live in `localStorage` (`pinnedIterations`) keyed by iteration GUID.
 - Work item links (`description-dialog.js`): click = show Description in-app; Ctrl/⌘ + click = open in browser.
+- **No usage-explanation text in the UI** (instruction paragraphs, field hints, "how to" empty states): keep the UI to labels, state, warnings and errors, and document usage in `docs/user-guide.md` — update it when a feature changes. Tooltips (`title`) are fine. The manual opens in its own window (`main/helpWindow.js` → `renderer/help.html` + `js/help.js`; `main/services/userGuide.js` renders the Markdown with `marked` via `help:load`); it ships as an `extraResources` file (`resources/docs/user-guide.md`, path `USER_GUIDE_FILE` in `paths.js`).
 - Notices / confirmations use the in-app `confirm-dialog.js` (`alert` mode = OK only) — not Electron's `dialog.showMessageBox`; native dialogs are only for file/folder pickers.
 - **Adding a feature**: logic in `main/services/` (+ a Python script if it needs ADO, or a `shell/*.ps1`) → channel in `main/ipc.js` → method in `preload/index.js` → call via `api` in the renderer.
 

@@ -49,7 +49,6 @@ export function initEnvSettings() {
     if (field.required) label.append(el('span', 'es-required', ' *'));
     label.append(el('span', 'es-key', field.key));
     wrap.append(label, box);
-    if (field.hint) wrap.append(el('span', 'muted', field.hint));
     if (field.envOverride) wrap.append(el('span', 'rs-warn', `⚠ 已設定同名環境變數 ${field.key}，腳本會優先使用環境變數，這裡的值不會生效`));
     inputs.push({ field, input });
     return wrap;
@@ -57,14 +56,12 @@ export function initEnvSettings() {
 
   function render(settings) {
     inputs = [];
-    fileEl.textContent = settings.exists
-      ? `編輯 ${settings.file}。欄位清空 = 從 .env 刪除該設定；未列出的設定與註解會保留。`
-      : `${settings.file} 尚未建立，儲存後會自動建立。`;
+    fileEl.textContent = settings.exists ? '' : `${settings.file} 尚未建立，儲存後會自動建立。`;
+    fileEl.hidden = settings.exists;
     groupsEl.replaceChildren(
       ...settings.groups.map((g) => {
         const sec = el('section', 'rs-repo');
         sec.append(el('h4', 'es-title', g.title));
-        if (g.hint) sec.append(el('p', 'muted es-hint', g.hint));
         const grid = el('div', 'es-grid');
         grid.append(...g.fields.map(fieldRow));
         sec.append(grid);

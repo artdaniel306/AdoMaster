@@ -43,9 +43,7 @@ export function createMergeDialog() {
     );
     const blocked = items.some((x) => !x.merged && !x.canMerge);
     okBtn.disabled = blocked;
-    hintEl.textContent = blocked
-      ? '有 repository merge 會發生衝突，請先手動處理後再勾選。'
-      : '確定後會在環境 branch 建立 merge commit（即使可以 fast-forward 也一樣）並 push，不會動到本機 working tree。';
+    hintEl.textContent = blocked ? '有 repository merge 會發生衝突，請先手動處理後再勾選。' : '';
   }
 
   function finish(merged) {

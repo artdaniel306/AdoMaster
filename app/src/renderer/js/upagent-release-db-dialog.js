@@ -39,14 +39,13 @@ export function initUpagentReleaseDbSettings() {
     return input;
   }
 
-  /** 一個欄位：標籤（* = 發佈時必填）+ 輸入元件 + 說明 */
-  function field(labelText, control, { required = false, keyText = '', hint = '', wide = false, warn = '' } = {}) {
+  /** 一個欄位：標籤（* = 發佈時必填）+ 輸入元件 + 警告 */
+  function field(labelText, control, { required = false, keyText = '', wide = false, warn = '' } = {}) {
     const wrap = el('label', `rs-field${wide ? ' urd-wide' : ''}`);
     const label = el('span', 'rs-label', labelText);
     if (required) label.append(el('span', 'es-required', ' *'));
     if (keyText) label.append(el('span', 'es-key', keyText));
     wrap.append(label, control);
-    if (hint) wrap.append(el('span', 'muted', hint));
     if (warn) wrap.append(el('span', 'rs-warn', warn));
     return wrap;
   }
@@ -100,17 +99,16 @@ export function initUpagentReleaseDbSettings() {
     const grid = el('div', 'es-grid');
     grid.append(
       field('Host', inputs.host, { required: true }),
-      field('Port', inputs.port, { hint: `空白 = ${s.defaults.port}` }),
+      field('Port', inputs.port),
       field('Database', inputs.dbname, { required: true, keyText: 'dbname' }),
       field('User', inputs.user, { required: true }),
       field('密碼', pwBox, {
         required: true,
         keyText: db.passwordKey,
-        hint: `存在 ${s.envFile}`,
         warn: db.envOverride ? `⚠ 已設定同名環境變數 ${db.passwordKey}，腳本會優先使用環境變數，這裡的值不會生效` : '',
       }),
       field('SSL mode', inputs.sslmode, { keyText: 'sslmode' }),
-      field('psql', psqlBox, { wide: true, hint: '空白 = 使用 PATH 上的 psql；4 個資料庫通常用同一個' }),
+      field('psql', psqlBox, { wide: true }),
     );
     sec.append(grid);
     rows.push({ key: db.key, label: db.label, inputs });
@@ -119,9 +117,8 @@ export function initUpagentReleaseDbSettings() {
 
   function render(s) {
     rows = [];
-    fileEl.textContent = `${s.exists ? '' : `${s.file} 尚未設定 upagentRelease，儲存後會自動建立（其他欄位使用預設值）。`}`
-      + `連線資訊存在 ${s.file} 的 upagentRelease.db，密碼存在 ${s.envFile}。`
-      + '* = 發佈到該環境時必填；整個資料庫留空 = 無法發佈到該環境。';
+    fileEl.textContent = s.exists ? '' : `${s.file} 尚未設定 upagentRelease，儲存後會自動建立（其他欄位使用預設值）。`;
+    fileEl.hidden = s.exists;
     dbsEl.replaceChildren(...s.dbs.map((db) => dbSection(db, s)));
   }
 

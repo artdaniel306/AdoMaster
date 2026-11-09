@@ -3,8 +3,8 @@ const { app } = require('electron');
 
 /**
  * 路徑分兩種執行模式：
- * - 開發（npm start）：ROOT_DIR = 專案根目錄，script/、shell/、data/ 都在底下。
- * - 安裝版（electron-builder 打包）：script/、shell/ 由 extraResources 放在 resources/（asar 外，Python / PowerShell 才讀得到）；
+ * - 開發（npm start）：ROOT_DIR = 專案根目錄，script/、shell/、docs/、data/ 都在底下。
+ * - 安裝版（electron-builder 打包）：script/、shell/、docs/user-guide.md 由 extraResources 放在 resources/（asar 外，Python / PowerShell 才讀得到）；
  *   data/ 放在使用者資料夾（%APPDATA%\AdoMaster\data），升級 / 解除安裝不會被刪掉。
  * 兩種模式都可用環境變數 ADOMASTER_DATA_DIR 指定 data 資料夾（例如讓安裝版共用專案的 data/）。
  * 決定後寫回 process.env.ADOMASTER_DATA_DIR，讓 Python（ado/config.py）與 PowerShell 腳本沿用同一個位置。
@@ -21,6 +21,8 @@ module.exports = {
   DATA_DIR,
   SCRIPT_DIR: path.join(ROOT_DIR, 'script'),
   SHELL_DIR: path.join(ROOT_DIR, 'shell'),
+  // 使用手冊（安裝版由 extraResources 放在 resources/docs/）
+  USER_GUIDE_FILE: path.join(ROOT_DIR, 'docs', 'user-guide.md'),
   ITERATIONS_FILE: path.join(DATA_DIR, 'iterations.json'),
   FLOW_STATE_FILE: path.join(DATA_DIR, 'requirement_flow_state.json'),
   TEST_RECORDS_DIR: path.join(DATA_DIR, 'test_records'),
@@ -33,4 +35,5 @@ module.exports = {
   LEGACY_UPAGENT_CONFIG_FILE: path.join(DATA_DIR, 'upagent_release.config'),
   PRELOAD_FILE: path.join(APP_SRC_DIR, 'preload', 'index.js'),
   RENDERER_HTML: path.join(APP_SRC_DIR, 'renderer', 'index.html'),
+  HELP_HTML: path.join(APP_SRC_DIR, 'renderer', 'help.html'),
 };

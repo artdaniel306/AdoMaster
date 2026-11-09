@@ -28,7 +28,6 @@
       </header>
       <input id="filter" type="search" placeholder="篩選 Iteration 名稱或路徑…" />
       <div id="tree" role="tree"></div>
-      <p class="muted dlg-hint">點選 Iteration 切換顯示；按 ☆ 固定到左側清單</p>
     </div>
   </dialog>
 
@@ -40,7 +39,6 @@
       </header>
       <div class="dlg-body">
         <p id="plan-req" class="dlg-req"></p>
-        <p class="muted">勾選此需求需要開發的 repository，並選擇要做在哪個 feature branch。不需修改程式（例如只調整 database 資料）時可以都不勾，Confirm Commit 會自動完成。</p>
         <div id="plan-repos" class="plan-repos"></div>
         <label class="flow-check plan-migration"><input id="plan-migration" type="checkbox" /> 需要 migration</label>
         <label class="dlg-note-label" for="plan-note">註解</label>
@@ -63,7 +61,6 @@
         <button type="button" id="rs-close" class="btn-icon" title="關閉 (Esc)">✕</button>
       </header>
       <div class="dlg-body">
-        <p class="muted">編輯 data/config.json 的 repos。key 是流程紀錄使用的識別名稱，已有紀錄的 repository 請勿改 key。</p>
         <div id="rs-repos" class="rs-repos"></div>
         <p id="rs-error" class="status error" hidden></p>
       </div>
@@ -105,13 +102,11 @@
         <p id="ucs-file" class="muted"></p>
         <section class="rs-repo">
           <h4 class="es-title">UpAgent 設定檔</h4>
-          <p class="muted es-hint">切換連線時要刪除的檔案。只能選既有的檔案：若剛切換過連線（設定檔已被刪除），請先開啟 UpAgent 讓它重新產生。</p>
           <div id="ucs-paths" class="ucs-paths"></div>
           <button type="button" id="ucs-add" class="btn-ghost ucs-add">＋ 新增檔案…</button>
         </section>
         <section class="rs-repo">
           <h4 class="es-title">Activation Code</h4>
-          <p class="muted es-hint">重新開啟 UpAgent 後輸入的代碼，決定連到哪個環境；空白 = 該環境無法切換。</p>
           <div id="ucs-codes" class="es-grid"></div>
         </section>
         <p id="ucs-error" class="status error" hidden></p>
@@ -151,7 +146,6 @@
       </header>
       <div class="dlg-body">
         <p id="cc-req" class="dlg-req"></p>
-        <p class="muted">填入此需求開發測試通過版的 commit（縮寫即可），並按「檢查」確認 repository 中存在該 commit；也可在「分支圖」中直接點選 commit。</p>
         <div id="cc-repos" class="cc-repos"></div>
         <p id="cc-error" class="status error" hidden></p>
       </div>
@@ -172,7 +166,6 @@
       </header>
       <div class="dlg-body">
         <p id="tk-req" class="dlg-req"></p>
-        <p class="muted">將在此 Requirement 底下建立一個同名的 Task（Area / Iteration 沿用 Requirement）。</p>
         <label class="dlg-note-label" for="tk-desc">Description</label>
         <textarea id="tk-desc" class="dlg-note" rows="6" maxlength="8000" placeholder="Task 的說明…"></textarea>
         <p id="tk-error" class="status error" hidden></p>
@@ -193,18 +186,10 @@
       </header>
       <div class="dlg-body">
         <p id="tr-req" class="dlg-req"></p>
-        <p class="muted">記下這次的測試場景或驗證方式，之後才能回想起當時的狀況。可以從以下面向記錄：</p>
-        <ul class="tr-aspects muted">
-          <li><b>時間</b>、<b>地點</b>、<b>人員</b>（誰測、誰陪同）</li>
-          <li><b>溝通管道</b>：Teams / SharePoint / Email…</li>
-          <li><b>裝置</b>、<b>連線</b>（網路、VPN、環境）、使用的<b>資料</b></li>
-          <li>不是實際測試而是檢查時：<b>怎麼驗證</b>這件事沒問題（查了哪些資料 / 設定、比對的依據、結果）</li>
-        </ul>
         <textarea id="tr-note" class="dlg-note" rows="7" maxlength="4000"
-          placeholder="例：11/7 14:00 在客戶會議室，與 PM 小王、使用者 A 透過 Teams 會議測試；使用客戶筆電 + 公司 Wi-Fi；以測試帳號 test01、訂單 #1234 驗證…&#10;或：11/7 查詢正式 DB 的 Customer 資料表，確認 50 筆資料的 Region 已更新為新代碼，與客戶提供的清單逐筆比對一致…"></textarea>
+          placeholder="測試場景或驗證方式…"></textarea>
         <div class="dlg-note-label tr-images-head">
           <span>圖片</span>
-          <span class="muted">直接按 Ctrl + V 貼上截圖，或拖曳圖片到這裡</span>
           <span class="spacer"></span>
           <button type="button" id="tr-upload" class="btn-ghost">上傳圖片…</button>
           <input id="tr-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" multiple hidden />
@@ -228,7 +213,6 @@
       </header>
       <div class="dlg-body">
         <p id="uc-req" class="dlg-req"></p>
-        <p class="muted">切換時會刪除 UpAgent 的設定檔；重新開啟 UpAgent 後會要求輸入 Activation Code，輸入後即自動連線到對應的環境。</p>
         <div id="uc-files" class="uc-files"></div>
         <div id="uc-targets" class="uc-targets"></div>
         <div id="uc-result" class="uc-result" hidden>
@@ -347,7 +331,7 @@
         <p id="ld-req" class="dlg-req"></p>
         <p id="ld-plan" class="cf-msg"></p>
         <div id="ld-repos" class="ld-repos"></div>
-        <label id="ld-rebuild-row" class="check ld-rebuild" title="預設：同一個 commit 已 build 過的 image tar（data/local_deploy/）直接拿來推送，不重新 build"><input id="ld-rebuild" type="checkbox" /> 重新 build（忽略已存在的 image tar，例如改了部署用資料夾的設定）</label>
+        <label id="ld-rebuild-row" class="check ld-rebuild" title="忽略已存在的 image tar，重新 build"><input id="ld-rebuild" type="checkbox" /> 重新 build</label>
         <p id="ld-phase" class="status"></p>
         <pre id="ld-log" class="ur-log" hidden></pre>
         <p id="ld-error" class="status error" hidden></p>
