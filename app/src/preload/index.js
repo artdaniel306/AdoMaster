@@ -23,8 +23,8 @@ contextBridge.exposeInMainWorld('api', {
   /** target = 'saas' | 'local'（各自寫入不同的資料庫） */
   upagentReleaseStatus: (id, stage, target) => ipcRenderer.invoke('upagentRelease:status', { id, stage, target }),
   /** 執行 UpAgent 發佈（shell/Release-UpAgent.ps1），完成後回傳該 Requirement 更新後的狀態 */
-  runUpagentRelease: (id, stage, target, { bump, remark } = {}) =>
-    ipcRenderer.invoke('upagentRelease:run', { id, stage, target, bump, remark }),
+  runUpagentRelease: (id, stage, target, { bump, remark, rerunAction } = {}) =>
+    ipcRenderer.invoke('upagentRelease:run', { id, stage, target, bump, remark, rerunAction: !!rerunAction }),
   cancelUpagentRelease: () => ipcRenderer.invoke('upagentRelease:cancel'),
   /** UpAgent 發佈的即時輸出：cb({ id, stage, line })；步驟開始：cb({ id, stage, step }) */
   onUpagentReleaseLog: (cb) => ipcRenderer.on('upagentRelease:log', (_e, data) => cb(data)),

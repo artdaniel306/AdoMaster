@@ -8,7 +8,8 @@
 
       1. (Bump)         upagent 切到 -Branch（規劃選的 feature branch）、pull、確認 Confirm Commit 已在其中，
                         npm version <minor|patch>，push commit 與 tag 觸發 Release action，最後切回原本的 branch
-      2. (WaitAction)   以 GitHub REST API 輪詢該 tag 對應的 Release workflow，直到成功（失敗即中止）
+      2. (WaitAction)   以 GitHub REST API 輪詢該 tag 對應的 Release workflow，直到成功（失敗即中止）；
+                        指定 -RerunAction 時先重跑整個失敗的 workflow run
       3. (Download)     呼叫 1-Get-BlobArtifacts.ps1 把 staging/<版號>/ 抓回 data\upagent_release\<版號>\
       4. (Sign)         以 signtool 重簽 Windows 安裝檔（只簽 .exe；需先插上 HSM USB，簽署時會跳出 PIN 輸入視窗），並驗證簽章
       5. (UpdateYml)    呼叫 2-Update-LatestYml.ps1 依簽署後的 exe 重算 latest.yml / .blockmap
@@ -71,6 +72,10 @@
 .PARAMETER Remark
     寫入資料庫的備註（可留空）
 
+.PARAMETER RerunAction
+    從 WaitAction 開始時，先透過 GitHub API 重跑整個 workflow run（POST actions/runs/<id>/rerun），再等待結果。
+    run 仍在執行中或已成功時不重跑。GitHub token 需要 Actions 寫入權限
+
 .PARAMETER ConfigPath
     設定檔路徑，預設 <專案根目錄>\data\upagent_release.config
 
@@ -112,6 +117,8 @@ param(
     [string]$Version,
 
     [string]$Remark = "",
+
+    [switch]$RerunAction,
 
     [string]$ConfigPath,
 
@@ -246,14 +253,14 @@ function Get-NextVersion {
 }
 
 function Invoke-GitHubApi {
-    param([Parameter(Mandatory = $true)][string]$Path)
+    param([Parameter(Mandatory = $true)][string]$Path, [string]$Method = "Get")
     $headers = @{
         "Authorization"        = "Bearer $githubToken"
         "Accept"               = "application/vnd.github+json"
         "X-GitHub-Api-Version" = "2022-11-28"
         "User-Agent"           = "upagent-release-script"
     }
-    return Invoke-RestMethod -Uri "https://api.github.com/repos/$githubOwner/$githubRepo/$Path" -Headers $headers -Method Get
+    return Invoke-RestMethod -Uri "https://api.github.com/repos/$githubOwner/$githubRepo/$Path" -Headers $headers -Method $Method
 }
 
 function Invoke-Psql {
@@ -296,6 +303,9 @@ if ($StartFrom -eq "Bump") {
     if ($Version) { Exit-WithError "從 Bump 開始時版號由 npm version 決定，不可指定 -Version。" }
 } elseif (-not $Version) {
     $Version = Get-PackageVersion
+}
+if ($RerunAction -and $StartFrom -ne "WaitAction") {
+    Exit-WithError "-RerunAction 只能在從 WaitAction 開始時使用。"
 }
 
 if ($Version -and $Version -notmatch '^\d+\.\d+\.\d+$') {
@@ -441,6 +451,38 @@ try {
         }
 
         Write-Host "Workflow run：$($run.html_url)"
+
+        if ($RerunAction) {
+            # 整個 run 重跑（同一個 run id，run_attempt + 1）；只有已結束且未成功的 run 才需要
+            $run = Invoke-GitHubApi -Path "actions/runs/$($run.id)"
+            if ($run.status -ne "completed") {
+                Write-Host "Workflow run 仍在執行中（$($run.status)），不重跑，直接等待結果。"
+            } elseif ($run.conclusion -eq "success") {
+                Write-Host "Workflow run 已成功，不需重跑。"
+            } else {
+                $prevAttempt = [int]$run.run_attempt
+                Write-Host "重跑整個 workflow run（目前第 $prevAttempt 次，結果 $($run.conclusion)）..."
+                try {
+                    Invoke-GitHubApi -Path "actions/runs/$($run.id)/rerun" -Method Post | Out-Null
+                } catch {
+                    $code = $_.Exception.Response.StatusCode.value__
+                    if ($code -eq 403 -or $code -eq 404) {
+                        throw "重跑 workflow 失敗（HTTP $code）：GitHub token 需要 upagent repo 的 Actions 寫入權限（Fine-grained: Actions Read and write；Classic: repo）。"
+                    }
+                    throw "重跑 workflow 失敗：$($_.Exception.Message)"
+                }
+                # 送出後 API 可能還回傳上一次的結果；等 run_attempt 變大後才開始判斷，避免誤判又失敗
+                $attemptDeadline = (Get-Date).AddMinutes(2)
+                while ([int]$run.run_attempt -le $prevAttempt) {
+                    if ((Get-Date) -gt $attemptDeadline) {
+                        throw "已送出重跑，但 2 分鐘內沒有看到新的執行（attempt $($prevAttempt + 1)），請至 $($run.html_url) 確認後再重試。"
+                    }
+                    Start-Sleep -Seconds 5
+                    $run = Invoke-GitHubApi -Path "actions/runs/$($run.id)"
+                }
+                Write-Host "已開始第 $($run.run_attempt) 次執行。"
+            }
+        }
 
         $started    = Get-Date
         $deadline   = $started.AddMinutes($ActionTimeoutMinutes)

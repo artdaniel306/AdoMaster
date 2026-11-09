@@ -62,8 +62,9 @@ async function releaseStatus({ id, stage, target } = {}) {
  * @param send (channel, payload) => void，送進度給 renderer
  * @param bump 'minor' | 'patch'（從 Bump 開始時必填）
  * @param remark 寫入資料庫的備註（第一次執行時記下，之後的環境沿用；有傳則更新）
+ * @param rerunAction true = 先重跑整個 GitHub workflow run（只能在從 WaitAction 接續時使用）
  */
-async function runRelease(send, { id, stage, target, bump, remark } = {}) {
+async function runRelease(send, { id, stage, target, bump, remark, rerunAction = false } = {}) {
   if (!validParams(id, stage, target)) throw new Error('參數錯誤');
   if (remark != null && typeof remark !== 'string') throw new Error('參數錯誤');
   if (running) throw new Error(`已有 UpAgent 發佈進行中：#${running.id}`);
@@ -90,6 +91,10 @@ async function runRelease(send, { id, stage, target, bump, remark } = {}) {
     args.push('-Version', plan.version);
   }
   if (remark) args.push('-Remark', remark);
+  if (rerunAction) {
+    if (plan.startFrom !== 'WaitAction') throw new Error('只有從「等待 GitHub Action」接續時才能重跑 GitHub Action');
+    args.push('-RerunAction');
+  }
 
   const controller = new AbortController();
   running = { id, stage, target, controller };
@@ -137,7 +142,7 @@ async function runRelease(send, { id, stage, target, bump, remark } = {}) {
     }
   };
 
-  log(`▶ UpAgent 發佈（${RELEASE_DB_LABEL[plan.db]}）：從 ${plan.startFrom} 開始${plan.version ? `，版號 ${plan.version}` : `，npm version ${bump}`}`);
+  log(`▶ UpAgent 發佈（${RELEASE_DB_LABEL[plan.db]}）：從 ${plan.startFrom} 開始${plan.version ? `，版號 ${plan.version}` : `，npm version ${bump}`}${rerunAction ? '（先重跑 GitHub Action）' : ''}`);
   try {
     await runPowerShellJson('Release-UpAgent.ps1', args, { timeout: 0, onStdout, signal: controller.signal });
   } catch (err) {

@@ -41,6 +41,7 @@ export function createUpagentReleaseDialog() {
   const stopBtn = $('ur-stop');
   const bgBtn = $('ur-bg');
   const okBtn = $('ur-ok');
+  const rerunBtn = $('ur-rerun');
 
   /** { req, stage, checkLabel, plan, phase: 'confirm' | 'running' | 'done', step, lines, error, resolve, onChange } */
   let job = null;
@@ -87,6 +88,9 @@ export function createUpagentReleaseDialog() {
     bgBtn.textContent = j.phase === 'running' ? '背景執行' : '關閉';
     okBtn.hidden = j.phase !== 'confirm';
     okBtn.disabled = !j.configExists;
+    // 上次失敗在「等待 GitHub Action」（例如 workflow 失敗）：可直接在 app 裡重跑整個 workflow run
+    rerunBtn.hidden = !(j.phase === 'confirm' && j.error && j.plan.startFrom === 'WaitAction');
+    rerunBtn.disabled = !j.configExists;
     okBtn.textContent = j.error ? `重試（從 ${STEP_TEXT[j.plan.startFrom]} 接續）` : j.plan.startFrom === 'Database' ? '寫入資料庫' : '開始發佈';
     if (!j.configExists) {
       errorEl.textContent = '找不到 data/upagent_release.config，請複製 app/upagent_release_example.config 後填入連線資訊，再重新勾選。';
@@ -114,7 +118,8 @@ export function createUpagentReleaseDialog() {
     job.onChange?.(id);
   });
 
-  async function run(j) {
+  /** @param rerunAction true = 先重跑整個 GitHub workflow run 再接續等待 */
+  async function run(j, rerunAction = false) {
     j.phase = 'running';
     j.error = '';
     j.step = null;
@@ -124,6 +129,7 @@ export function createUpagentReleaseDialog() {
       const checks = await api.runUpagentRelease(j.req.id, j.stage.key, j.plan.target, {
         bump: j.plan.startFrom === 'Bump' ? bumpEl.value : undefined,
         remark: remarkEl.value,
+        rerunAction,
       });
       j.doneMessage = `UpAgent 發佈完成，已寫入 ${RELEASE_DB_LABEL[j.plan.db]} 資料庫`;
       j.phase = 'done';
@@ -176,6 +182,9 @@ export function createUpagentReleaseDialog() {
 
   okBtn.addEventListener('click', () => {
     if (job?.phase === 'confirm') run(job);
+  });
+  rerunBtn.addEventListener('click', () => {
+    if (job?.phase === 'confirm' && job.plan.startFrom === 'WaitAction') run(job, true);
   });
   stopBtn.addEventListener('click', async () => {
     if (!job) return;
