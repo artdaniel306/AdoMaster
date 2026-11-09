@@ -12,7 +12,9 @@
       2. (Source)   部署用資料夾（projectDir，與開發用 clone 分開）git fetch 環境 branch，
                     確認 -ExpectedCommit 已在 origin/<branch> 中，git checkout --detach origin/<branch>。
                     資料夾內未提交的本機修改（地端專用設定）會保留；與新版本衝突時 git 會拒絕切換 → 失敗（不強制覆蓋）
-      3. (PreBuild) 有設定 preBuild 時在 projectDir 以 cmd /c 執行（例如 crmapp 的 armor.bat aarch64）
+      3. (Env)      有設定 envFile 時，把該環境的 env 檔複製到 projectDir\<envTarget>（預設 .env）
+                    例如 crmapp → .env；crmappui → deploy\env-art-test（Dockerfile 以 buildArgs ENV_R1 / ENV_R2 挑 deploy\ 下的檔案）
+         (PreBuild) 有設定 preBuild 時在 projectDir 以 cmd /c 執行（例如 crmapp 的 armor.bat aarch64）
       4. (Build)    docker buildx build --platform <platform> [--build-arg K=V …] -t <pushRegistry>/<appName>:<tag>
                     --output type=docker,dest=<tar>，tar = data\local_deploy\<Repo>\<appName>_<tag>.tar
                     （先寫 .partial，成功才改名，失敗不會留下不完整的 tar）
@@ -36,7 +38,11 @@
       hostPort / appPort   -p <hostPort>:<appPort>（必填）
       buildArgs      { K: V } → --build-arg K=V
       runEnv         { K: V } → docker run -e K=V
-    image tag = <Environment>-<deploy 的 commit 前 10 碼>（例如 test-1a2b3c4d5e）。
+      envFile        build 前複製到 projectDir 的 env 檔（通常放在 <test|prod> 子物件）；
+                     相對路徑以 data\local_deploy_env\ 為準（例如 "crmapp.test.env"），也可寫絕對路徑
+      envTarget      envFile 要複製到 projectDir 內的哪個相對路徑（預設 .env；不可為絕對路徑或含 ..）
+    image tag = <Environment>-<deploy 的 commit 前 10 碼>（例如 test-1a2b3c4d5e）；
+    有 envFile 時再加 8 碼雜湊（env 檔內容 + envTarget，例如 test-1a2b3c4d5e-0f1e2d3c），改了 env 檔或 envTarget 就不會沿用舊的 tar。
 
     慣例（見 shell/CLAUDE.md）：進度寫 stdout（docker / git 的進度在 stderr，app 也會即時顯示），
     結果 JSON 寫到 -Out，失敗時 ::error:: 標記 + stderr + exit 1。
@@ -72,6 +78,7 @@ $DockerTimeoutSec = 180
 $KeepTars = 3
 $dataRoot = if ($env:ADOMASTER_DATA_DIR) { $env:ADOMASTER_DATA_DIR } else { Join-Path (Split-Path -Parent $PSScriptRoot) 'data' }  # app 會以 ADOMASTER_DATA_DIR 指定 data 資料夾
 $tarRoot = Join-Path $dataRoot "local_deploy"
+$envFileRoot = Join-Path $dataRoot "local_deploy_env"   # envFile 相對路徑的基準（匯出本地資料會包含這個資料夾）
 
 function Exit-WithError {
     <# 輸出 ::error:: 標記（stdout）與錯誤訊息（stderr），以 exit code 1 結束 #>
@@ -177,6 +184,25 @@ try {
     $appPort      = [string](Get-Setting "appPort" -Required)
     $buildArgs    = Get-Pairs "buildArgs"
     $runEnv       = Get-Pairs "runEnv"
+    $envFile      = [string](Get-Setting "envFile" "")
+    $envTarget    = [string](Get-Setting "envTarget" ".env")
+    $envHash      = ""
+    if ($envFile) {
+        if (-not [System.IO.Path]::IsPathRooted($envFile)) { $envFile = Join-Path $envFileRoot $envFile }
+        if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) { throw "找不到 localDeploy.repos.$Repo 的 envFile：$envFile" }
+        $envFile = (Resolve-Path -LiteralPath $envFile).ProviderPath
+        # envTarget 只能是 projectDir 內的相對路徑
+        $envTarget = $envTarget -replace '/', '\'
+        if ([System.IO.Path]::IsPathRooted($envTarget) -or ($envTarget -split '\\' | Where-Object { $_ -eq '..' }) -or $envTarget -notmatch '^[A-Za-z0-9_.\\-]+$') {
+            throw "localDeploy.repos.$Repo 的 envTarget 必須是部署用資料夾內的相對路徑：$envTarget"
+        }
+        $fileHash = (Get-FileHash -LiteralPath $envFile -Algorithm SHA256).Hash
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $bytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("$($envTarget.ToLowerInvariant())`n$fileHash"))
+        } finally { $sha.Dispose() }
+        $envHash = (-join ($bytes | ForEach-Object { $_.ToString("x2") })).Substring(0, 8)
+    }
 
     # 會組進遠端 shell 指令的值，只允許安全字元
     foreach ($pair in @(@("appName", $appName), @("pullRegistry", $pullRegistry), @("network", $network), @("hostPort", $hostPort), @("appPort", $appPort))) {
@@ -237,6 +263,7 @@ try {
     Write-Host "目前版本：$short（origin/$Branch）"
 
     $tag = "$Environment-$short"
+    if ($envHash) { $tag += "-$envHash" }
     # tar 內的 image 名稱不含 registry：改了 pushRegistry 也能沿用已 build 的 tar
     $localImage = "${appName}:$tag"
     $pushImage = "$pushRegistry/$localImage"
@@ -248,6 +275,16 @@ try {
         Write-Host ""
         Write-Host "已有此版本的 image tar，略過前置指令與 build：$tarPath"
     } else {
+        # ---- 3. Env ----
+        if ($envFile) {
+            $envDest = Join-Path $projectDir $envTarget
+            Write-Step "Env" "使用$label 的 env 檔：$envFile → $envDest"
+            if ($envFile -ne $envDest) {   # envFile 就是目標檔時不用複製
+                New-Item -ItemType Directory -Force -Path (Split-Path -Parent $envDest) | Out-Null
+                Copy-Item -LiteralPath $envFile -Destination $envDest -Force
+            }
+        }
+
         # ---- 3. PreBuild ----
         if ($preBuild) {
             Write-Step "PreBuild" "執行前置指令：$preBuild"
@@ -311,6 +348,8 @@ try {
         commit      = $target
         image       = $pushImage
         tar         = $tarPath
+        envFile     = $envFile
+        envTarget   = $(if ($envFile) { $envTarget } else { "" })
         remoteHost  = $remoteHost
         hostPort    = $hostPort
     }

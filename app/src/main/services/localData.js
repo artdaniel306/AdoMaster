@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const AdmZip = require('adm-zip');
 const { app, dialog } = require('electron');
-const { ROOT_DIR, DATA_DIR, FLOW_STATE_FILE, TEST_RECORDS_DIR } = require('../paths');
+const { ROOT_DIR, DATA_DIR, FLOW_STATE_FILE, TEST_RECORDS_DIR, LOCAL_DEPLOY_ENV_DIR } = require('../paths');
 const { replaceFlowState } = require('./flowState');
 const { writeFileAtomic } = require('../atomicWrite');
 const { TEST_IMAGE_RE } = require('../../shared/flow-rules.js');
@@ -36,6 +36,22 @@ const TEST_IMAGE_ENTRY = (name) => {
   return !!m && TEST_IMAGE_RE.test(m[2]);
 };
 const imagesInfo = (n) => ({ ...TEST_IMAGES, label: `${TEST_IMAGES.label}（${n} 張）` });
+// Local 佈版各環境的 env 檔（含機密）：data/local_deploy_env/<檔名>，只收第一層、檔名限安全字元
+const DEPLOY_ENVS = { name: 'data/local_deploy_env/', label: 'Local 佈版的環境 env 檔' };
+const DEPLOY_ENV_ENTRY = (name) => /^data\/local_deploy_env\/[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(name);
+const deployEnvsInfo = (n) => ({ ...DEPLOY_ENVS, label: `${DEPLOY_ENVS.label}（${n} 個）` });
+
+/** 列出 data/local_deploy_env 第一層的檔案（zip 內路徑） */
+async function listDeployEnvs() {
+  let entries;
+  try {
+    entries = await fs.readdir(LOCAL_DEPLOY_ENV_DIR, { withFileTypes: true });
+  } catch (err) {
+    if (err.code === 'ENOENT') return [];
+    throw err;
+  }
+  return entries.filter((e) => e.isFile()).map((e) => `${DEPLOY_ENVS.name}${e.name}`).filter(DEPLOY_ENV_ENTRY);
+}
 
 /** 列出 data/test_records 下所有圖片（相對專案根目錄、以 / 分隔的路徑） */
 async function listTestImages() {
@@ -95,6 +111,12 @@ async function exportLocalData(win, localStorageItems = {}) {
     if (buf) zip.addFile(name, buf);
   }
   if (images.length) files.push(imagesInfo(images.length));
+  const deployEnvs = await listDeployEnvs();
+  for (const name of deployEnvs) {
+    const buf = await readIfExists(absPath(name));
+    if (buf) zip.addFile(name, buf);
+  }
+  if (deployEnvs.length) files.push(deployEnvsInfo(deployEnvs.length));
   zip.addFile(LOCAL_STORAGE.name, Buffer.from(JSON.stringify(localStorageItems, null, 2), 'utf-8'));
   files.push(describe(LOCAL_STORAGE));
 
@@ -121,6 +143,7 @@ function readImportZip(zipPath) {
   const files = read(FILES);
   const legacy = read(LEGACY_FILES);
   const images = [...entries.keys()].filter(TEST_IMAGE_ENTRY).map((name) => ({ name, buf: entries.get(name).getData() }));
+  const deployEnvs = [...entries.keys()].filter(DEPLOY_ENV_ENTRY).map((name) => ({ name, buf: entries.get(name).getData() }));
 
   let localStorage = null;
   if (entries.has(LOCAL_STORAGE.name)) {
@@ -130,17 +153,18 @@ function readImportZip(zipPath) {
     }
   }
 
-  if (!files.length && !legacy.length && !images.length && !localStorage) {
+  if (!files.length && !legacy.length && !images.length && !deployEnvs.length && !localStorage) {
     throw new Error('這個 zip 裡沒有可匯入的本地資料（請選擇由「匯出本地資料」產生的檔案）。');
   }
-  return { files, legacy, images, localStorage };
+  return { files, legacy, images, deployEnvs, localStorage };
 }
 
 /** 給 renderer 顯示的匯入項目清單 */
-const importList = ({ files, legacy, images, localStorage }) => [
+const importList = ({ files, legacy, images, deployEnvs, localStorage }) => [
   ...legacy.map(describe),
   ...files.map(describe),
   ...(images.length ? [imagesInfo(images.length)] : []),
+  ...(deployEnvs.length ? [deployEnvsInfo(deployEnvs.length)] : []),
   ...(localStorage ? [describe(LOCAL_STORAGE)] : []),
 ];
 
@@ -181,6 +205,7 @@ async function applyImport() {
   }
   // 先寫圖片，再寫流程狀態（狀態中的 testRecord 才找得到圖片）
   for (const img of content.images) await writeFileAtomic(absPath(img.name), img.buf);
+  for (const f of content.deployEnvs) await writeFileAtomic(absPath(f.name), f.buf);
   for (const f of content.files) {
     const file = absPath(f.name);
     if (file === FLOW_STATE_FILE) await replaceFlowState(f.buf.toString('utf-8'));

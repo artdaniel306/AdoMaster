@@ -1,5 +1,6 @@
+const fs = require('node:fs');
 const path = require('node:path');
-const { CONFIG_FILE } = require('../paths');
+const { CONFIG_FILE, LOCAL_DEPLOY_ENV_DIR } = require('../paths');
 const { CONFIG_LABEL, readConfig } = require('./appConfig');
 const { runPowerShellJson } = require('../powershell');
 const { loadRepoConfig } = require('./repoConfig');
@@ -24,6 +25,9 @@ const {
  *     "repos": { "crmapp": { "projectDir", "appName", "platform", "preBuild", "network", "hostPort", "appPort", "runEnv", "buildArgs",
  *                            "test": { "pushRegistry", "pullRegistry", "remoteHost", ... }, "prod": { ... } } } }
  *   projectDir 是部署專用的 clone（地端設定以本機修改保留在裡面），不可與 repos 的 path（開發用 clone）相同。
+ *   envFile（通常放在 test / prod 子物件）：build 前複製到 projectDir\<envTarget>（預設 .env），讓測試 / 正式環境各用自己的 env；
+ *   相對路徑以 data/local_deploy_env/ 為準（匯出本地資料會包含這個資料夾）。
+ *   envTarget：projectDir 內的相對路徑，例如 crmappui 的 Dockerfile 用 buildArgs ENV_R1 挑 deploy/ 下的檔案 → "deploy/env-art-test"（/ 或 \ 都可以）。
  *
  * 成功的 repository 記在流程狀態的 `<stage>.localDeploy`，失敗重試時預設只跑尚未成功的。
  * 一次只能執行一個佈版（整個 app 共用）。腳本的 stdout / stderr 即時以 'localDeploy:log' 事件送給 renderer。
@@ -36,6 +40,8 @@ const SECTION = 'localDeploy';
 let running = null;
 
 const str = (v) => (v == null ? '' : String(v).trim());
+/** envTarget 只能是 projectDir 內的相對路徑（與 Deploy-Local.ps1 相同規則） */
+const validEnvTarget = (t) => /^[A-Za-z0-9_.\\/-]+$/.test(t) && !path.isAbsolute(t) && !t.split(/[\\/]/).includes('..');
 const samePath = (a, b) => !!a && !!b && path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
 
 /** localDeploy.repos.<repo> 的 <env> 有效設定（子物件覆蓋外層）；沒設定該環境時回傳 null */
@@ -80,6 +86,10 @@ async function deployTargets(id, stage) {
     else if (samePath(projectDir, r?.path)) error = `localDeploy.repos.${repo}.projectDir 不可與開發用 clone（repos 的 path）相同`;
     else if (!str(s.pushRegistry) || !str(s.remoteHost) || !str(s.hostPort) || !str(s.appPort)) {
       error = `${CONFIG_LABEL} 的 localDeploy.repos.${repo}.${env} 缺少 pushRegistry / remoteHost / hostPort / appPort`;
+    } else if (str(s.envFile) && !fs.existsSync(path.resolve(LOCAL_DEPLOY_ENV_DIR, str(s.envFile)))) {
+      error = `找不到 localDeploy.repos.${repo}.${env} 的 envFile：${path.resolve(LOCAL_DEPLOY_ENV_DIR, str(s.envFile))}`;
+    } else if (str(s.envFile) && str(s.envTarget) && !validEnvTarget(str(s.envTarget))) {
+      error = `localDeploy.repos.${repo}.${env} 的 envTarget 必須是部署用資料夾內的相對路徑：${str(s.envTarget)}`;
     }
     targets.push({
       repo,
