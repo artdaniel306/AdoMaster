@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('api', {
   loadRepoSettings: () => ipcRenderer.invoke('repos:loadSettings'),
   saveRepoSettings: (repos) => ipcRenderer.invoke('repos:saveSettings', { repos }),
   pickRepoFolder: (defaultPath) => ipcRenderer.invoke('repos:pickFolder', defaultPath),
+  /** 範例：執行 shell/example.ps1，回傳其 JSON 結果 */
+  runPowerShellExample: (name) => ipcRenderer.invoke('powershell:example', { name }),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
   exportLocalData: (localStorageItems) => ipcRenderer.invoke('localData:export', localStorageItems),
   pickImportZip: () => ipcRenderer.invoke('localData:pickImport'),

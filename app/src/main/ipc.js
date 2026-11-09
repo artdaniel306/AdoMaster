@@ -7,6 +7,7 @@ const repoConfig = require('./services/repoConfig');
 const gitCommit = require('./services/gitCommit');
 const pipelines = require('./services/pipelines');
 const testRecord = require('./services/testRecord');
+const powershellExample = require('./services/powershellExample');
 
 /**
  * IPC channel → service 對照。renderer 只能透過 preload 暴露的 window.api 呼叫這些 channel。
@@ -41,6 +42,8 @@ function registerIpcHandlers() {
   ipcMain.handle('localData:export', (e, localStorageItems) => localData.exportLocalData(senderWindow(e), localStorageItems));
   ipcMain.handle('localData:pickImport', (e) => localData.pickImportZip(senderWindow(e)));
   ipcMain.handle('localData:applyImport', () => localData.applyImport());
+
+  ipcMain.handle('powershell:example', (_e, params) => powershellExample.runExample(params));
 
   ipcMain.handle('shell:open', (_e, url) => {
     if (typeof url === 'string' && /^https:\/\//i.test(url)) return shell.openExternal(url);
