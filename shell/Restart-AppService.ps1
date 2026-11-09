@@ -3,7 +3,7 @@
     重啟指定的 Azure App Service，並等到網站重新回應為止。
 
 .DESCRIPTION
-    由 feature/release/Restart-AppService.ps1 改寫成 app 呼叫用的版本（非互動、不詢問確認）：
+    由 docs/reference/release/Restart-AppService.ps1 改寫成 app 呼叫用的版本（非互動、不詢問確認）：
       1. 確認 Azure CLI 已登入（未登入請先執行 az login）；有指定 -Subscription 時先切換訂閱
       2. 未指定 -ResourceGroup 時，以 App Service 名稱在目前訂閱中查出所屬的 Resource Group
       3. 執行 az webapp restart
@@ -15,7 +15,7 @@
     對 data/config.json 的 repos 中該 repository 設定的 testAppService 執行（app/src/main/services/afterDeploy.js）。
     正式環境不會呼叫本腳本。
 
-    慣例同 shell/example.ps1：進度寫 stdout，結果 JSON 寫到 -Out，失敗時 stderr + exit 1。
+    慣例（見 shell/CLAUDE.md）：進度寫 stdout，結果 JSON 寫到 -Out，失敗時 stderr + exit 1。
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File shell\Restart-AppService.ps1 -ResourceGroup UpDay_Prod_RG -Name crmapptest-service

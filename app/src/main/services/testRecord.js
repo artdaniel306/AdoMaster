@@ -2,7 +2,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { TEST_RECORDS_DIR } = require('../paths');
-const { loadFlowState, updateRequirementState } = require('./requirementFlow');
+const { loadFlowState, updateRequirementState } = require('./flowState');
 const { TEST_KEY, TEST_RECORD_KEY, TEST_IMAGE_RE } = require('../../shared/flow-rules.js');
 
 /**

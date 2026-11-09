@@ -9,7 +9,7 @@
     正式環境有客戶在使用，不可以直接重啟 App Service；之後要安排的操作寫在這裡。
     目前不做任何事，只回傳說明訊息。
 
-    慣例同 shell/example.ps1：進度寫 stdout，結果 JSON 寫到 -Out，失敗時 stderr + exit 1。
+    慣例（見 shell/CLAUDE.md）：進度寫 stdout，結果 JSON 寫到 -Out，失敗時 stderr + exit 1。
     結果 JSON：{ message }，message 會顯示在佈版 dialog 該 repository 的 Pipeline 底下。
 
 .EXAMPLE

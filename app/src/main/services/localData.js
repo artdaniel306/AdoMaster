@@ -3,7 +3,8 @@ const path = require('node:path');
 const AdmZip = require('adm-zip');
 const { dialog } = require('electron');
 const { ROOT_DIR, FLOW_STATE_FILE, TEST_RECORDS_DIR } = require('../paths');
-const { replaceFlowState, writeFileAtomic } = require('./requirementFlow');
+const { replaceFlowState } = require('./flowState');
+const { writeFileAtomic } = require('../atomicWrite');
 const { TEST_IMAGE_RE } = require('../../shared/flow-rules.js');
 const { parseConfig, applyLegacy } = require('./appConfig');
 

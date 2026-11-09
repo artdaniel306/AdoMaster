@@ -1,6 +1,6 @@
 const { runScriptJson } = require('../python');
 const { loadRepoConfig } = require('./repoConfig');
-const { loadFlowState } = require('./requirementFlow');
+const { loadFlowState } = require('./flowState');
 const { PLAN_KEY, PLAN_REPOS_KEY, COMMIT_STAGES } = require('../../shared/flow-rules.js');
 
 /**

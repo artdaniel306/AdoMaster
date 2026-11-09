@@ -25,7 +25,7 @@ function resolveScript(scriptName) {
 
 /**
  * 執行腳本，回傳 stdout（字串）。exit code 非 0 時 reject，訊息為 stderr。
- * @param {string} scriptName shell/ 底下的檔名，例如 'example.ps1'
+ * @param {string} scriptName shell/ 底下的檔名，例如 'Restart-AppService.ps1'
  * @param {string[]} args 傳給腳本的參數，例如 ['-Name', 'foo', '-Force']
  * @param {object} [options]
  * @param {number} [options.timeout] 毫秒，0 = 不限時（預設 2 分鐘）

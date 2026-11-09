@@ -3,6 +3,7 @@ const path = require('node:path');
 const { parseEnv } = require('node:util');
 const { CONFIG_FILE, ENV_FILE, LEGACY_ENV_FILE, LEGACY_REPOS_FILE, LEGACY_UPAGENT_CONFIG_FILE } = require('../paths');
 const { RELEASE_DB_LABEL } = require('../../shared/flow-rules.js');
+const { writeFileAtomic } = require('../atomicWrite');
 
 /**
  * 本機設定只有兩個檔案（都在 data/，不進 git，可由「匯出 / 匯入本地資料」帶到別台電腦）：
@@ -20,9 +21,6 @@ const ENV_LABEL = 'data/.env';
 /** upagentRelease.db 的資料庫代號（test_saas …），密碼放在 .env 的 UPAGENT_DB_<代號>_PASSWORD */
 const UPAGENT_DB_KEYS = Object.keys(RELEASE_DB_LABEL);
 const upagentDbPasswordKey = (db) => `UPAGENT_DB_${db.toUpperCase()}_PASSWORD`;
-
-// requirementFlow 會間接 require 這個模組（經 repoConfig），延後載入以避免循環相依
-const writeFileAtomic = (...args) => require('./requirementFlow').writeFileAtomic(...args);
 
 async function readText(file) {
   try {

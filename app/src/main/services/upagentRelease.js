@@ -2,7 +2,7 @@ const { CONFIG_FILE, ENV_FILE } = require('../paths');
 const { readConfig } = require('./appConfig');
 const { runPowerShellJson } = require('../powershell');
 const { loadRepoConfig, fieldHint } = require('./repoConfig');
-const { loadFlowState, updateRequirementState } = require('./requirementFlow');
+const { loadFlowState, updateRequirementState } = require('./flowState');
 const {
   COMMIT_STAGES,
   PLAN_REPOS_KEY,

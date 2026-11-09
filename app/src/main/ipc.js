@@ -3,12 +3,12 @@ const localData = require('./services/localData');
 const iterations = require('./services/iterations');
 const workItems = require('./services/workItems');
 const requirementFlow = require('./services/requirementFlow');
+const flowState = require('./services/flowState');
 const repoConfig = require('./services/repoConfig');
 const gitCommit = require('./services/gitCommit');
 const pipelines = require('./services/pipelines');
 const afterDeploy = require('./services/afterDeploy');
 const testRecord = require('./services/testRecord');
-const powershellExample = require('./services/powershellExample');
 const upagentRelease = require('./services/upagentRelease');
 
 /**
@@ -24,7 +24,7 @@ function registerIpcHandlers() {
   ipcMain.handle('flow:fetch', (_e, params) => requirementFlow.fetchRequirementFlow(params));
   ipcMain.handle('flow:createTask', (_e, params) => requirementFlow.createDefaultTask(params));
   ipcMain.handle('flow:updateState', (_e, params) => requirementFlow.updateRequirementStateInAdo(params));
-  ipcMain.handle('flow:loadState', () => requirementFlow.loadFlowState());
+  ipcMain.handle('flow:loadState', () => flowState.loadFlowState());
   ipcMain.handle('flow:setCheck', (_e, params) => requirementFlow.setFlowCheck(params));
   ipcMain.handle('flow:setPlan', (_e, params) => requirementFlow.setPlan(params));
   ipcMain.handle('flow:setCommits', (_e, params) => requirementFlow.setCommits(params));
@@ -50,8 +50,6 @@ function registerIpcHandlers() {
   ipcMain.handle('localData:export', (e, localStorageItems) => localData.exportLocalData(senderWindow(e), localStorageItems));
   ipcMain.handle('localData:pickImport', (e) => localData.pickImportZip(senderWindow(e)));
   ipcMain.handle('localData:applyImport', () => localData.applyImport());
-
-  ipcMain.handle('powershell:example', (_e, params) => powershellExample.runExample(params));
 
   ipcMain.handle('shell:open', (_e, url) => {
     if (typeof url === 'string' && /^https:\/\//i.test(url)) return shell.openExternal(url);

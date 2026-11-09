@@ -12,14 +12,6 @@ AZDO_PAT=
 # AZDO_API_VERSION=7.1
 # OUTPUT_CSV=tasks.csv                     # 沒設定時預設為 tasks_YYYYMMDD_HHMMSS.csv
 
-# --- Azure App Service（restart_app_service.py 用；和 AZDO_PAT 無關，需要 Microsoft Entra ID 身分） ---
-# AZURE_SUBSCRIPTION_ID=
-# AZURE_RESOURCE_GROUP=                    # 沒加 --resource-group 時使用
-# Service Principal（需有 App Service 的 Website Contributor 角色）；三個都不設定時改用 Azure CLI（先 az login）
-# AZURE_TENANT_ID=
-# AZURE_CLIENT_ID=
-# AZURE_CLIENT_SECRET=
-
 # --- UpAgent 發佈（shell/Release-UpAgent.ps1） ---
 # GitHub Personal Access Token（需能讀取 upagent repo 的 Actions；
 # 要在 app 裡「重跑 GitHub Action」需 Actions 寫入權限：Fine-grained 選 Actions: Read and write，Classic 選 repo）

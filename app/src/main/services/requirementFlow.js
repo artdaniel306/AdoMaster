@@ -1,7 +1,6 @@
 const fs = require('node:fs/promises');
-const path = require('node:path');
-const { FLOW_STATE_FILE } = require('../paths');
 const { runScriptJson, tempFile, removeTemp } = require('../python');
+const { loadFlowState, updateRequirementState } = require('./flowState');
 const { loadRepoConfig, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
 const { checkCommit, checkMerged, mergeNoFf } = require('./gitCommit');
 const {
@@ -61,78 +60,6 @@ const SYNC_STATES = ['Active', 'Resolved', 'Closed'];
 async function updateRequirementStateInAdo({ id, state } = {}) {
   if (!Number.isInteger(id) || id <= 0 || !SYNC_STATES.includes(state)) throw new Error('參數錯誤');
   return runScriptJson('update_state.py', ['--id', String(id), '--state', state]);
-}
-
-/** 舊版（「Manager understand」時期）存的 key → 現在的 key */
-const LEGACY_KEYS = {
-  understand: PLAN_KEY,
-  understandRepos: PLAN_REPOS_KEY,
-  understandMigration: PLAN_MIGRATION_KEY,
-  understandNote: PLAN_NOTE_KEY,
-};
-
-/** 讀檔時把舊 key 轉成新 key（下次寫入時就會以新 key 存回；匯入舊版匯出的檔案也適用） */
-function migrateLegacyKeys(state) {
-  for (const checks of Object.values(state || {})) {
-    if (!checks || typeof checks !== 'object') continue;
-    for (const [oldKey, newKey] of Object.entries(LEGACY_KEYS)) {
-      if (!(oldKey in checks)) continue;
-      if (!(newKey in checks)) checks[newKey] = checks[oldKey];
-      delete checks[oldKey];
-    }
-  }
-  return state;
-}
-
-/**
- * 流程中尚未串接 ADO 的人工步驟（規劃、佈版、測試、發表會…）先以 checkbox 記錄在本機：
- * data/requirement_flow_state.json → { "<requirementId>": { "<checkKey>": true, ... } }
- */
-async function loadFlowState() {
-  try {
-    return migrateLegacyKeys(JSON.parse(await fs.readFile(FLOW_STATE_FILE, 'utf-8')));
-  } catch (err) {
-    if (err.code === 'ENOENT') return {};
-    throw err;
-  }
-}
-
-/** 先寫到同資料夾的暫存檔再 rename 覆蓋：寫到一半中斷也不會留下壞掉的 JSON */
-async function writeFileAtomic(file, text) {
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
-  try {
-    await fs.writeFile(tmp, text, 'utf-8');
-    await fs.rename(tmp, file);
-  } catch (err) {
-    await fs.rm(tmp, { force: true }).catch(() => {});
-    throw err;
-  }
-}
-
-let writeQueue = Promise.resolve(); // 序列化讀改寫，避免連續勾選時互相覆蓋
-
-/** 讀出某個 Requirement 的狀態交給 mutate 修改後寫回，回傳該 Requirement 更新後的狀態。 */
-function updateRequirementState(id, mutate) {
-  const task = writeQueue.then(async () => {
-    const state = await loadFlowState();
-    const checks = { ...(state[id] || {}) };
-    mutate(checks);
-    if (Object.keys(checks).length) state[id] = checks;
-    else delete state[id];
-    await writeFileAtomic(FLOW_STATE_FILE, JSON.stringify(state, null, 2));
-    return checks;
-  });
-  writeQueue = task.catch(() => {});
-  return task;
-}
-
-/** 整份覆蓋流程狀態檔（匯入本地資料用）；同樣排進 writeQueue，不會和勾選的寫入互相覆蓋。 */
-function replaceFlowState(text) {
-  JSON.parse(text); // 不是合法 JSON 就直接丟錯，不寫入
-  const task = writeQueue.then(() => writeFileAtomic(FLOW_STATE_FILE, text));
-  writeQueue = task.catch(() => {});
-  return task;
 }
 
 /**
@@ -323,10 +250,6 @@ module.exports = {
   fetchRequirementFlow,
   createDefaultTask,
   updateRequirementStateInAdo,
-  loadFlowState,
-  replaceFlowState,
-  writeFileAtomic,
-  updateRequirementState,
   setFlowCheck,
   setPlan,
   setCommits,
