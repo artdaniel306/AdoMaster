@@ -6,6 +6,7 @@ const requirementFlow = require('./services/requirementFlow');
 const repoConfig = require('./services/repoConfig');
 const gitCommit = require('./services/gitCommit');
 const pipelines = require('./services/pipelines');
+const afterDeploy = require('./services/afterDeploy');
 const testRecord = require('./services/testRecord');
 const powershellExample = require('./services/powershellExample');
 const upagentRelease = require('./services/upagentRelease');
@@ -32,6 +33,7 @@ function registerIpcHandlers() {
   ipcMain.handle('flow:mergeStatus', (_e, { id, stage } = {}) => requirementFlow.deployMergeStatus({ id, stage }));
   ipcMain.handle('flow:mergeDeploy', (_e, { id, stage } = {}) => requirementFlow.mergeDeploy({ id, stage }));
   ipcMain.handle('flow:pipelineRuns', (_e, { id, stage } = {}) => pipelines.deployPipelineRuns({ id, stage }));
+  ipcMain.handle('flow:afterDeploy', (_e, params) => afterDeploy.runAfterDeploy(params));
   ipcMain.handle('upagentRelease:status', (_e, { id, stage, target } = {}) => upagentRelease.releaseStatus({ id, stage, target }));
   ipcMain.handle('upagentRelease:run', (e, params) =>
     upagentRelease.runRelease((channel, payload) => !e.sender.isDestroyed() && e.sender.send(channel, payload), params)

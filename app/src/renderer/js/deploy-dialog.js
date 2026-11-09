@@ -22,6 +22,7 @@ const PHASE_TEXT = {
   waiting: '等待 Pipeline 進行中 / 停等的 Run 結束',
   merging: 'merge 並 push 到環境 branch',
   watching: '監看 push 觸發的 Run',
+  afterDeploy: '執行佈版後動作',
   done: '佈版結束',
 };
 
@@ -31,7 +32,9 @@ const PHASE_TEXT = {
  *   2. 等待：Pipeline 還有進行中 / 停等的 Run 時，每 15 秒查一次，直到全部結束
  *   3. merge + push 到環境 branch（觸發自動佈版）
  *   4. 監看 push 觸發的 Run（sourceVersion = 這次的 merge commit）直到結束
- *   5. 通知結果：全部成功 → 自動勾起 SaaS；有失敗 / 找不到 Run → 由使用者決定是否仍然勾起
+ *   5. 佈版後動作（Run 成功的 repository 各一次，main/services/afterDeploy.js）：
+ *      測試環境 → 重啟 data/repos.json 設定的 testAppService；正式環境 → 只呼叫預留的 shell（目前不做事，不重啟）
+ *   6. 通知結果：全部成功 → 自動勾起 SaaS；有失敗 / 找不到 Run / 佈版後動作失敗 → 由使用者決定是否仍然勾起
  * 等待 / 監看期間可以關閉 dialog 讓它在背景繼續，結束時會再跳出來通知。一次只能有一個佈版流程。
  */
 export function createDeployDialog() {
@@ -51,7 +54,7 @@ export function createDeployDialog() {
   /**
    * 目前的佈版流程：
    * { req, stage, checkLabel, phase, mergeStatus, pipelines, unconfigured, waited: Map<runId, { repo, run }>,
-   *   targets: [{ repo, mergeCommit, run }], pushedAt, lastPoll, pollError, outcome, stopped, fns… }
+   *   targets: [{ repo, mergeCommit, run, after: { state: 'running' | 'ok' | 'bad', message } }], pushedAt, lastPoll, pollError, outcome, stopped, fns… }
    */
   let job = null;
 
@@ -107,6 +110,11 @@ export function createDeployDialog() {
         if (target.run) runs.append(runLine(target.run));
         else if (target.missing) runs.append(el('div', 'dp-run bad', '找不到 push 後觸發的 Run'));
         else runs.append(el('div', 'dp-run warn', `等待 ${target.mergeCommit.slice(0, 10)} 觸發的 Run 建立…`));
+        const after = target.after;
+        if (after && (after.state !== 'ok' || after.message)) {
+          const cls = after.state === 'running' ? 'warn' : after.state;
+          runs.append(el('div', `dp-run ${cls}`, after.state === 'running' ? after.message || '執行佈版後動作中…' : after.message));
+        }
       }
       if (waited.length) {
         if (target) runs.append(el('div', 'muted', '先前等待的 Run：'));
@@ -125,7 +133,7 @@ export function createDeployDialog() {
   function renderButtons(j) {
     const { phase } = j;
     stopBtn.hidden = phase === 'done';
-    stopBtn.disabled = phase === 'merging';
+    stopBtn.disabled = phase === 'merging' || phase === 'afterDeploy';
     stopBtn.textContent = phase === 'confirm' ? '取消' : phase === 'watching' ? '停止監看' : '停止';
     bgBtn.hidden = phase === 'confirm';
     bgBtn.disabled = phase === 'merging';
@@ -144,7 +152,7 @@ export function createDeployDialog() {
     reqEl.textContent = `#${j.req.id} ${j.req.title}`;
     let text = PHASE_TEXT[j.phase];
     if (j.phase === 'done') text = j.outcome.message;
-    else if (j.phase !== 'confirm' && j.phase !== 'merging' && j.lastPoll) text += `（每 ${POLL_MS / 1000} 秒更新，最後更新 ${timeText(j.lastPoll)}）`;
+    else if (j.phase !== 'confirm' && j.phase !== 'merging' && j.phase !== 'afterDeploy' && j.lastPoll) text += `（每 ${POLL_MS / 1000} 秒更新，最後更新 ${timeText(j.lastPoll)}）`;
     phaseEl.textContent = text;
     phaseEl.className = `status${j.phase === 'done' ? (j.outcome.success ? ' ok' : ' error') : j.phase === 'confirm' ? '' : ' loading'}`;
     renderMerge(j);
@@ -158,7 +166,9 @@ export function createDeployDialog() {
             : '已全部 merge，會等待上列 Pipeline 的 Run 結束。'
         : j.phase === 'done'
           ? ''
-          : '可以按「背景執行」關閉此視窗，佈版結束時會再通知。';
+          : j.phase === 'afterDeploy'
+            ? '佈版後動作執行中（重啟 App Service 並等待網站回應），可以按「背景執行」關閉此視窗。'
+            : '可以按「背景執行」關閉此視窗，佈版結束時會再通知。';
     const err = j.phase === 'done' ? j.outcome.error : j.pollError;
     errorEl.textContent = err || '';
     errorEl.hidden = !err;
@@ -224,12 +234,15 @@ export function createDeployDialog() {
   async function finish(j, error) {
     // 有 merge 並 push 的 repository → 看 push 觸發的 Run；沒有 → 看等待過的 Run
     const results = j.targets.length ? j.targets.map((t) => t.run) : [...j.waited.values()].map((w) => w.run);
-    const success = !error && results.every((r) => r && r.result === 'succeeded');
+    const runsOk = results.every((r) => r && r.result === 'succeeded');
+    const afterFailed = j.targets.filter((t) => t.after?.state === 'bad');
+    const success = !error && runsOk && !afterFailed.length;
     let message;
     if (error) message = '佈版失敗';
     else if (success) message = results.length ? '佈版完成：所有 Run 都已成功' : '佈版完成：已 merge，沒有需要監看的 Run';
     else if (results.some((r) => !r)) message = '佈版結束：有 repository 找不到 push 後觸發的 Run';
-    else message = `佈版結束：有 Run 未成功（${results.filter((r) => r.result !== 'succeeded').map(runText).join('、')}）`;
+    else if (!runsOk) message = `佈版結束：有 Run 未成功（${results.filter((r) => r.result !== 'succeeded').map(runText).join('、')}）`;
+    else message = `佈版結束：Run 都已成功，但佈版後動作失敗（${afterFailed.map((t) => t.repo).join('、')}）`;
     j.outcome = { success, message, error: error ? cleanError(error) : '', canCheck: !error };
     if (success) {
       try {
@@ -246,6 +259,26 @@ export function createDeployDialog() {
     }
   }
 
+  /** push 觸發的 Run 成功的 repository，各執行一次佈版後動作（測試環境重啟 App Service；正式環境為預留 shell） */
+  async function runAfterDeploy(j) {
+    const done = j.targets.filter((t) => t.run?.result === 'succeeded');
+    if (!done.length) return;
+    setPhase(j, 'afterDeploy');
+    await Promise.all(
+      done.map(async (t) => {
+        t.after = { state: 'running', message: '' };
+        render();
+        try {
+          const r = await j.afterDeployFn(t.repo, t.mergeCommit);
+          t.after = { state: 'ok', message: r?.message || '' };
+        } catch (err) {
+          t.after = { state: 'bad', message: cleanError(err) };
+        }
+        render();
+      })
+    );
+  }
+
   async function run(j) {
     try {
       setPhase(j, 'waiting');
@@ -259,10 +292,12 @@ export function createDeployDialog() {
         j.pushedAt = Date.now();
         j.targets = Object.entries(status.mergeCommits || {})
           .filter(([repo]) => pipelineOf(j, repo))
-          .map(([repo, mergeCommit]) => ({ repo, mergeCommit, run: null, missing: false }));
+          .map(([repo, mergeCommit]) => ({ repo, mergeCommit, run: null, missing: false, after: null }));
         if (j.targets.length) {
           setPhase(j, 'watching');
           await watchNewRuns(j);
+          if (j.stopped) return;
+          await runAfterDeploy(j);
           if (j.stopped) return;
         }
       }
@@ -308,7 +343,7 @@ export function createDeployDialog() {
     }
   });
   stopBtn.addEventListener('click', () => {
-    if (job && job.phase !== 'merging') end();
+    if (job && job.phase !== 'merging' && job.phase !== 'afterDeploy') end();
   });
   bgBtn.addEventListener('click', () => {
     if (!job) return;
@@ -335,10 +370,11 @@ export function createDeployDialog() {
    * @param pipelineRuns deployPipelineRuns 的結果
    * @param mergeFn () => Promise<mergeDeploy 的結果>
    * @param runsFn () => Promise<deployPipelineRuns 的結果>
+   * @param afterDeployFn (repo, mergeCommit) => Promise<{ message }>，Run 成功後的佈版後動作
    * @param checkFn () => Promise，勾起 checkbox
    * @param onChange (reqId) => void，流程狀態改變時呼叫（重繪該列）
    */
-  function start({ req, stage, checkLabel, mergeStatus, pipelineRuns, mergeFn, runsFn, checkFn, onChange }) {
+  function start({ req, stage, checkLabel, mergeStatus, pipelineRuns, mergeFn, runsFn, afterDeployFn, checkFn, onChange }) {
     if (job) throw new Error(`已有佈版流程進行中：#${job.req.id} ${job.stage.label} ${job.checkLabel}`);
     job = {
       req,
@@ -355,6 +391,7 @@ export function createDeployDialog() {
       stopped: false,
       mergeFn,
       runsFn,
+      afterDeployFn,
       checkFn,
       onChange,
     };

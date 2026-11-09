@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('api', {
   deployMergeStatus: (id, stage) => ipcRenderer.invoke('flow:mergeStatus', { id, stage }),
   mergeDeploy: (id, stage) => ipcRenderer.invoke('flow:mergeDeploy', { id, stage }),
   deployPipelineRuns: (id, stage) => ipcRenderer.invoke('flow:pipelineRuns', { id, stage }),
+  /** Pipeline Run 成功後的佈版後動作（測試環境：重啟 App Service；正式環境：預留的 shell，目前不做事） */
+  afterDeploy: (id, stage, repo, commit) => ipcRenderer.invoke('flow:afterDeploy', { id, stage, repo, commit }),
   /** target = 'saas' | 'local'（各自寫入不同的資料庫） */
   upagentReleaseStatus: (id, stage, target) => ipcRenderer.invoke('upagentRelease:status', { id, stage, target }),
   /** 執行 UpAgent 發佈（shell/Release-UpAgent.ps1），完成後回傳該 Requirement 更新後的狀態 */

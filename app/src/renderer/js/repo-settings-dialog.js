@@ -134,6 +134,8 @@ export function initRepoSettings({ onSaved } = {}) {
     const prodBranch = input(repo.prodBranch, 'master');
     const testPipeline = input(repo.testPipeline, '空白 = 沒有自動佈版');
     const prodPipeline = input(repo.prodPipeline, '空白 = 沒有自動佈版');
+    const testAppService = input(repo.testAppService, '空白 = 不重啟');
+    const testResourceGroup = input(repo.testResourceGroup, '空白 = 自動查詢');
 
     const grid = el('div', 'rs-grid');
     grid.append(
@@ -143,6 +145,8 @@ export function initRepoSettings({ onSaved } = {}) {
       field('正式環境 branch', prodBranch),
       field('測試環境 Pipeline', testPipeline, '可寫「資料夾\\名稱」'),
       field('正式環境 Pipeline', prodPipeline, '可寫「資料夾\\名稱」'),
+      field('測試環境 App Service', testAppService, '測試環境 Pipeline Run 成功後重啟（需先 az login）；正式環境不會重啟'),
+      field('測試環境 Resource Group', testResourceGroup, 'App Service 所在的 Resource Group'),
     );
 
     box.append(head, keyWarn, grid);
@@ -161,6 +165,8 @@ export function initRepoSettings({ onSaved } = {}) {
         prodBranch: prodBranch.value.trim(),
         testPipeline: testPipeline.value.trim(),
         prodPipeline: prodPipeline.value.trim(),
+        testAppService: testAppService.value.trim(),
+        testResourceGroup: testResourceGroup.value.trim(),
       }),
     };
     return row;

@@ -11,7 +11,8 @@ const { REPOS_FILE } = require('../paths');
  *       "path": "C:\\source\\crmapp",
  *       "branches": ["feature/xxx"],
  *       "testBranch": "test", "prodBranch": "master",
- *       "testPipeline": "", "prodPipeline": ""
+ *       "testPipeline": "", "prodPipeline": "",
+ *       "testAppService": "", "testResourceGroup": ""
  *   }, ...] }
  *   - key：存進流程狀態（data/requirement_flow_state.json）的識別名稱，改名會讓既有紀錄對不上
  *   - label：畫面顯示名稱（預設 = key）；color：代表色（任何 CSS 顏色，選填）
@@ -19,6 +20,8 @@ const { REPOS_FILE } = require('../paths');
  *   - branches：規劃 時可選的 feature branch（陣列，也接受逗號分隔字串）
  *   - testBranch / prodBranch：環境 branch（勾 SaaS / Local 前確認 commit 已進到該 branch）
  *   - testPipeline / prodPipeline：環境 branch push 後自動佈版的 Pipeline 名稱（可寫「資料夾\名稱」；空白 = 沒有自動佈版）
+ *   - testAppService / testResourceGroup：測試環境 Pipeline Run 成功後要重啟的 App Service（afterDeploy.js；
+ *     空白 = 不重啟；Resource Group 空白時自動查詢）。正式環境刻意沒有對應欄位（不自動重啟）
  */
 const FILE_LABEL = 'data/repos.json';
 const KEY_RE = /^[A-Za-z0-9_.-]+$/;
@@ -26,6 +29,8 @@ const KEY_RE = /^[A-Za-z0-9_.-]+$/;
 /** 佈版階段 → data/repos.json 的欄位名稱 */
 const DEPLOY_BRANCH_FIELDS = { testDeploy: 'testBranch', prodDeploy: 'prodBranch' };
 const PIPELINE_FIELDS = { testDeploy: 'testPipeline', prodDeploy: 'prodPipeline' };
+/** 佈版後要重啟的 App Service：只有測試環境（正式環境有客戶在用，不自動重啟） */
+const APP_SERVICE_FIELDS = { testDeploy: { name: 'testAppService', resourceGroup: 'testResourceGroup' } };
 
 /** 錯誤訊息用：指出要去哪裡設定 */
 const fieldHint = (key, field) => `${FILE_LABEL} 中 ${key} 的 "${field}"`;
@@ -56,7 +61,7 @@ async function readRepoFile({ missingOk = false } = {}) {
   return repos;
 }
 
-/** 每次呼叫都重新讀取 data/repos.json，回傳 { repos: [{ key, label, color, path, branches, deployBranches, pipelines }] } */
+/** 每次呼叫都重新讀取 data/repos.json，回傳 { repos: [{ key, label, color, path, branches, deployBranches, pipelines, appServices }] } */
 async function loadRepoConfig() {
   return { repos: normalizeRepos(await readRepoFile()) };
 }
@@ -78,12 +83,15 @@ function normalizeRepos(repos) {
       branches: list(r.branches),
       deployBranches: pick(r, DEPLOY_BRANCH_FIELDS),
       pipelines: pick(r, PIPELINE_FIELDS),
+      appServices: Object.fromEntries(
+        Object.entries(APP_SERVICE_FIELDS).map(([stage, f]) => [stage, { name: str(r[f.name]), resourceGroup: str(r[f.resourceGroup]) }])
+      ),
     };
   });
 }
 
 /** 設定 dialog 編輯的欄位（其餘欄位原樣保留） */
-const EDIT_FIELDS = ['key', 'label', 'color', 'path', 'branches', 'testBranch', 'prodBranch', 'testPipeline', 'prodPipeline'];
+const EDIT_FIELDS = ['key', 'label', 'color', 'path', 'branches', 'testBranch', 'prodBranch', 'testPipeline', 'prodPipeline', 'testAppService', 'testResourceGroup'];
 
 /**
  * 給「Repository 設定」dialog 用：回傳 data/repos.json 的原始內容（branches 一律轉成陣列）。
