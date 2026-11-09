@@ -63,6 +63,8 @@ export function createFlowDeploy(ctx) {
     const target = releaseTargetOf(key);
     if (!upagentReleasePlan(ctx.checks(req.id), stage.key, target)) return true;
     const status = await api.upagentReleaseStatus(req.id, stage.key, target);
+    // Confirm Commit 已包含在已發佈的版本中：main 已沿用該版本，先同步狀態
+    if (status.checks) ctx.setChecks(req.id, status.checks);
     if (!status.plan) return true;
     const { ok, checks } = await releaseDialog.open({
       req,
@@ -213,7 +215,8 @@ export function createFlowDeploy(ctx) {
     const writtenAt = Object.fromEntries(RELEASE_TARGETS.map((t) => [t, release.db?.[releaseDbKey(env, t)]]));
     const allWritten = RELEASE_TARGETS.every((t) => writtenAt[t]);
     const dbText = RELEASE_TARGETS.map((t) => `${label[t]} ${writtenAt[t] ? '✓' : '—'}`).join(' / ');
-    const text = `UpAgent ${release.version}${published ? '' : '（Blob 未上傳完成）'} · DB：${dbText}`;
+    const adopted = release.adoptedFrom ? `（沿用 #${release.adoptedFrom}）` : '';
+    const text = `UpAgent ${release.version}${adopted}${published ? '' : '（Blob 未上傳完成）'} · DB：${dbText}`;
     const line = el('div', `check-summary repo-line ${allWritten ? 'repo-branch' : 'repo-missing'}`, text);
     line.title = [
       release.remark ? `備註：${release.remark}` : '',

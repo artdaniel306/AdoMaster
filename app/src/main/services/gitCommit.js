@@ -435,4 +435,4 @@ async function branchGraph({ repo, branch, fetch = false, all = false } = {}) {
   return result;
 }
 
-module.exports = { checkCommit, checkMerged, mergeNoFf, mergeBackToFeatures, branchGraph };
+module.exports = { git, checkCommit, checkMerged, mergeNoFf, mergeBackToFeatures, branchGraph };

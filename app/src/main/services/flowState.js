@@ -57,6 +57,21 @@ function updateRequirementState(id, mutate) {
   return task;
 }
 
+/**
+ * 讀出整份流程狀態交給 mutate 直接修改後寫回（一次更新多個 Requirement 時用，例如同一個 UpAgent 版本的資料庫寫入紀錄）。
+ * 同樣排進 writeQueue；回傳更新後的整份狀態。
+ */
+function updateFlowState(mutate) {
+  const task = writeQueue.then(async () => {
+    const state = await loadFlowState();
+    mutate(state);
+    await writeFileAtomic(FLOW_STATE_FILE, JSON.stringify(state, null, 2));
+    return state;
+  });
+  writeQueue = task.catch(() => {});
+  return task;
+}
+
 /** 整份覆蓋流程狀態檔（匯入本地資料用）；同樣排進 writeQueue，不會和勾選的寫入互相覆蓋。 */
 function replaceFlowState(text) {
   JSON.parse(text); // 不是合法 JSON 就直接丟錯，不寫入
@@ -65,4 +80,4 @@ function replaceFlowState(text) {
   return task;
 }
 
-module.exports = { loadFlowState, updateRequirementState, replaceFlowState };
+module.exports = { loadFlowState, updateRequirementState, updateFlowState, replaceFlowState };

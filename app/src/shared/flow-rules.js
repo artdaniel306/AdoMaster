@@ -12,6 +12,8 @@
  *   testRecord: { note, images, updatedAt } 測試完成時記錄的測試場景（images 為 data/test_records/<id>/ 下的檔名）
  *   upagentRelease: { version, bump, remark, completed, publishedAt, db: { test_saas, test_local, prod_saas, prod_local } }
  *                                          UpAgent 發佈進度（completed = 最後完成的發佈步驟；db 為各環境 SaaS / Local 寫入資料庫的時間）
+ *                                          adoptedFrom = 沿用的版本是哪張 Requirement 發佈的（Confirm Commit 已包含在已發佈的版本中，
+ *                                          不再 Bump；db 會同步到同版本的所有紀錄。見 main/services/upagentRelease.js）
  *   <stage>.localDeploy: { repoKey: { forCommit, commit, image, tar, remoteHost, deployedAt } }
  *                                          勾 Local 時 Local 佈版（shell/Deploy-Local.ps1）成功的紀錄
  *                                          （forCommit = 當時的 Confirm Commit；commit = 實際 build 的環境 branch commit）
