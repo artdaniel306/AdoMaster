@@ -7,6 +7,7 @@ import { initLocalData } from './local-data.js';
 import { initRepoSettings } from './repo-settings-dialog.js';
 import { initEnvSettings } from './env-settings-dialog.js';
 import { initUpagentConnectionSettings } from './upagent-connection-settings-dialog.js';
+import { initUpagentReleaseDbSettings } from './upagent-release-db-dialog.js';
 
 const exactEl = $('exact');
 const views = {
@@ -50,4 +51,5 @@ initLocalData();
 initRepoSettings({ onSaved: () => views.flow.view.repaint() });
 initEnvSettings();
 initUpagentConnectionSettings();
+initUpagentReleaseDbSettings();
 tree.load();

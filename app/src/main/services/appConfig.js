@@ -142,7 +142,7 @@ const ENV_GROUPS = [
   },
   {
     title: 'UpAgent 發佈',
-    hint: 'shell/Release-UpAgent.ps1 使用；資料庫連線資訊（host / user …）在 data/config.json 的 upagentRelease.db',
+    hint: 'shell/Release-UpAgent.ps1 使用；資料庫連線資訊（host / user …）與密碼可在「設定 → UpAgent 發佈資料庫設定…」一起編輯',
     fields: [
       { key: 'GITHUB_TOKEN', label: 'GitHub Token', secret: true, hint: '需能讀 upagent repo 的 Actions；「重跑 GitHub Action」需 Actions 寫入權限' },
       ...UPAGENT_DB_KEYS.map((db) => ({ key: upagentDbPasswordKey(db), label: `${RELEASE_DB_LABEL[db]} 資料庫密碼`, secret: true })),
@@ -181,12 +181,25 @@ async function saveEnvSettings({ values } = {}) {
   if (clean.AZDO_BASE_URL && !/^https?:\/\//i.test(clean.AZDO_BASE_URL)) {
     throw new Error('AZDO_BASE_URL 必須是 http:// 或 https:// 開頭的網址');
   }
-  await withEnvLock(async () => {
+  await writeEnvKeys(clean);
+  return loadEnvSettings();
+}
+
+/** 目前 data/.env 的 KEY=VALUE（檔案不存在時為 {}；不含環境變數） */
+async function readEnvFile() {
+  return readEnvValues(await readText(ENV_FILE));
+}
+
+/**
+ * 寫入 data/.env 的指定 key（空值 = 刪掉該行），其他行與註解保留；檔案不存在時建立（暫存檔 + rename，序列化）。
+ * 呼叫端負責驗證 key 與值（不能含換行）。
+ */
+function writeEnvKeys(values) {
+  return withEnvLock(async () => {
     const text = (await readText(ENV_FILE))
       ?? `# 連線身分與機密（扁平 KEY=VALUE）。本檔含有存取憑證，請勿提交到版控或外流。同名的環境變數優先於本檔。\n`;
-    await writeFileAtomic(ENV_FILE, setEnvKeys(text, clean, { removeEmpty: true }));
+    await writeFileAtomic(ENV_FILE, setEnvKeys(text, values, { removeEmpty: true }));
   });
-  return loadEnvSettings();
 }
 
 /**
@@ -312,8 +325,12 @@ module.exports = {
   parseConfig,
   readConfig,
   updateConfig,
+  UPAGENT_DB_KEYS,
+  upagentDbPasswordKey,
   loadEnvSettings,
   saveEnvSettings,
+  readEnvFile,
+  writeEnvKeys,
   applyLegacy,
   migrateLegacyConfig,
 };

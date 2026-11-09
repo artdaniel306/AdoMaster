@@ -49,6 +49,12 @@ contextBridge.exposeInMainWorld('api', {
   saveUpagentConnectionSettings: (configFile, codes) => ipcRenderer.invoke('upagentConnection:saveSettings', { configFile, codes }),
   /** 選擇 UpAgent 設定檔（可多選）；回傳路徑陣列（使用者資料夾換回 %APPDATA% 等），取消 = null */
   pickUpagentConfigFile: (current) => ipcRenderer.invoke('upagentConnection:pickFile', current),
+  /** 「UpAgent 發佈資料庫設定」dialog：config.json upagentRelease.db + .env 的 UPAGENT_DB_*_PASSWORD */
+  loadUpagentReleaseDbSettings: () => ipcRenderer.invoke('upagentReleaseDb:loadSettings'),
+  /** dbs: { test_saas: { psql, host, port, dbname, user, sslmode, password }, ... }（空白 = 刪除該欄位 / 改用預設） */
+  saveUpagentReleaseDbSettings: (dbs) => ipcRenderer.invoke('upagentReleaseDb:saveSettings', { dbs }),
+  /** 選擇 psql 執行檔；取消 = null */
+  pickPsql: (current) => ipcRenderer.invoke('upagentReleaseDb:pickPsql', current),
   loadRepoConfig:() => ipcRenderer.invoke('repos:config'),
   checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
   branchGraph: (repo, branch, { fetch = false, all = false } = {}) =>
@@ -71,4 +77,6 @@ contextBridge.exposeInMainWorld('api', {
   onEnvSettingsMenu: (cb) => ipcRenderer.on('menu:envSettings', () => cb()),
   /** 選單「設定 → UpAgent 連線設定…」被點擊時呼叫 cb() */
   onUpagentConnectionSettingsMenu: (cb) => ipcRenderer.on('menu:upagentConnectionSettings', () => cb()),
+  /** 選單「設定 → UpAgent 發佈資料庫設定…」被點擊時呼叫 cb() */
+  onUpagentReleaseDbSettingsMenu: (cb) => ipcRenderer.on('menu:upagentReleaseDbSettings', () => cb()),
 });

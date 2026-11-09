@@ -16,7 +16,7 @@ AZDO_PAT=
 # GitHub Personal Access Token（需能讀取 upagent repo 的 Actions；
 # 要在 app 裡「重跑 GitHub Action」需 Actions 寫入權限：Fine-grained 選 Actions: Read and write，Classic 選 repo）
 GITHUB_TOKEN=
-# 寫入 public.public_db_upagentrelease 的資料庫密碼（連線資訊在 data/config.json 的 upagentRelease.db）
+# 寫入 public.public_db_upagentrelease 的資料庫密碼（連線資訊在 data/config.json 的 upagentRelease.db；可在 app「設定 → UpAgent 發佈資料庫設定…」一起編輯）
 UPAGENT_DB_TEST_SAAS_PASSWORD=
 UPAGENT_DB_TEST_LOCAL_PASSWORD=
 UPAGENT_DB_PROD_SAAS_PASSWORD=

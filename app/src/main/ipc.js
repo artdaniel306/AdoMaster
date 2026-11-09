@@ -13,6 +13,7 @@ const testRecord = require('./services/testRecord');
 const upagentRelease = require('./services/upagentRelease');
 const localDeploy = require('./services/localDeploy');
 const upagentConnection = require('./services/upagentConnection');
+const upagentReleaseDb = require('./services/upagentReleaseDb');
 
 /**
  * IPC channel → service 對照。renderer 只能透過 preload 暴露的 window.api 呼叫這些 channel。
@@ -52,6 +53,9 @@ function registerIpcHandlers() {
   ipcMain.handle('upagentConnection:loadSettings', () => upagentConnection.loadConnectionSettings());
   ipcMain.handle('upagentConnection:saveSettings', (_e, params) => upagentConnection.saveConnectionSettings(params));
   ipcMain.handle('upagentConnection:pickFile', (e, current) => upagentConnection.pickConfigFile(BrowserWindow.fromWebContents(e.sender), current));
+  ipcMain.handle('upagentReleaseDb:loadSettings', () => upagentReleaseDb.loadReleaseDbSettings());
+  ipcMain.handle('upagentReleaseDb:saveSettings', (_e, params) => upagentReleaseDb.saveReleaseDbSettings(params));
+  ipcMain.handle('upagentReleaseDb:pickPsql', (e, current) => upagentReleaseDb.pickPsql(BrowserWindow.fromWebContents(e.sender), current));
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());
   ipcMain.handle('repos:checkCommit', (_e, params) => gitCommit.checkCommit(params));
   ipcMain.handle('repos:branchGraph', (_e, params) => gitCommit.branchGraph(params));

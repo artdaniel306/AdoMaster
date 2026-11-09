@@ -301,6 +301,20 @@ td.stage-split { padding: 0; height: 1px; }
 .ucs-path-row .es-input { cursor: default; }
 .ucs-add { align-self: flex-start; margin-top: 6px; }
 
+/* ---- UpAgent 發佈資料庫設定（選單「設定 → UpAgent 發佈資料庫設定…」，config.json upagentRelease.db + .env 密碼；沿用 rs-* / es-* 樣式）---- */
+#upagent-release-db-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(720px, 94vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#upagent-release-db-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#upagent-release-db-dialog .dlg-box { max-height: 90vh; }
+#upagent-release-db-dialog .dlg-body { overflow: auto; }
+#urd-file { margin: 0; word-break: break-all; }
+.urd-wide { grid-column: 1 / -1; }
+.urd-select {
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); font: inherit;
+}
+
 /* ---- Confirm Commit（Test deploy / Prod deploy 佈版前）---- */
 #commit-dialog {
   padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
