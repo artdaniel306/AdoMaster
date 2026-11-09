@@ -12,8 +12,9 @@
  *   testRecord: { note, images, updatedAt } 測試完成時記錄的測試場景（images 為 data/test_records/<id>/ 下的檔名）
  *   upagentRelease: { version, bump, remark, completed, publishedAt, db: { test_saas, test_local, prod_saas, prod_local } }
  *                                          UpAgent 發佈進度（completed = 最後完成的發佈步驟；db 為各環境 SaaS / Local 寫入資料庫的時間）
- *   <stage>.localDeploy: { repoKey: { commit, image, remoteHost, deployedAt } }
+ *   <stage>.localDeploy: { repoKey: { forCommit, commit, image, tar, remoteHost, deployedAt } }
  *                                          勾 Local 時 Local 佈版（shell/Deploy-Local.ps1）成功的紀錄
+ *                                          （forCommit = 當時的 Confirm Commit；commit = 實際 build 的環境 branch commit）
  *   <checkKey>: true                       其他 checkbox（SaaS / Local、測試完成…）
  */
 

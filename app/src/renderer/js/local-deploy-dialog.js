@@ -18,7 +18,7 @@ const time = (iso) => new Date(iso).toLocaleString('zh-TW', { hour12: false });
 
 /**
  * Local 佈版（勾測試 / 正式環境佈版的 Local，確認 merge 後執行 shell/Deploy-Local.ps1）：
- *   列出規劃中有設定 localDeploy 的 repository（預設勾選尚未佈版過的）→ 依序 build 成 image tar（data/local_deploy/）
+ *   列出規劃中有設定 localDeploy 的 repository（預設勾選：此階段還沒以目前 Confirm Commit 佈版過的）→ 依序 build 成 image tar（data/local_deploy/）
  *   → docker load + push → ssh 換 container。推送 / ssh 失敗後重試時，同一個 commit 的 tar 已存在就不重新 build。
  *   全部取消勾選 = 略過佈版直接勾起（例如已手動佈版）。
  * 執行中可按「背景執行」關閉視窗，結束時再通知。一次只能有一個 Local 佈版。
@@ -46,7 +46,7 @@ export function createLocalDeployDialog() {
   function renderRepos(j) {
     reposEl.replaceChildren(
       ...j.targets.map((t) => {
-        const row = el('label', `ld-repo${t.last ? ' done' : ''}`);
+        const row = el('label', `ld-repo${t.upToDate ? ' done' : ''}`);
         const box = el('input');
         box.type = 'checkbox';
         box.checked = j.selected.has(t.repo);
@@ -59,7 +59,8 @@ export function createLocalDeployDialog() {
         const info = el('span');
         info.append(repoTag(t.repo), ` → ${t.remoteHost}（port ${t.hostPort}，container ${t.appName}）`);
         info.append(el('span', 'muted', `從 ${t.projectDir} 切到 origin/${t.envBranch} 後 build`));
-        if (t.last) info.append(el('span', 'muted', `✓ 已佈版 ${t.last.commit.slice(0, 10)}（${time(t.last.deployedAt)}）`));
+        if (t.upToDate) info.append(el('span', 'muted', `✓ 已佈版 ${t.last.commit.slice(0, 10)}（${time(t.last.deployedAt)}）`));
+        else if (t.last) info.append(el('span', 'muted', `上次佈版 ${t.last.commit.slice(0, 10)}（${time(t.last.deployedAt)}）之後 Confirm Commit 已變更，需重新佈版`));
         if (t.error) info.append(el('span', 'error', t.error));
         if (j.phase === 'running' && j.repo === t.repo) info.append(el('span', 'muted', `▶ 執行中${j.step ? `：${STEP_TEXT[j.step] || j.step}` : '…'}`));
         row.append(box, info);
@@ -148,7 +149,7 @@ export function createLocalDeployDialog() {
       try {
         const status = await api.localDeployStatus(j.req.id, j.stage.key);
         j.targets = status.targets;
-        j.selected = new Set(runnable(j).filter((t) => repos.includes(t.repo) && !t.last).map((t) => t.repo));
+        j.selected = new Set(runnable(j).filter((t) => repos.includes(t.repo) && !t.upToDate).map((t) => t.repo));
       } catch {
         // 查不到就沿用原本的清單
       }
@@ -226,7 +227,7 @@ export function createLocalDeployDialog() {
         resolve,
         onChange,
       };
-      job.selected = new Set(runnable(job).filter((t) => !t.last).map((t) => t.repo));
+      job.selected = new Set(runnable(job).filter((t) => !t.upToDate).map((t) => t.repo));
       logEl.textContent = '';
       rebuildEl.checked = false;
       render();

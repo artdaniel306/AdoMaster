@@ -47,7 +47,9 @@ function effectiveSettings(section, repo, env) {
 
 /**
  * 某 Requirement 某佈版階段要做 Local 佈版的 repository。
- * @returns {Promise<{ env, targets: [{ repo, label, envBranch, commit, appName, remoteHost, hostPort, projectDir, error, last }] }>}
+ *   last = 此階段上次 Local 佈版成功的紀錄；upToDate = 該紀錄是以目前的 Confirm Commit 佈版的
+ *   （Confirm Commit 改過之後，舊紀錄不算數，預設要重新佈版）。
+ * @returns {Promise<{ env, targets: [{ repo, label, envBranch, commit, appName, remoteHost, hostPort, projectDir, error, last, upToDate }] }>}
  */
 async function deployTargets(id, stage) {
   if (!Number.isInteger(id) || !COMMIT_STAGES.includes(stage)) throw new Error('參數錯誤');
@@ -84,6 +86,7 @@ async function deployTargets(id, stage) {
       projectDir,
       error,
       last: records[repo] || null,
+      upToDate: !!records[repo] && (records[repo].forCommit || '') === (commits[repo] || ''),
     });
   }
   return { env, checks, targets };
@@ -153,7 +156,7 @@ async function runLocalDeploy(send, { id, stage, repos, rebuild = false } = {}) 
         const key = localDeployKey(stage);
         checks[key] = {
           ...(checks[key] || {}),
-          [t.repo]: { commit: str(result?.commit), image: str(result?.image), tar: str(result?.tar), remoteHost: t.remoteHost, deployedAt: new Date().toISOString() },
+          [t.repo]: { forCommit: t.commit, commit: str(result?.commit), image: str(result?.image), tar: str(result?.tar), remoteHost: t.remoteHost, deployedAt: new Date().toISOString() },
         };
       });
       log(`✔ ${t.label} 完成`);
