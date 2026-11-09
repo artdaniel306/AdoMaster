@@ -21,7 +21,12 @@ async function runAfterDeploy({ id, stage, repo, commit } = {}) {
   const checks = (await loadFlowState())[id] || {};
   const planRepos = checks[PLAN_KEY] ? Object.keys(checks[PLAN_REPOS_KEY] || {}) : [];
   if (!planRepos.includes(repo)) throw new Error(`#${id} 的規劃沒有選 ${repo}`);
+  return afterDeployRepo({ stage, repo, commit });
+}
 
+/** 對某 repository 執行佈版後動作（流程與手動佈版共用，不檢查 Requirement 的規劃） */
+async function afterDeployRepo({ stage, repo, commit } = {}) {
+  if (!COMMIT_STAGES.includes(stage) || typeof repo !== 'string') throw new Error('參數錯誤');
   if (stage === 'prodDeploy') {
     const args = ['-Repo', repo];
     if (typeof commit === 'string' && commit) args.push('-Commit', commit);
@@ -45,4 +50,4 @@ async function runAfterDeploy({ id, stage, repo, commit } = {}) {
   return { action: 'restart', message: `已重啟 App Service ${app.name}${http || secs ? `（${http}${secs}）` : ''}`, result };
 }
 
-module.exports = { runAfterDeploy };
+module.exports = { runAfterDeploy, afterDeployRepo };

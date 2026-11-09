@@ -424,5 +424,18 @@ export function createDeployDialog() {
     }
   }
 
-  return { start, statusOf, show };
+  /** 「佈版進度」dialog 用：目前的流程（沒有時回傳 null） */
+  function summary() {
+    if (!job) return null;
+    const done = job.phase === 'done';
+    return {
+      title: `#${job.req.id} ${job.req.title}`,
+      kind: `${job.stage.label} ${job.checkLabel} · SaaS 自動佈版`,
+      text: done ? job.outcome.message : PHASE_TEXT[job.phase],
+      active: !done && job.phase !== 'confirm',
+      failed: done && !job.outcome.success,
+    };
+  }
+
+  return { start, statusOf, show, summary };
 }

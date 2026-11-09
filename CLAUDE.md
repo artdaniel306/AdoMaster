@@ -79,5 +79,6 @@ Full spec: **`docs/requirement-flow.md`**. Key invariants:
 - Stages: Pending → Implement + 規劃 (`plan`) → Test deploy → Test → Prod deploy → Release recap. Manual steps are checkboxes in `data/requirement_flow_state.json`, read/written only through `main/services/flowState.js` (serialized queue).
 - Only two actions write to ADO: creating the default Task and updating the Requirement state. Pipelines are only read; SaaS deploys are triggered by git push. Local (on-prem) deploys run `shell/Deploy-Local.ps1` (Docker build + ssh) from a dedicated deploy clone, never the dev clone.
 - Deploy merges never touch the local working tree and never `--force` push; conflicting merges are refused.
+- Menu「佈版」: **手動佈版** (`manualDeploy.js`, runs in main) deploys one repo/commit to SaaS/Local × test/prod with the same actions but no Requirement and no flow-state writes; **佈版進度** lists manual jobs + the flow's background deploy jobs (`deploy-jobs.js`). See the spec's last section.
 - Prod deploy **never restarts** the App Service (customers are live); there is deliberately no `prodAppService` field.
 - A repo's `key` in `repos` is what the flow state stores — renaming it orphans old records.

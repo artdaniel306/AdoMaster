@@ -211,7 +211,7 @@ export function createUpagentReleaseDialog() {
    */
   function open({ req, stage, checkLabel, status, planRepos, onChange }) {
     if (job) throw new Error(`已有 UpAgent 發佈進行中：#${job.req.id} ${job.stage.label}`);
-    if (status.running) throw new Error(`已有 UpAgent 發佈進行中：#${status.running.id}`);
+    if (status.running) throw new Error(`已有 UpAgent 發佈進行中：${status.running.label || `#${status.running.id}`}`);
     return new Promise((resolve) => {
       job = {
         req,
@@ -251,5 +251,23 @@ export function createUpagentReleaseDialog() {
     }
   }
 
-  return { open, statusOf, show };
+  /** 「佈版進度」dialog 用：目前的發佈（沒有時回傳 null） */
+  function summary() {
+    if (!job) return null;
+    const text =
+      job.phase === 'running'
+        ? job.step ? `執行中：${stepLabel(job.step)}` : '執行中…'
+        : job.phase === 'done'
+          ? job.doneMessage
+          : job.error || '等待確認';
+    return {
+      title: `#${job.req.id} ${job.req.title}`,
+      kind: `${job.stage.label} ${job.checkLabel} · UpAgent 發佈`,
+      text,
+      active: job.phase === 'running',
+      failed: job.phase === 'confirm' && !!job.error,
+    };
+  }
+
+  return { open, statusOf, show, summary };
 }

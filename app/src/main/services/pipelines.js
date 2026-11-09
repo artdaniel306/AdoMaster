@@ -27,17 +27,28 @@ async function deployPipelineRuns({ id, stage } = {}) {
     if (name) targets.push({ repo, name });
     else unconfigured.push(repo);
   }
-  const pipelines = await Promise.all(
-    targets.map(async ({ repo, name }) => {
-      try {
-        const { pipeline, runs } = await runScriptJson('get_pipeline_runs.py', ['--pipeline', name, '--top', String(RUNS_TOP)]);
-        return { repo, name, pipeline, runs };
-      } catch (err) {
-        throw new Error(`${repo} 的 Pipeline ${name}：${String(err.message || err).trim()}`);
-      }
-    })
-  );
+  const pipelines = await Promise.all(targets.map(({ repo, name }) => fetchRuns(repo, name)));
   return { stage, pipelines, unconfigured };
 }
 
-module.exports = { deployPipelineRuns };
+/** 某 repository 的 Pipeline 最近的 Run（get_pipeline_runs.py） */
+async function fetchRuns(repo, name) {
+  try {
+    const { pipeline, runs } = await runScriptJson('get_pipeline_runs.py', ['--pipeline', name, '--top', String(RUNS_TOP)]);
+    return { repo, name, pipeline, runs };
+  } catch (err) {
+    throw new Error(`${repo} 的 Pipeline ${name}：${String(err.message || err).trim()}`);
+  }
+}
+
+/**
+ * 手動佈版（manualDeploy.js）：某 repository 某佈版階段的 Pipeline 最近的 Run；沒有設定 Pipeline 時回傳 null。
+ * @returns {Promise<null | { repo, name, pipeline, runs }>}
+ */
+async function repoPipelineRuns(repo, stage) {
+  if (typeof repo !== 'string' || !COMMIT_STAGES.includes(stage)) throw new Error('參數錯誤');
+  const name = (await loadRepoConfig()).repos.find((r) => r.key === repo)?.pipelines[stage];
+  return name ? fetchRuns(repo, name) : null;
+}
+
+module.exports = { deployPipelineRuns, repoPipelineRuns };

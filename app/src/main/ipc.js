@@ -13,6 +13,7 @@ const testRecord = require('./services/testRecord');
 const upagentRelease = require('./services/upagentRelease');
 const localDeploy = require('./services/localDeploy');
 const upagentConnection = require('./services/upagentConnection');
+const manualDeploy = require('./services/manualDeploy');
 
 /**
  * IPC channel → service 對照。renderer 只能透過 preload 暴露的 window.api 呼叫這些 channel。
@@ -47,6 +48,13 @@ function registerIpcHandlers() {
     localDeploy.runLocalDeploy((channel, payload) => !e.sender.isDestroyed() && e.sender.send(channel, payload), params)
   );
   ipcMain.handle('localDeploy:cancel', () => localDeploy.cancelLocalDeploy());
+  // 手動佈版（選單「佈版」）：進度以 manualDeploy:update / manualDeploy:log 廣播給所有視窗
+  ipcMain.handle('manualDeploy:preview', (_e, params) => manualDeploy.preview(params));
+  ipcMain.handle('manualDeploy:start', (_e, params) => manualDeploy.start(params));
+  ipcMain.handle('manualDeploy:cancel', (_e, { id } = {}) => manualDeploy.cancel({ id }));
+  ipcMain.handle('manualDeploy:retry', (_e, { id, rerunAction } = {}) => manualDeploy.retry({ id, rerunAction }));
+  ipcMain.handle('manualDeploy:dismiss', (_e, { id } = {}) => manualDeploy.dismiss({ id }));
+  ipcMain.handle('manualDeploy:list', () => manualDeploy.list());
   ipcMain.handle('upagentConnection:status', () => upagentConnection.connectionStatus());
   ipcMain.handle('upagentConnection:switch', (_e, { target } = {}) => upagentConnection.switchConnection({ target }));
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());

@@ -211,7 +211,7 @@ export function createLocalDeployDialog() {
    */
   function open({ req, stage, checkLabel, status, onChange }) {
     if (job) throw new Error(`已有 Local 佈版進行中：#${job.req.id} ${job.stage.label}`);
-    if (status.running) throw new Error(`已有 Local 佈版進行中：#${status.running.id} ${status.running.repo}`);
+    if (status.running) throw new Error(`已有 Local 佈版進行中：${status.running.label || `#${status.running.id} ${status.running.repo}`}`);
     return new Promise((resolve) => {
       job = {
         req,
@@ -253,5 +253,23 @@ export function createLocalDeployDialog() {
     }
   }
 
-  return { open, statusOf, show };
+  /** 「佈版進度」dialog 用：目前的 Local 佈版（沒有時回傳 null） */
+  function summary() {
+    if (!job) return null;
+    const text =
+      job.phase === 'running'
+        ? `執行中：${job.repo}${job.step ? ` · ${STEP_TEXT[job.step] || job.step}` : '…'}`
+        : job.phase === 'done'
+          ? job.doneMessage
+          : job.error || '等待確認';
+    return {
+      title: `#${job.req.id} ${job.req.title}`,
+      kind: `${job.stage.label} ${job.checkLabel} · Local 佈版`,
+      text,
+      active: job.phase === 'running',
+      failed: job.phase === 'confirm' && !!job.error,
+    };
+  }
+
+  return { open, statusOf, show, summary };
 }
