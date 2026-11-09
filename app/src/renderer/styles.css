@@ -513,3 +513,14 @@ td.stage-split { padding: 0; height: 1px; }
 #image-viewer { padding: 0; border: 0; background: transparent; max-width: 95vw; max-height: 95vh; cursor: zoom-out; }
 #image-viewer::backdrop { background: rgba(0, 0, 0, .75); }
 #image-viewer img { display: block; max-width: 95vw; max-height: 95vh; object-fit: contain; }
+
+/* 設定 UpAgent 連線 dialog */
+.uc-files { margin-top: 8px; white-space: pre-line; font: 11px Consolas, "Courier New", monospace; color: var(--muted); word-break: break-all; }
+.uc-targets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-top: 10px; }
+.uc-targets label { display: flex; gap: 6px; align-items: center; }
+.uc-targets .uc-tag { font-size: 11px; color: var(--muted); }
+.uc-targets .uc-tag.warn { color: var(--err); }
+.uc-result { margin-top: 10px; }
+.uc-code-row { display: flex; gap: 6px; }
+.uc-code { flex: 1; font: 14px Consolas, "Courier New", monospace; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--hover); color: var(--fg); }
+.upagent-conn { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px; font-size: 12px; }

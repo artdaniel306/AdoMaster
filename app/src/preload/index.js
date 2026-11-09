@@ -39,6 +39,10 @@ contextBridge.exposeInMainWorld('api', {
   /** Local 佈版的即時輸出：cb({ id, stage, line })；步驟：cb({ id, stage, repo, step }) */
   onLocalDeployLog: (cb) => ipcRenderer.on('localDeploy:log', (_e, data) => cb(data)),
   onLocalDeployStep: (cb) => ipcRenderer.on('localDeploy:step', (_e, data) => cb(data)),
+  /** UpAgent 連線：要刪除的設定檔與各目標是否有 Activation Code */
+  upagentConnectionStatus: () => ipcRenderer.invoke('upagentConnection:status'),
+  /** 切換 UpAgent 連線（刪掉 UpAgent 設定檔），回傳 { target, label, activationCode, files } */
+  switchUpagentConnection: (target) => ipcRenderer.invoke('upagentConnection:switch', { target }),
   loadRepoConfig:() => ipcRenderer.invoke('repos:config'),
   checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
   branchGraph: (repo, branch, { fetch = false, all = false } = {}) =>

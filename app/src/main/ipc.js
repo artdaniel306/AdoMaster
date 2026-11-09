@@ -12,6 +12,7 @@ const afterDeploy = require('./services/afterDeploy');
 const testRecord = require('./services/testRecord');
 const upagentRelease = require('./services/upagentRelease');
 const localDeploy = require('./services/localDeploy');
+const upagentConnection = require('./services/upagentConnection');
 
 /**
  * IPC channel → service 對照。renderer 只能透過 preload 暴露的 window.api 呼叫這些 channel。
@@ -46,6 +47,8 @@ function registerIpcHandlers() {
     localDeploy.runLocalDeploy((channel, payload) => !e.sender.isDestroyed() && e.sender.send(channel, payload), params)
   );
   ipcMain.handle('localDeploy:cancel', () => localDeploy.cancelLocalDeploy());
+  ipcMain.handle('upagentConnection:status', () => upagentConnection.connectionStatus());
+  ipcMain.handle('upagentConnection:switch', (_e, { target } = {}) => upagentConnection.switchConnection({ target }));
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());
   ipcMain.handle('repos:checkCommit', (_e, params) => gitCommit.checkCommit(params));
   ipcMain.handle('repos:branchGraph', (_e, params) => gitCommit.branchGraph(params));

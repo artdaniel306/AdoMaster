@@ -87,6 +87,17 @@ export const RELEASE_DB_LABEL = {
   prod_local: '正式環境 Local',
 };
 
+/**
+ * UpAgent 連線（測試 / 檢核階段，規劃含 upagent 時顯示）：本機 UpAgent 要連到哪個環境。
+ * key = config.json upagentConnection.activationCodes 的 key。
+ */
+export const UPAGENT_CONNECTIONS = [
+  { key: 'local_test', label: 'Local Test' },
+  { key: 'local_prod', label: 'Local Prod' },
+  { key: 'saas_test', label: 'SaaS Test' },
+  { key: 'saas_prod', label: 'SaaS Prod' },
+];
+
 /** 佈版階段 checkbox key（testDeploy.saas…）對應的 target（saas / local）；不是 SaaS / Local 時回傳 null */
 export function releaseTargetOf(key) {
   const target = key.slice(key.lastIndexOf('.') + 1);

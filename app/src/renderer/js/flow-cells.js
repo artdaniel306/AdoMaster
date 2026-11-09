@@ -4,6 +4,7 @@ import { createPlanDialog } from './plan-dialog.js';
 import { createCommitDialog } from './commit-dialog.js';
 import { createTaskDialog } from './task-dialog.js';
 import { createTestDialog } from './test-dialog.js';
+import { createUpagentConnectionDialog, currentUpagentConnection } from './upagent-connection-dialog.js';
 import { workItemLink } from './description-dialog.js';
 import { repoTag } from './repos.js';
 import { activeKids, isDevDone, stateClass, expectedState, sameState } from './flow-stages.js';
@@ -19,6 +20,7 @@ import {
   commitsCover,
   commitsConfirmed,
   noRepoChange,
+  needsUpagentRelease,
 } from '../../shared/flow-rules.js';
 
 /**
@@ -34,6 +36,7 @@ export function createFlowCells(ctx) {
   const commitDialog = createCommitDialog();
   const taskDialog = createTaskDialog();
   const testDialog = createTestDialog();
+  const upagentConnDialog = createUpagentConnectionDialog();
 
   /** 儲存後更新本機狀態並重繪該列 */
   const saved = (req) => (checks) => {
@@ -201,7 +204,24 @@ export function createFlowCells(ctx) {
       btn.addEventListener('click', () => openRecord(false));
       box.append(btn);
     }
+    if (needsUpagentRelease(s)) box.append(upagentConnection(req));
     return box;
+  }
+
+  /** 規劃含 upagent 時：顯示本機 UpAgent 目前的連線，按鈕開啟「設定 UpAgent 連線」dialog */
+  function upagentConnection(req) {
+    const line = el('div', 'upagent-conn');
+    const current = currentUpagentConnection();
+    const btn = el('button', 'btn-link', '🔌 設定 UpAgent 連線');
+    btn.type = 'button';
+    btn.title = '切換本機 UpAgent 連線的環境（刪除 UpAgent 設定檔並顯示 Activation Code）';
+    // 連線是整台電腦共用的：切換後更新畫面上每一列的「目前」
+    const changed = ({ label }) => {
+      for (const span of document.querySelectorAll('.upagent-conn-current')) span.textContent = `目前：${label}`;
+    };
+    btn.addEventListener('click', () => upagentConnDialog.open(req, changed));
+    line.append(btn, el('span', 'muted-inline upagent-conn-current', `目前：${current ? current.label : '未知'}`));
+    return line;
   }
 
   /** Pending 且尚未展開 Task：開啟 dialog 輸入 Description，在 ADO 建立與 Requirement 同名的 Task */

@@ -172,6 +172,35 @@
     </form>
   </dialog>
 
+  <dialog id="upagent-conn-dialog">
+    <form id="uc-form" class="dlg-box" method="dialog">
+      <header class="dlg-head">
+        <h3>設定 UpAgent 連線</h3>
+        <button type="button" id="uc-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <p id="uc-req" class="dlg-req"></p>
+        <p class="muted">切換時會刪除 UpAgent 的設定檔；重新開啟 UpAgent 後會要求輸入 Activation Code，輸入後即自動連線到對應的環境。</p>
+        <div id="uc-files" class="uc-files"></div>
+        <div id="uc-targets" class="uc-targets"></div>
+        <div id="uc-result" class="uc-result" hidden>
+          <p id="uc-result-msg" class="cf-msg"></p>
+          <label class="dlg-note-label" for="uc-code">Activation Code</label>
+          <div class="uc-code-row">
+            <input id="uc-code" class="uc-code" type="text" readonly />
+            <button type="button" id="uc-copy" class="btn-ghost">複製</button>
+          </div>
+        </div>
+        <p id="uc-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" id="uc-cancel" class="btn-ghost">關閉</button>
+        <button type="submit" id="uc-ok" class="btn-primary">切換連線</button>
+      </footer>
+    </form>
+  </dialog>
+
   <dialog id="image-viewer" title="點擊關閉">
     <img id="iv-img" alt="" />
   </dialog>

@@ -73,6 +73,15 @@
       }
     }
   },
+  "upagentConnection": {
+    "configFile": "%APPDATA%\\upagent\\config.json",
+    "activationCodes": {
+      "local_test": "",
+      "local_prod": "",
+      "saas_test": "",
+      "saas_prod": ""
+    }
+  },
   "upagentRelease": {
     "storageAccount": "updayservice",
     "container": "upagent",
