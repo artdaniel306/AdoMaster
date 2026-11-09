@@ -5,18 +5,25 @@ const { dialog } = require('electron');
 const { ROOT_DIR, FLOW_STATE_FILE, TEST_RECORDS_DIR } = require('../paths');
 const { replaceFlowState, writeFileAtomic } = require('./requirementFlow');
 const { TEST_IMAGE_RE } = require('../../shared/flow-rules.js');
+const { parseConfig, applyLegacy } = require('./appConfig');
 
 /**
  * 匯出 / 匯入「不進 git、也無法從 API 取回」的本地資料。
  * 這裡只負責選檔與讀寫 zip；確認 / 通知的 dialog 由 renderer（local-data.js）顯示。
  * zip 內的檔名就是相對專案根目錄的路徑；匯入時只接受下列白名單內的檔名，其他一律忽略（避免 zip slip）。
+ * validate：匯入前檢查內容（丟錯 = 整批不寫）。
  */
 const FILES = [
-  { name: 'script/.env', label: 'Python 腳本設定（ADO / Azure 連線）' },
-  { name: 'data/repos.json', label: 'Repository 設定（路徑、branch、pipeline）', json: true },
-  { name: 'data/requirement_flow_state.json', label: 'Requirement 流程勾選狀態', json: true },
+  { name: 'data/.env', label: '連線帳號與機密（ADO / Azure / GitHub / 資料庫密碼）' },
+  { name: 'data/config.json', label: '本機設定（Repository、UpAgent 發佈…）', validate: (text) => parseConfig(text) },
+  { name: 'data/requirement_flow_state.json', label: 'Requirement 流程勾選狀態', validate: (text) => JSON.parse(text) },
   { name: 'feature/restore_workitem/.env', label: 'restore_workitem 腳本設定' },
-  { name: 'data/upagent_release.config', label: 'UpAgent 發佈設定（GitHub / 簽署 / 測試與正式環境資料庫）' },
+];
+// 舊版匯出的設定檔：只接受匯入，不直接寫回原位置，而是經 appConfig.applyLegacy 轉換到 data/config.json / data/.env
+const LEGACY_FILES = [
+  { name: 'script/.env', kind: 'env', label: '舊版 script/.env（轉換到 data/.env）' },
+  { name: 'data/repos.json', kind: 'repos', label: '舊版 Repository 設定（轉換到 data/config.json）', validate: (text) => JSON.parse(text) },
+  { name: 'data/upagent_release.config', kind: 'upagent', label: '舊版 UpAgent 發佈設定（轉換到 data/config.json + data/.env）' },
 ];
 // renderer 的 localStorage（固定的 Iteration、側欄收合狀態）不在檔案系統上，由 renderer 傳進來 / 交回去
 const LOCAL_STORAGE = { name: 'localStorage.json', label: '固定的 Iteration 等介面設定' };
@@ -95,11 +102,19 @@ function readImportZip(zipPath) {
   const zip = new AdmZip(zipPath);
   const entries = new Map(zip.getEntries().filter((e) => !e.isDirectory).map((e) => [e.entryName, e]));
 
-  const files = FILES.filter((f) => entries.has(f.name)).map((f) => {
+  const read = (list) => list.filter((f) => entries.has(f.name)).map((f) => {
     const buf = entries.get(f.name).getData();
-    if (f.json) JSON.parse(buf.toString('utf-8'));
+    if (f.validate) {
+      try {
+        f.validate(buf.toString('utf-8').replace(/^\uFEFF/, ''));
+      } catch (err) {
+        throw new Error(`${f.name} 格式不正確：${err.message}`);
+      }
+    }
     return { ...f, buf };
   });
+  const files = read(FILES);
+  const legacy = read(LEGACY_FILES);
   const images = [...entries.keys()].filter(TEST_IMAGE_ENTRY).map((name) => ({ name, buf: entries.get(name).getData() }));
 
   let localStorage = null;
@@ -110,14 +125,15 @@ function readImportZip(zipPath) {
     }
   }
 
-  if (!files.length && !images.length && !localStorage) {
+  if (!files.length && !legacy.length && !images.length && !localStorage) {
     throw new Error('這個 zip 裡沒有可匯入的本地資料（請選擇由「匯出本地資料」產生的檔案）。');
   }
-  return { files, images, localStorage };
+  return { files, legacy, images, localStorage };
 }
 
 /** 給 renderer 顯示的匯入項目清單 */
-const importList = ({ files, images, localStorage }) => [
+const importList = ({ files, legacy, images, localStorage }) => [
+  ...legacy.map(describe),
   ...files.map(describe),
   ...(images.length ? [imagesInfo(images.length)] : []),
   ...(localStorage ? [describe(LOCAL_STORAGE)] : []),
@@ -154,6 +170,10 @@ async function applyImport() {
   pendingImport = null;
 
   const content = readImportZip(zipPath); // 重新讀一次，確認後檔案若被換掉也不會寫入壞資料
+  // 舊版 zip 的設定檔先轉換（applyLegacy 會先全部轉換完才寫檔）；新格式的檔案之後寫入，兩者都有時以新格式為準
+  if (content.legacy.length) {
+    await applyLegacy(Object.fromEntries(content.legacy.map((f) => [f.kind, f.buf.toString('utf-8').replace(/^\uFEFF/, '')])));
+  }
   // 先寫圖片，再寫流程狀態（狀態中的 testRecord 才找得到圖片）
   for (const img of content.images) await writeFileAtomic(absPath(img.name), img.buf);
   for (const f of content.files) {

@@ -30,7 +30,7 @@ LOGIN_BASE = "https://login.microsoftonline.com"
 
 
 def get_azure_config(env_path=ENV_PATH):
-    """讀取 Azure 設定（和 get_config 共用 script/.env，但不要求 AZDO_* 設定）。"""
+    """讀取 Azure 設定（和 get_config 共用 data/.env，但不要求 AZDO_* 設定）。"""
     cfg = Config({}, load_env(env_path))
     sub = cfg.opt("AZURE_SUBSCRIPTION_ID")
     if not sub:

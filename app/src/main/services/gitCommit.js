@@ -6,7 +6,7 @@ const { COMMIT_RE, COMMIT_FORMAT_HINT } = require('../../shared/flow-rules.js');
 
 /**
  * Confirm Commit：到本機 clone 的 repository 確認指定 commit 是否存在。
- * repository 的位置由 data/repos.json 各 repository 的 `path` 設定（見 repoConfig.js）。
+ * repository 的位置由 data/config.json 的 repos 各 repository 的 `path` 設定（見 repoConfig.js）。
  * 本機找不到（或不在 feature branch 上）時會 `git fetch` 一次再重查。
  */
 
@@ -62,7 +62,7 @@ async function lookup(cwd, commit, branch) {
  * @returns {{ ok, repo, commit, full?, subject?, author?, date?, branch?, onBranch?, fetched, message }}
  *   ok=false 代表找不到；設定錯誤（未設定路徑、路徑不存在、git 錯誤）則直接 throw。
  */
-/** 讀取 data/repos.json 中 repo 的設定，並確認本機 clone 的路徑存在 */
+/** 讀取 data/config.json 的 repos 中 repo 的設定，並確認本機 clone 的路徑存在 */
 async function resolveRepo(repo) {
   const config = await loadRepoConfig();
   const r = config.repos.find((x) => x.key === repo);
@@ -234,7 +234,7 @@ const GRAPH_LIMIT = 300;
 /**
  * 找出 feature branch 與其 developer branch（命名為 `<feature>_<developer>`，例：peach_hotfix_max）。
  * 以 remote branch 為主；本機 branch 只在 remote 沒有同名 branch 時才列入。
- * 若 `<feature>_xxx` 其實是 data/repos.json 中另一個更長的 feature branch（或其 developer branch），則不算。
+ * 若 `<feature>_xxx` 其實是 data/config.json 的 repos 中另一個更長的 feature branch（或其 developer branch），則不算。
  * @returns {[{ ref, name, kind: 'feature'|'dev', developer, local }]}
  */
 async function branchRefs(cwd, feature, configured) {

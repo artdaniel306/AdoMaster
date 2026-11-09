@@ -17,7 +17,7 @@
 #>
 param(
     [Parameter(Mandatory = $true)]
-    [string]$Repo,       # data/repos.json 的 key（crmapp / crmappui …）
+    [string]$Repo,       # data/config.json 的 repos 的 key（crmapp / crmappui …）
 
     [string]$Commit,     # 這次 push 到正式環境 branch 的 merge commit
 

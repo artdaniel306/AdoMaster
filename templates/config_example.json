@@ -39,5 +39,27 @@
       "testAppService": "",
       "testResourceGroup": ""
     }
-  ]
+  ],
+  "upagentRelease": {
+    "storageAccount": "updayservice",
+    "container": "upagent",
+    "stagingFolder": "staging",
+    "releaseFolder": "releases",
+    "github": {
+      "owner": "artsolutionsdev",
+      "repo": "upagent",
+      "workflowFile": "release.yml"
+    },
+    "codesign": {
+      "signtool": "C:\\Program Files (x86)\\Windows Kits\\8.1\\bin\\x86\\signtool.exe",
+      "certSubject": "ART Solutions Limited",
+      "timestampUrl": "http://timestamp.globalsign.com/tsa/r6advanced1"
+    },
+    "db": {
+      "test_saas":  { "psql": "", "host": "", "port": 5432, "dbname": "", "user": "", "sslmode": "require" },
+      "test_local": { "psql": "", "host": "", "port": 5432, "dbname": "", "user": "", "sslmode": "require" },
+      "prod_saas":  { "psql": "", "host": "", "port": 5432, "dbname": "", "user": "", "sslmode": "require" },
+      "prod_local": { "psql": "", "host": "", "port": 5432, "dbname": "", "user": "", "sslmode": "require" }
+    }
+  }
 }

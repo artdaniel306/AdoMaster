@@ -33,7 +33,7 @@ const PHASE_TEXT = {
  *   3. merge + push 到環境 branch（觸發自動佈版）
  *   4. 監看 push 觸發的 Run（sourceVersion = 這次的 merge commit）直到結束
  *   5. 佈版後動作（Run 成功的 repository 各一次，main/services/afterDeploy.js）：
- *      測試環境 → 重啟 data/repos.json 設定的 testAppService；正式環境 → 只呼叫預留的 shell（目前不做事，不重啟）
+ *      測試環境 → 重啟 data/config.json 的 repos 設定的 testAppService；正式環境 → 只呼叫預留的 shell（目前不做事，不重啟）
  *   6. 通知結果：全部成功 → 自動勾起 SaaS；有失敗 / 找不到 Run / 佈版後動作失敗 → 由使用者決定是否仍然勾起
  * 等待 / 監看期間可以關閉 dialog 讓它在背景繼續，結束時會再跳出來通知。一次只能有一個佈版流程。
  */

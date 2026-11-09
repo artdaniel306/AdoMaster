@@ -233,7 +233,7 @@ td.stage-split { padding: 0; height: 1px; }
 }
 .note-icon { cursor: help; font-weight: normal; }
 
-/* ---- Repository 設定（選單「設定 → Repository 設定…」，編輯 data/repos.json）---- */
+/* ---- Repository 設定（選單「設定 → Repository 設定…」，編輯 data/config.json 的 repos）---- */
 #repo-settings-dialog {
   padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
   width: min(760px, 94vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
@@ -427,7 +427,7 @@ td.stage-split { padding: 0; height: 1px; }
   white-space: pre-wrap; word-break: break-word; overflow: auto; min-height: 80px; max-height: 60vh;
 }
 
-/* repository 代表色（data/repos.json 的 color，以 CSS 變數 --repo-color 帶入） */
+/* repository 代表色（data/config.json 的 repos 的 color，以 CSS 變數 --repo-color 帶入） */
 .repo-tag.has-color {
   background: color-mix(in srgb, var(--repo-color) 16%, transparent);
   border-radius: 4px;

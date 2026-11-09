@@ -12,7 +12,7 @@
          4xx 也視為「已起來」：代表網站程式已在處理請求，只是該路徑需要驗證或不存在
 
     app 的呼叫時機：測試環境佈版勾 SaaS，push 觸發的 Pipeline Run 成功後，
-    對 data/repos.json 中該 repository 設定的 testAppService 執行（app/src/main/services/afterDeploy.js）。
+    對 data/config.json 的 repos 中該 repository 設定的 testAppService 執行（app/src/main/services/afterDeploy.js）。
     正式環境不會呼叫本腳本。
 
     慣例同 shell/example.ps1：進度寫 stdout，結果 JSON 寫到 -Out，失敗時 stderr + exit 1。

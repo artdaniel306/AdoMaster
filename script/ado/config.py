@@ -1,4 +1,4 @@
-"""設定：路徑常數與 .env 讀取。"""
+"""設定：路徑常數與 data/.env 讀取（同名環境變數優先）。"""
 
 import os
 
@@ -7,13 +7,17 @@ from .errors import AdoError
 SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # script/
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 DATA_DIR = os.path.join(ROOT_DIR, "data")
-ENV_PATH = os.path.join(SCRIPT_DIR, ".env")
+ENV_PATH = os.path.join(DATA_DIR, ".env")
+# 舊位置：app 啟動時會自動搬到 data/.env；還沒搬之前單獨執行 CLI 時沿用
+LEGACY_ENV_PATH = os.path.join(SCRIPT_DIR, ".env")
 
 
 def load_env(path):
     """簡易 .env 解析：KEY=VALUE，支援 # 註解與引號。"""
+    if path == ENV_PATH and not os.path.isfile(path) and os.path.isfile(LEGACY_ENV_PATH):
+        path = LEGACY_ENV_PATH
     if not os.path.isfile(path):
-        raise AdoError(f"[錯誤] 找不到設定檔：{path}（可複製 env_example.txt 為 .env 後填入設定）")
+        raise AdoError(f"[錯誤] 找不到設定檔：{path}（可複製 templates/env_example.txt 為 data/.env 後填入設定）")
     env = {}
     with open(path, encoding="utf-8-sig") as f:
         for raw in f:
@@ -34,27 +38,27 @@ def load_env(path):
 
 
 class Config(dict):
-    """連線設定。另外保留原始 env，讓各 CLI 讀取自己專用的選填設定。"""
+    """連線設定。另外保留原始 env，讓各 CLI 讀取自己專用的選填設定（同名環境變數優先）。"""
 
     def __init__(self, values, env):
         super().__init__(values)
         self.env = env
 
     def opt(self, key, default=None):
-        return self.env.get(key) or os.environ.get(key) or default
+        return os.environ.get(key) or self.env.get(key) or default
 
 
 def get_config(env_path=ENV_PATH):
     env = load_env(env_path)
 
     def need(key):
-        val = env.get(key) or os.environ.get(key)
+        val = os.environ.get(key) or env.get(key)
         if not val:
             raise AdoError(f"[錯誤] .env 缺少必要設定：{key}")
         return val
 
     def opt(key, default):
-        return env.get(key) or os.environ.get(key) or default
+        return os.environ.get(key) or env.get(key) or default
 
     return Config({
         "base_url": opt("AZDO_BASE_URL", "https://dev.azure.com").rstrip("/"),

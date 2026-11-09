@@ -9,7 +9,7 @@
   python get_tasks.py --changed-since 2026-10-01 --json # 依最後修改日篩選，並另存完整 JSON
   python get_tasks.py --type Bug                        # 改抓其他 Work Item Type
 
-設定從同一層資料夾的 .env 讀取，見 env_example.txt。
+設定從 data/.env 讀取，見 templates/env_example.txt。
 PAT 需有 Work Items (Read) 權限。
 只使用 Python 標準函式庫，不需額外安裝套件。
 """

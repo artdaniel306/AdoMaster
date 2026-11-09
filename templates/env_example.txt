@@ -1,0 +1,31 @@
+# 連線身分與機密（扁平 KEY=VALUE）。複製到 data/.env 後填入。
+# data/ 不進 git；可用「檔案 → 匯出 / 匯入本地資料」帶到其他電腦。本檔含有存取憑證，請勿提交到版控或外流。
+# 同名的環境變數優先於本檔。結構化、非機密的設定放在 data/config.json（範本：templates/config_example.json）。
+
+# --- Azure DevOps（Python 腳本） ---
+AZDO_ORG=
+AZDO_PROJECT=
+AZDO_PAT=
+
+# 選填
+# AZDO_BASE_URL=https://dev.azure.com      # Azure DevOps Server (on-prem) 改成自己的網址
+# AZDO_API_VERSION=7.1
+# OUTPUT_CSV=tasks.csv                     # 沒設定時預設為 tasks_YYYYMMDD_HHMMSS.csv
+
+# --- Azure App Service（restart_app_service.py 用；和 AZDO_PAT 無關，需要 Microsoft Entra ID 身分） ---
+# AZURE_SUBSCRIPTION_ID=
+# AZURE_RESOURCE_GROUP=                    # 沒加 --resource-group 時使用
+# Service Principal（需有 App Service 的 Website Contributor 角色）；三個都不設定時改用 Azure CLI（先 az login）
+# AZURE_TENANT_ID=
+# AZURE_CLIENT_ID=
+# AZURE_CLIENT_SECRET=
+
+# --- UpAgent 發佈（shell/Release-UpAgent.ps1） ---
+# GitHub Personal Access Token（需能讀取 upagent repo 的 Actions；
+# 要在 app 裡「重跑 GitHub Action」需 Actions 寫入權限：Fine-grained 選 Actions: Read and write，Classic 選 repo）
+GITHUB_TOKEN=
+# 寫入 public.public_db_upagentrelease 的資料庫密碼（連線資訊在 data/config.json 的 upagentRelease.db）
+UPAGENT_DB_TEST_SAAS_PASSWORD=
+UPAGENT_DB_TEST_LOCAL_PASSWORD=
+UPAGENT_DB_PROD_SAAS_PASSWORD=
+UPAGENT_DB_PROD_LOCAL_PASSWORD=

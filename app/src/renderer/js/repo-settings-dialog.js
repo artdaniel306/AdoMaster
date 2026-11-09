@@ -3,7 +3,7 @@ import { $, el } from './dom.js';
 import { setRepoConfig } from './repos.js';
 
 /**
- * 選單「設定 → Repository 設定…」：在 App 內編輯 data/repos.json。
+ * 選單「設定 → Repository 設定…」：在 App 內編輯 data/config.json 的 repos。
  * 讀寫在 main（services/repoConfig.js 的 loadRepoSettings / saveRepoSettings），資料夾用原生選擇視窗（repos:pickFolder）。
  * 顏色用 <input type="color">（只接受 #rrggbb），既有的其他 CSS 顏色寫法若沒動過會原樣保留。
  * @param onSaved 儲存成功後呼叫（例如重繪流程表的 repository 名稱 / 顏色）
@@ -240,7 +240,7 @@ export function initRepoSettings({ onSaved } = {}) {
     if (dialog.open) return;
     rows = [];
     showError('');
-    listEl.replaceChildren(el('span', 'muted', '讀取 data/repos.json 中…'));
+    listEl.replaceChildren(el('span', 'muted', '讀取 data/config.json 的 repos 中…'));
     okBtn.disabled = true;
     dialog.showModal();
     try {
@@ -251,7 +251,7 @@ export function initRepoSettings({ onSaved } = {}) {
       okBtn.disabled = false;
     } catch (err) {
       listEl.replaceChildren();
-      showError(`讀取設定失敗：${cleanError(err)}（請先修正 data/repos.json）`);
+      showError(`讀取設定失敗：${cleanError(err)}（請先修正 data/config.json 的 repos）`);
     }
   }
 

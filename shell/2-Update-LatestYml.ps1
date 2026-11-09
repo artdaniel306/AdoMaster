@@ -37,7 +37,7 @@
 
 .PARAMETER UpagentDir
     upagent repository 的本機路徑（用來找 node_modules 裡的 app-builder.exe）。
-    Release-UpAgent.ps1 會傳入 data/repos.json 中 upagent 的 path。
+    Release-UpAgent.ps1 會傳入 data/config.json 的 repos 中 upagent 的 path。
 
 .PARAMETER AppBuilderPath
     app-builder.exe 的路徑。不指定時自動從 <UpagentDir>\node_modules\app-builder-bin\win\<arch>\ 找。

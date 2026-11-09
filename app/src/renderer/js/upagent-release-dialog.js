@@ -93,7 +93,7 @@ export function createUpagentReleaseDialog() {
     rerunBtn.disabled = !j.configExists;
     okBtn.textContent = j.error ? `重試（從 ${STEP_TEXT[j.plan.startFrom]} 接續）` : j.plan.startFrom === 'Database' ? '寫入資料庫' : '開始發佈';
     if (!j.configExists) {
-      errorEl.textContent = '找不到 data/upagent_release.config，請複製 app/upagent_release_example.config 後填入連線資訊，再重新勾選。';
+      errorEl.textContent = 'data/config.json 尚未設定 upagentRelease，請參考 templates/config_example.json 填入（密碼與 GitHub token 放在 data/.env），再重新勾選。';
       errorEl.hidden = false;
     }
   }

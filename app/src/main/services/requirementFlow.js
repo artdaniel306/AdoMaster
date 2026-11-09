@@ -137,7 +137,7 @@ function replaceFlowState(text) {
 
 /**
  * 佈版階段：Confirm Commit 的每個 commit 是否已進到該 repository 的環境 branch
- * （data/repos.json 的 `testBranch` / `prodBranch`）。
+ * （data/config.json 的 repos 的 `testBranch` / `prodBranch`）。
  * @returns {{ stage, commits, items: [{ repo, commit, envBranch, merged, canMerge, conflicts, message }], allMerged }}
  */
 async function deployMergeStatus({ id, stage, fetch = true } = {}) {
@@ -258,7 +258,7 @@ async function setPlan({ id, repos, migration, note } = {}) {
     // 可以不選任何 repository（例如只需調整 database 資料），此時 Confirm Commit 自動完成
     const entries = Object.entries(repos);
     for (const [k, branch] of entries) {
-      if (!validKeys.has(k)) throw new Error(`未知的 repository：${k}（不在 data/repos.json 中）`);
+      if (!validKeys.has(k)) throw new Error(`未知的 repository：${k}（不在 data/config.json 的 repos 中）`);
       if (typeof branch !== 'string' || !branch.trim()) throw new Error(`${k} 尚未選擇 feature branch`);
     }
     repos = Object.fromEntries(entries.map(([k, b]) => [k, b.trim()]));

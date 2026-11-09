@@ -24,15 +24,14 @@
     1～7 只需要做一次（同一個版本測試 / 正式環境共用 Blob 上的檔案）；之後其他環境 / 勾選只需以
     -StartFrom Database -Version <版號> 寫入該資料庫。測試 / 正式環境的 SaaS 與 Local 各有自己的資料庫（共 4 組連線）。
 
-    連線資訊讀取 data\upagent_release.config（INI 格式，範本：app\upagent_release_example.config），用到的區段：
-      [upagent_release]  storage_account / container / staging_folder / release_folder
-      [github]           owner / repo / workflow_file / token
-      [codesign]         signtool / cert_subject / timestamp_url
-      [upagent_db_test_saas]   測試環境 SaaS 資料庫：psql / host / port / dbname / user / password / sslmode
-      [upagent_db_test_local]  測試環境 Local 資料庫：同上
-      [upagent_db_prod_saas]   正式環境 SaaS 資料庫：同上
-      [upagent_db_prod_local]  正式環境 Local 資料庫：同上
-    GitHub token 也可改用環境變數 GITHUB_TOKEN，環境變數優先度高於設定檔。
+    設定讀取 data\config.json 的 upagentRelease（範本：templates\config_example.json）：
+      storageAccount / container / stagingFolder / releaseFolder
+      github     owner / repo / workflowFile
+      codesign   signtool / certSubject / timestampUrl
+      db.<test|prod>_<saas|local>   各環境 SaaS / Local 資料庫：psql / host / port / dbname / user / sslmode
+    機密讀取 data\.env（範本：templates\env_example.txt），同名環境變數優先：
+      GITHUB_TOKEN
+      UPAGENT_DB_<TEST|PROD>_<SAAS|LOCAL>_PASSWORD   例如 UPAGENT_DB_TEST_SAAS_PASSWORD
 
     app 以 -NonInteractive 執行，本腳本不做任何互動確認：
       - 進度訊息走 stdout，並輸出以下標記行讓 app 記錄進度（中途失敗時下次可從失敗的步驟接續）：
@@ -50,7 +49,7 @@
     寫入 SaaS 或 Local 的資料庫：saas 或 local（與 -Environment 組成設定檔區段 [upagent_db_<Environment>_<Target>]）
 
 .PARAMETER UpagentDir
-    upagent repository 的本機 clone 路徑（data/repos.json 中 upagent 的 path）
+    upagent repository 的本機 clone 路徑（data/config.json 的 repos 中 upagent 的 path）
 
 .PARAMETER Branch
     更版、push tag 的 branch（規劃中 upagent 的 feature branch）。從 Bump 步驟開始時必填
@@ -77,7 +76,10 @@
     run 仍在執行中或已成功時不重跑。GitHub token 需要 Actions 寫入權限
 
 .PARAMETER ConfigPath
-    設定檔路徑，預設 <專案根目錄>\data\upagent_release.config
+    設定檔路徑，預設 <專案根目錄>\data\config.json
+
+.PARAMETER EnvPath
+    機密檔路徑，預設 <專案根目錄>\data\.env（不存在時只讀環境變數）
 
 .PARAMETER Out
     結果 JSON 的輸出路徑
@@ -122,6 +124,8 @@ param(
 
     [string]$ConfigPath,
 
+    [string]$EnvPath,
+
     [string]$Out
 )
 
@@ -151,41 +155,52 @@ function Exit-WithError {
     exit 1
 }
 
-function Read-IniFile {
-    <# 讀取 INI：# 或 ; 開頭為註解，key = value，區段名稱與 key 皆不分大小寫 #>
+function Read-DotEnv {
+    <#
+      讀取 .env（KEY=VALUE），規則與 script/ado/config.py 的 load_env 相同：# 開頭為註解，可加 export 前綴；
+      值有成對的引號時去掉引號（引號內的 # 不是註解），沒有引號時去掉行尾「 #」之後的註解。檔案不存在時回傳空表。
+    #>
     param([Parameter(Mandatory = $true)][string]$Path)
-    $ini = @{}
-    $section = $null
+    $vars = @{}
+    if (-not (Test-Path -LiteralPath $Path)) { return $vars }
     foreach ($raw in [System.IO.File]::ReadAllLines($Path)) {
         $line = $raw.Trim()
-        if (-not $line -or $line.StartsWith('#') -or $line.StartsWith(';')) { continue }
-        if ($line -match '^\[(?<s>.+)\]$') {
-            $section = $Matches['s'].Trim()
-            if (-not $ini.ContainsKey($section)) { $ini[$section] = @{} }
-            continue
+        if (-not $line -or $line.StartsWith('#')) { continue }
+        if ($line -notmatch '^(?:export\s+)?(?<k>[^=\s]+)\s*=\s*(?<v>.*)$') { continue }
+        $key = $Matches['k']
+        $value = $Matches['v']
+        if ($value.Length -ge 2 -and $value[0] -eq $value[-1] -and ($value[0] -eq [char]"'" -or $value[0] -eq [char]'"')) {
+            $value = $value.Substring(1, $value.Length - 2)
+        } else {
+            $value = ($value -split ' #', 2)[0].Trim()
         }
-        if ($section -and $line -match '^(?<k>[^=]+?)\s*=\s*(?<v>.*)$') {
-            $ini[$section][$Matches['k']] = $Matches['v'].Trim()
-        }
+        $vars[$key] = $value
     }
-    return $ini
+    return $vars
 }
 
-function Get-Setting {
+function Get-ConfigValue {
+    <# 從 config.json 的物件取值（$Label 用在錯誤訊息，例如 upagentRelease.db.test_saas.host） #>
     param(
-        [Parameter(Mandatory = $true)][string]$Section,
-        [Parameter(Mandatory = $true)][string]$Key,
+        $Object,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$Label,
         [string]$Default,
-        [string]$EnvName,
         [switch]$Required
     )
     $value = $null
-    if ($EnvName) { $value = [Environment]::GetEnvironmentVariable($EnvName) }
-    if (-not $value -and $config.ContainsKey($Section)) { $value = $config[$Section][$Key] }
+    if ($Object -and $Object.PSObject.Properties[$Name]) { $value = [string]$Object.$Name }
     if (-not $value) { $value = $Default }
-    if ($Required -and -not $value) {
-        throw "$ConfigPath 缺少 [$Section] $Key$(if ($EnvName) { "（或環境變數 $EnvName）" })"
-    }
+    if ($Required -and -not $value) { throw "$ConfigPath 缺少 $Label" }
+    return $value
+}
+
+function Get-Secret {
+    <# 機密：同名環境變數優先，其次 .env #>
+    param([Parameter(Mandatory = $true)][string]$Name, [switch]$Required)
+    $value = [Environment]::GetEnvironmentVariable($Name)
+    if (-not $value) { $value = $secrets[$Name] }
+    if ($Required -and -not $value) { throw "$EnvPath 缺少 $Name（也可設定同名環境變數）" }
     return $value
 }
 
@@ -291,11 +306,19 @@ if (-not (Test-Path -LiteralPath (Join-Path $UpagentDir "package.json"))) {
     Exit-WithError "upagent 路徑不正確（找不到 package.json）：$UpagentDir"
 }
 
-if (-not $ConfigPath) { $ConfigPath = Join-Path $dataDir "upagent_release.config" }
+if (-not $ConfigPath) { $ConfigPath = Join-Path $dataDir "config.json" }
+if (-not $EnvPath) { $EnvPath = Join-Path $dataDir ".env" }
 if (-not (Test-Path -LiteralPath $ConfigPath)) {
-    Exit-WithError "找不到設定檔：$ConfigPath（範本：app\upagent_release_example.config）"
+    Exit-WithError "找不到設定檔：$ConfigPath（範本：templates\config_example.json）"
 }
-$config = Read-IniFile -Path $ConfigPath
+try {
+    $config = [System.IO.File]::ReadAllText($ConfigPath) | ConvertFrom-Json
+} catch {
+    Exit-WithError "$ConfigPath 格式錯誤：$($_.Exception.Message)"
+}
+$release = $config.upagentRelease
+if (-not $release) { Exit-WithError "$ConfigPath 缺少 upagentRelease（範本：templates\config_example.json）" }
+$secrets = Read-DotEnv -Path $EnvPath
 
 if ($StartFrom -eq "Bump") {
     if (-not $Bump) { Exit-WithError "從 Bump 開始時必須指定 -Bump minor 或 -Bump patch。" }
@@ -313,34 +336,39 @@ if ($Version -and $Version -notmatch '^\d+\.\d+\.\d+$') {
 }
 
 try {
-    $storageAccount = Get-Setting -Section "upagent_release" -Key "storage_account" -Default "updayservice"
-    $container      = Get-Setting -Section "upagent_release" -Key "container"       -Default "upagent"
-    $stagingFolder  = (Get-Setting -Section "upagent_release" -Key "staging_folder" -Default "staging").TrimEnd('/')
-    $releaseFolder  = (Get-Setting -Section "upagent_release" -Key "release_folder" -Default "releases").TrimEnd('/')
+    $storageAccount = Get-ConfigValue $release -Name "storageAccount" -Label "upagentRelease.storageAccount" -Default "updayservice"
+    $container      = Get-ConfigValue $release -Name "container"      -Label "upagentRelease.container"      -Default "upagent"
+    $stagingFolder  = (Get-ConfigValue $release -Name "stagingFolder" -Label "upagentRelease.stagingFolder" -Default "staging").TrimEnd('/')
+    $releaseFolder  = (Get-ConfigValue $release -Name "releaseFolder" -Label "upagentRelease.releaseFolder" -Default "releases").TrimEnd('/')
 
     if (Test-StepEnabled "WaitAction") {
-        $githubOwner        = Get-Setting -Section "github" -Key "owner"         -Default "artsolutionsdev"
-        $githubRepo         = Get-Setting -Section "github" -Key "repo"          -Default "upagent"
-        $githubWorkflowFile = Get-Setting -Section "github" -Key "workflow_file" -Default "release.yml"
-        $githubToken        = Get-Setting -Section "github" -Key "token" -EnvName "GITHUB_TOKEN" -Required
+        $github             = $release.github
+        $githubOwner        = Get-ConfigValue $github -Name "owner"        -Label "upagentRelease.github.owner"        -Default "artsolutionsdev"
+        $githubRepo         = Get-ConfigValue $github -Name "repo"         -Label "upagentRelease.github.repo"         -Default "upagent"
+        $githubWorkflowFile = Get-ConfigValue $github -Name "workflowFile" -Label "upagentRelease.github.workflowFile" -Default "release.yml"
+        $githubToken        = Get-Secret -Name "GITHUB_TOKEN" -Required
     }
 
     if (Test-StepEnabled "Sign") {
-        $signtool     = Get-Setting -Section "codesign" -Key "signtool"      -Default "C:\Program Files (x86)\Windows Kits\8.1\bin\x86\signtool.exe"
-        $certSubject  = Get-Setting -Section "codesign" -Key "cert_subject"  -Default "ART Solutions Limited"
-        $timestampUrl = Get-Setting -Section "codesign" -Key "timestamp_url" -Default "http://timestamp.globalsign.com/tsa/r6advanced1"
+        $codesign     = $release.codesign
+        $signtool     = Get-ConfigValue $codesign -Name "signtool"     -Label "upagentRelease.codesign.signtool"     -Default "C:\Program Files (x86)\Windows Kits\8.1\bin\x86\signtool.exe"
+        $certSubject  = Get-ConfigValue $codesign -Name "certSubject"  -Label "upagentRelease.codesign.certSubject"  -Default "ART Solutions Limited"
+        $timestampUrl = Get-ConfigValue $codesign -Name "timestampUrl" -Label "upagentRelease.codesign.timestampUrl" -Default "http://timestamp.globalsign.com/tsa/r6advanced1"
         if (-not (Test-Path -LiteralPath $signtool)) { throw "找不到 signtool：$signtool" }
     }
 
-    # 每個環境的 SaaS / Local 各自的資料庫：[upagent_db_test_saas] / [upagent_db_test_local] / [upagent_db_prod_saas] / [upagent_db_prod_local]
-    $dbSection  = "upagent_db_${Environment}_$Target"
-    $psqlPath   = Get-Setting -Section $dbSection -Key "psql"     -Default "psql"
-    $dbHost     = Get-Setting -Section $dbSection -Key "host"     -Required
-    $dbPort     = Get-Setting -Section $dbSection -Key "port"     -Default "5432"
-    $dbName     = Get-Setting -Section $dbSection -Key "dbname"   -Required
-    $dbUser     = Get-Setting -Section $dbSection -Key "user"     -Required
-    $dbPassword = Get-Setting -Section $dbSection -Key "password" -Required
-    $dbSslMode  = Get-Setting -Section $dbSection -Key "sslmode"  -Default "require"
+    # 每個環境的 SaaS / Local 各自的資料庫：upagentRelease.db.test_saas / test_local / prod_saas / prod_local，
+    # 密碼在 .env 的 UPAGENT_DB_<代號>_PASSWORD
+    $dbKey      = "${Environment}_$Target"
+    $db         = if ($release.db) { $release.db.$dbKey } else { $null }
+    $dbLabel    = "upagentRelease.db.$dbKey"
+    $psqlPath   = Get-ConfigValue $db -Name "psql"    -Label "$dbLabel.psql"    -Default "psql"
+    $dbHost     = Get-ConfigValue $db -Name "host"    -Label "$dbLabel.host"    -Required
+    $dbPort     = Get-ConfigValue $db -Name "port"    -Label "$dbLabel.port"    -Default "5432"
+    $dbName     = Get-ConfigValue $db -Name "dbname"  -Label "$dbLabel.dbname"  -Required
+    $dbUser     = Get-ConfigValue $db -Name "user"    -Label "$dbLabel.user"    -Required
+    $dbPassword = Get-Secret -Name "UPAGENT_DB_$($dbKey.ToUpper())_PASSWORD" -Required
+    $dbSslMode  = Get-ConfigValue $db -Name "sslmode" -Label "$dbLabel.sslmode" -Default "require"
     if (-not (Get-Command $psqlPath -ErrorAction SilentlyContinue)) { throw "找不到 psql：$psqlPath" }
 } catch {
     Exit-WithError "設定有誤：$($_.Exception.Message)"

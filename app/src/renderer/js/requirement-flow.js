@@ -40,7 +40,7 @@ import {
  * - 規劃 點擊時開啟 dialog，決定要在哪些 repository 開發、各自的 feature branch。
  * - Test deploy / Prod deploy 勾選 SaaS / Local 前要先 Confirm Commit：依 規劃 選的 repository
  *   各自填入測試通過版的 commit，並確認 repository 中真的有這個 commit。
- * - 勾 SaaS 時若有設定自動佈版 Pipeline（data/repos.json `testPipeline` / `prodPipeline`），
+ * - 勾 SaaS 時若有設定自動佈版 Pipeline（data/config.json 的 repos `testPipeline` / `prodPipeline`），
  *   改走 deploy-dialog.js：等進行中的 Run 結束 → merge + push → 監看新 Run → 通知（成功時自動勾起）。
  * - 規劃 沒選 repository（不需修改 repository）時，Confirm Commit 自動完成，SaaS / Local 也省略（不需勾選）。
  * - 規劃含 upagent 時，勾佈版階段的 SaaS / Local 前（merge 之後）先執行 UpAgent 發佈（upagent-release-dialog.js →

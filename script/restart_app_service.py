@@ -6,7 +6,7 @@
   python restart_app_service.py --app my-app --resource-group my-rg --slot staging
   python restart_app_service.py --app my-app --soft --sync --out D:\\restart.json
 
-設定（script/.env）:
+設定（data/.env）:
   AZURE_SUBSCRIPTION_ID   必填
   AZURE_RESOURCE_GROUP    選填，沒加 --resource-group 時使用
   AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET

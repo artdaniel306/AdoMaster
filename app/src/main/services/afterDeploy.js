@@ -5,7 +5,7 @@ const { PLAN_KEY, PLAN_REPOS_KEY, COMMIT_STAGES } = require('../../shared/flow-r
 
 /**
  * 佈版後動作：勾 SaaS 的自動佈版流程中，push 觸發的 Pipeline Run 成功後，對該 repository 各執行一次。
- *   - 測試環境（testDeploy）：data/repos.json 有設定 testAppService 時，以 shell/Restart-AppService.ps1 重啟該 App Service
+ *   - 測試環境（testDeploy）：data/config.json 的 repos 有設定 testAppService 時，以 shell/Restart-AppService.ps1 重啟該 App Service
  *     （testResourceGroup 選填，空白時由 App Service 名稱自動查詢；需先 az login）；沒設定則不做任何事。
  *   - 正式環境（prodDeploy）：正式環境有客戶在用，不可直接重啟。只呼叫預留的 shell/After-ProdDeploy.ps1（目前沒有任何邏輯）。
  */

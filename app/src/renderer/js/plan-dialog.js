@@ -3,8 +3,8 @@ import { $, el } from './dom.js';
 import { loadRepos, repoTag } from './repos.js';
 
 /**
- * 規劃 dialog：讓 manager 決定需求要在哪些 repository（清單與代表色由 data/repos.json 設定）開發，
- * 以及各自做在哪個 feature branch。可選的 branch 由 data/repos.json 的 branches 設定（每次開啟時重新讀取）。
+ * 規劃 dialog：讓 manager 決定需求要在哪些 repository（清單與代表色由 data/config.json 的 repos 設定）開發，
+ * 以及各自做在哪個 feature branch。可選的 branch 由 data/config.json 的 repos 的 branches 設定（每次開啟時重新讀取）。
  */
 export function createPlanDialog() {
   const dialog = $('plan-dialog');
@@ -51,7 +51,7 @@ export function createPlanDialog() {
     select.addEventListener('change', () => showError(''));
 
     row.append(lab, select);
-    if (!repo.branches.length) row.append(el('p', 'muted', `請在 data/repos.json 設定 ${repo.key} 的 "branches"`));
+    if (!repo.branches.length) row.append(el('p', 'muted', `請在 data/config.json 的 repos 設定 ${repo.key} 的 "branches"`));
     rows.push({ key: repo.key, label: repo.label, check, select });
     return row;
   }

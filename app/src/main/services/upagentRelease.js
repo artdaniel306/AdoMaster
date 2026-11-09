@@ -1,5 +1,5 @@
-const fs = require('node:fs/promises');
-const { UPAGENT_CONFIG_FILE } = require('../paths');
+const { CONFIG_FILE, ENV_FILE } = require('../paths');
+const { readConfig } = require('./appConfig');
 const { runPowerShellJson } = require('../powershell');
 const { loadRepoConfig, fieldHint } = require('./repoConfig');
 const { loadFlowState, updateRequirementState } = require('./requirementFlow');
@@ -52,7 +52,7 @@ async function releaseStatus({ id, stage, target } = {}) {
   return {
     plan: upagentReleasePlan(checks, stage, target),
     release: releaseOf(checks),
-    configExists: await fs.access(UPAGENT_CONFIG_FILE).then(() => true, () => false),
+    configExists: !!(await readConfig().catch(() => null))?.upagentRelease, // 機密（.env）由腳本檢查
     running: running && { id: running.id, stage: running.stage, target: running.target },
   };
 }
@@ -79,7 +79,7 @@ async function runRelease(send, { id, stage, target, bump, remark, rerunAction =
   const repo = (await loadRepoConfig()).repos.find((r) => r.key === UPAGENT_REPO);
   if (!repo?.path) throw new Error(`尚未設定 upagent 的本機路徑，請在 ${fieldHint(UPAGENT_REPO, 'path')} 設定`);
 
-  const args = ['-Environment', plan.env, '-Target', plan.target, '-UpagentDir', repo.path, '-StartFrom', plan.startFrom, '-ConfigPath', UPAGENT_CONFIG_FILE];
+  const args = ['-Environment', plan.env, '-Target', plan.target, '-UpagentDir', repo.path, '-StartFrom', plan.startFrom, '-ConfigPath', CONFIG_FILE, '-EnvPath', ENV_FILE];
   if (plan.startFrom === 'Bump') {
     // 從規劃選的 upagent feature branch 建版；有 Confirm Commit 時，腳本會確認它已在 feature branch 中
     const branch = checks[PLAN_REPOS_KEY]?.[UPAGENT_REPO];

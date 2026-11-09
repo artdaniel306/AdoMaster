@@ -12,8 +12,13 @@ module.exports = {
   ITERATIONS_FILE: path.join(ROOT_DIR, 'data', 'iterations.json'),
   FLOW_STATE_FILE: path.join(ROOT_DIR, 'data', 'requirement_flow_state.json'),
   TEST_RECORDS_DIR: path.join(ROOT_DIR, 'data', 'test_records'),
-  REPOS_FILE: path.join(ROOT_DIR, 'data', 'repos.json'),
-  UPAGENT_CONFIG_FILE: path.join(ROOT_DIR, 'data', 'upagent_release.config'),
+  // 本機設定（見 services/appConfig.js）
+  CONFIG_FILE: path.join(ROOT_DIR, 'data', 'config.json'),
+  ENV_FILE: path.join(ROOT_DIR, 'data', '.env'),
+  // 舊版設定檔：啟動時自動轉換到 CONFIG_FILE / ENV_FILE
+  LEGACY_ENV_FILE: path.join(ROOT_DIR, 'script', '.env'),
+  LEGACY_REPOS_FILE: path.join(ROOT_DIR, 'data', 'repos.json'),
+  LEGACY_UPAGENT_CONFIG_FILE: path.join(ROOT_DIR, 'data', 'upagent_release.config'),
   PRELOAD_FILE: path.join(APP_SRC_DIR, 'preload', 'index.js'),
   RENDERER_HTML: path.join(APP_SRC_DIR, 'renderer', 'index.html'),
 };
