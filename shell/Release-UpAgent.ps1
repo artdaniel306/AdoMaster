@@ -141,7 +141,7 @@ $ActionAppearMinutes  = 10    # push tag 後多久內必須出現 workflow run
 $ActionTimeoutMinutes = 120   # 整個 workflow 最長等待時間（macOS 建置較久）
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$dataDir     = Join-Path $projectRoot "data"
+$dataDir     = if ($env:ADOMASTER_DATA_DIR) { $env:ADOMASTER_DATA_DIR } else { Join-Path $projectRoot "data" }  # app 會以 ADOMASTER_DATA_DIR 指定 data 資料夾
 
 # ---------------------------------------------------------------------------
 # 共用函式

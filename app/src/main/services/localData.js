@@ -1,8 +1,8 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const AdmZip = require('adm-zip');
-const { dialog } = require('electron');
-const { ROOT_DIR, FLOW_STATE_FILE, TEST_RECORDS_DIR } = require('../paths');
+const { app, dialog } = require('electron');
+const { ROOT_DIR, DATA_DIR, FLOW_STATE_FILE, TEST_RECORDS_DIR } = require('../paths');
 const { replaceFlowState } = require('./flowState');
 const { writeFileAtomic } = require('../atomicWrite');
 const { TEST_IMAGE_RE } = require('../../shared/flow-rules.js');
@@ -11,15 +11,16 @@ const { parseConfig, applyLegacy } = require('./appConfig');
 /**
  * 匯出 / 匯入「不進 git、也無法從 API 取回」的本地資料。
  * 這裡只負責選檔與讀寫 zip；確認 / 通知的 dialog 由 renderer（local-data.js）顯示。
- * zip 內的檔名就是相對專案根目錄的路徑；匯入時只接受下列白名單內的檔名，其他一律忽略（避免 zip slip）。
+ * zip 內的檔名就是相對專案根目錄的路徑（data/ 開頭的實際位置是 DATA_DIR，安裝版在使用者資料夾）；匯入時只接受下列白名單內的檔名，其他一律忽略（避免 zip slip）。
  * validate：匯入前檢查內容（丟錯 = 整批不寫）。
  */
+// devOnly：安裝版不含 feature/，不匯出也不匯入
 const FILES = [
   { name: 'data/.env', label: '連線帳號與機密（ADO / Azure / GitHub / 資料庫密碼）' },
   { name: 'data/config.json', label: '本機設定（Repository、UpAgent 發佈…）', validate: (text) => parseConfig(text) },
   { name: 'data/requirement_flow_state.json', label: 'Requirement 流程勾選狀態', validate: (text) => JSON.parse(text) },
-  { name: 'feature/restore_workitem/.env', label: 'restore_workitem 腳本設定' },
-];
+  { name: 'feature/restore_workitem/.env', label: 'restore_workitem 腳本設定', devOnly: true },
+].filter((f) => !(f.devOnly && app.isPackaged));
 // 舊版匯出的設定檔：只接受匯入，不直接寫回原位置，而是經 appConfig.applyLegacy 轉換到 data/config.json / data/.env
 const LEGACY_FILES = [
   { name: 'script/.env', kind: 'env', label: '舊版 script/.env（轉換到 data/.env）' },
@@ -53,7 +54,10 @@ async function listTestImages() {
 const DEFAULT_ZIP_NAME = 'adomaster.zip';
 const ZIP_FILTERS = [{ name: 'Zip', extensions: ['zip'] }];
 
-const absPath = (name) => path.join(ROOT_DIR, ...name.split('/'));
+const absPath = (name) => {
+  const [first, ...rest] = name.split('/');
+  return first === 'data' ? path.join(DATA_DIR, ...rest) : path.join(ROOT_DIR, first, ...rest);
+};
 const describe = ({ name, label }) => ({ name, label });
 
 async function readIfExists(file) {

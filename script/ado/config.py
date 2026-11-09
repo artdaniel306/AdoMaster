@@ -6,7 +6,8 @@ from .errors import AdoError
 
 SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # script/
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
-DATA_DIR = os.path.join(ROOT_DIR, "data")
+# app（尤其安裝版）會以環境變數 ADOMASTER_DATA_DIR 指定 data 資料夾
+DATA_DIR = os.environ.get("ADOMASTER_DATA_DIR") or os.path.join(ROOT_DIR, "data")
 ENV_PATH = os.path.join(DATA_DIR, ".env")
 # 舊位置：app 啟動時會自動搬到 data/.env；還沒搬之前單獨執行 CLI 時沿用
 LEGACY_ENV_PATH = os.path.join(SCRIPT_DIR, ".env")

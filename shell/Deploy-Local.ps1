@@ -70,7 +70,8 @@ $ErrorActionPreference = "Stop"
 
 $DockerTimeoutSec = 180
 $KeepTars = 3
-$tarRoot = Join-Path (Split-Path -Parent $PSScriptRoot) "data\local_deploy"
+$dataRoot = if ($env:ADOMASTER_DATA_DIR) { $env:ADOMASTER_DATA_DIR } else { Join-Path (Split-Path -Parent $PSScriptRoot) 'data' }  # app 會以 ADOMASTER_DATA_DIR 指定 data 資料夾
+$tarRoot = Join-Path $dataRoot "local_deploy"
 
 function Exit-WithError {
     <# 輸出 ::error:: 標記（stdout）與錯誤訊息（stderr），以 exit code 1 結束 #>

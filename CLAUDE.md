@@ -37,6 +37,7 @@ python get_tasks.py [ids/ranges] [--type Bug] [--state Active] [--assigned-to @M
 
 # Electron app
 cd app && npm install && npm start    # set PYTHON / POWERSHELL env vars to override the executables
+cd app && npm run dist                 # Windows installer → app/dist/AdoMaster-Setup-<version>.exe (electron-builder; `npm run pack` = unpacked folder only)
 ```
 
 There is no test suite, linter, or build step. Verify JS syntax with `node --check` (main, CommonJS) or `node --input-type=module --check < file.js` (renderer / shared, ESM).
@@ -50,6 +51,7 @@ There is no test suite, linter, or build step. Verify JS syntax with `node --che
 - Gotcha: `workitemsbatch` without a field list does **not** return `System.Parent` — use `get_work_items(..., relations=True)` and `child_ids` / `parent_id`.
 - `iterations.to_iteration_path` strips the `\Iteration\` segment so paths match `System.IterationPath`.
 - Output goes to `data/` at repo root (the whole `data/` folder is gitignored).
+- The data folder can be overridden with `ADOMASTER_DATA_DIR` (Python `config.DATA_DIR`, PowerShell `$dataRoot`); the app always sets it for child processes.
 
 ### Electron (`app/src/`)
 - `main/` — `index.js` (window, runs `migrateLegacyConfig()`), `ipc.js` (channel → `services/*`), `python.js` (`runScriptJson(script, args)`: appends `--out <temp>`, returns parsed JSON, deletes the temp file), `powershell.js`, `paths.js`, `atomicWrite.js` (temp file + rename), `menu.js`.
@@ -63,6 +65,7 @@ There is no test suite, linter, or build step. Verify JS syntax with `node --che
 - **Adding a feature**: logic in `main/services/` (+ a Python script if it needs ADO, or a `shell/*.ps1`) → channel in `main/ipc.js` → method in `preload/index.js` → call via `api` in the renderer.
 
 ### Local settings & data
+- **Installed build** (`app.isPackaged`, see `main/paths.js`): `script/` and `shell/` ship as electron-builder `extraResources` (outside asar) under `resources/`; data lives in `%APPDATA%\AdoMaster\data` (or `ADOMASTER_DATA_DIR`), not in the repo. Always build data paths from `paths.js`, never from `ROOT_DIR + 'data'`. Python must still be installed on the machine. Icon: `feature/build/icon.ico`.
 - **Settings = exactly two files** in `data/`, owned by `main/services/appConfig.js`:
   - `data/config.json` — non-secret, **one section per feature** (`repos`, `upagentRelease`, `localDeploy`, …); Node uses `readConfig()` / `updateConfig(mutate)` (serialized, atomic, other sections preserved). Template `templates/config_example.json`.
   - `data/.env` — identity and secrets as flat `KEY=VALUE`; read by Python and PowerShell; a same-named **environment variable always wins**. Template `templates/env_example.txt`.

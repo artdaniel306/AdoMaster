@@ -165,10 +165,10 @@ function Format-Size {
 # ---------------------------------------------------------------------------
 
 # shell\ 的上一層 = AdoMaster 專案根目錄
-$projectRoot = Split-Path -Parent $PSScriptRoot
+$dataRoot = if ($env:ADOMASTER_DATA_DIR) { $env:ADOMASTER_DATA_DIR } else { Join-Path (Split-Path -Parent $PSScriptRoot) 'data' }  # app 會以 ADOMASTER_DATA_DIR 指定 data 資料夾
 
 if (-not $DestinationRoot) {
-    $DestinationRoot = Join-Path $projectRoot "data\upagent_release"
+    $DestinationRoot = Join-Path $dataRoot "upagent_release"
 }
 
 $SourceFolder = $SourceFolder.TrimEnd('/') + '/'

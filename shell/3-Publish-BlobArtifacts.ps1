@@ -243,10 +243,10 @@ function Read-UpdateManifest {
 # ---------------------------------------------------------------------------
 
 # shell\ 的上一層 = AdoMaster 專案根目錄
-$projectRoot = Split-Path -Parent $PSScriptRoot
+$dataRoot = if ($env:ADOMASTER_DATA_DIR) { $env:ADOMASTER_DATA_DIR } else { Join-Path (Split-Path -Parent $PSScriptRoot) 'data' }  # app 會以 ADOMASTER_DATA_DIR 指定 data 資料夾
 
 if (-not $SourcePath) {
-    $releaseRoot = Join-Path $projectRoot "data\upagent_release"
+    $releaseRoot = Join-Path $dataRoot "upagent_release"
     if (-not (Test-Path -LiteralPath $releaseRoot)) {
         Write-Host "找不到預設的發佈目錄 $releaseRoot，請先執行 1-Get-BlobArtifacts.ps1 / 2-Update-LatestYml.ps1，或用 -SourcePath 指定。" -ForegroundColor Red
         exit 1

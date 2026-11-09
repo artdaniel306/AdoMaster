@@ -2,9 +2,12 @@
   "name": "app",
   "version": "1.0.0",
   "description": "Azure DevOps Iteration / Work Item 檢視工具",
+  "author": "ART Solutions",
   "main": "src/main/index.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "pack": "electron-builder --win --dir",
+    "dist": "electron-builder --win"
   },
   "license": "MIT",
   "dependencies": {
@@ -13,6 +16,50 @@
     "python-shell": "^5.0.0"
   },
   "devDependencies": {
-    "electron": "^45.2.3"
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "io.artsolutions.adomaster",
+    "productName": "AdoMaster",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../script",
+        "to": "script",
+        "filter": [
+          "**/*.py",
+          "!**/__pycache__/**"
+        ]
+      },
+      {
+        "from": "../shell",
+        "to": "shell",
+        "filter": [
+          "*.ps1"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "../feature/build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AdoMaster",
+      "artifactName": "AdoMaster-Setup-${version}.${ext}"
+    }
   }
 }
