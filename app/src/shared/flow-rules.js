@@ -12,6 +12,8 @@
  *   testRecord: { note, images, updatedAt } 測試完成時記錄的測試場景（images 為 data/test_records/<id>/ 下的檔名）
  *   upagentRelease: { version, bump, remark, completed, publishedAt, db: { test_saas, test_local, prod_saas, prod_local } }
  *                                          UpAgent 發佈進度（completed = 最後完成的發佈步驟；db 為各環境 SaaS / Local 寫入資料庫的時間）
+ *   <stage>.localDeploy: { repoKey: { commit, image, remoteHost, deployedAt } }
+ *                                          勾 Local 時 Local 佈版（shell/Deploy-Local.ps1）成功的紀錄
  *   <checkKey>: true                       其他 checkbox（SaaS / Local、測試完成…）
  */
 
@@ -32,6 +34,11 @@ export const COMMIT_STAGES = ['testDeploy', 'prodDeploy'];
 export const isCommitStage = (stage) => COMMIT_STAGES.includes(stage);
 export const commitsKey = (stage) => `${stage}.commits`;
 export const commitsForcedKey = (stage) => `${stage}.commitsForced`;
+
+/** Local 佈版紀錄（勾 Local 時執行 shell/Deploy-Local.ps1；只能由 main/services/localDeploy.js 寫入） */
+export const localDeployKey = (stage) => `${stage}.localDeploy`;
+/** 佈版階段 → config.json 的 localDeploy.repos.<repo>.<test|prod> */
+export const DEPLOY_ENV = { testDeploy: 'test', prodDeploy: 'prod' };
 
 /** commit 縮寫：4～40 個十六進位字元（也避免被 git 當成選項）；比對前先轉小寫 */
 export const COMMIT_RE = /^[0-9a-f]{4,40}$/;

@@ -240,6 +240,30 @@
     </div>
   </dialog>
 
+  <dialog id="local-deploy-dialog">
+    <div class="dlg-box">
+      <header class="dlg-head">
+        <h3 id="ld-title">Local 佈版</h3>
+        <button type="button" id="ld-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <p id="ld-req" class="dlg-req"></p>
+        <p id="ld-plan" class="cf-msg"></p>
+        <div id="ld-repos" class="ld-repos"></div>
+        <label id="ld-rebuild-row" class="check ld-rebuild" title="預設：同一個 commit 已 build 過的 image tar（data/local_deploy/）直接拿來推送，不重新 build"><input id="ld-rebuild" type="checkbox" /> 重新 build（忽略已存在的 image tar，例如改了部署用資料夾的設定）</label>
+        <p id="ld-phase" class="status"></p>
+        <pre id="ld-log" class="ur-log" hidden></pre>
+        <p id="ld-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" id="ld-stop" class="btn-ghost btn-danger">取消</button>
+        <span class="spacer"></span>
+        <button type="button" id="ld-bg" class="btn-ghost">背景執行</button>
+        <button type="button" id="ld-ok" class="btn-primary">開始佈版</button>
+      </footer>
+    </div>
+  </dialog>
+
   <dialog id="release-dialog">
     <div class="dlg-box">
       <header class="dlg-head">

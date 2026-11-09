@@ -40,6 +40,39 @@
       "testResourceGroup": ""
     }
   ],
+  "localDeploy": {
+    "dockerDesktop": "",
+    "repos": {
+      "crmapp": {
+        "projectDir": "C:\\deploy\\crmapp_local",
+        "appName": "crmapp",
+        "platform": "linux/arm64",
+        "preBuild": "armor.bat aarch64",
+        "network": "onprem-net",
+        "hostPort": 98,
+        "appPort": 8000,
+        "runEnv": { "PORT": "8000" },
+        "test": { "pushRegistry": "192.168.1.139:5000", "pullRegistry": "localhost:5000", "remoteHost": "art-admin@192.168.1.139" },
+        "prod": { "pushRegistry": "192.168.1.232:5000", "pullRegistry": "localhost:5000", "remoteHost": "admin@192.168.1.232" }
+      },
+      "crmappui": {
+        "projectDir": "C:\\deploy\\crmappui_local",
+        "appName": "crmappui",
+        "platform": "linux/arm64",
+        "network": "onprem-net",
+        "hostPort": 8098,
+        "appPort": 80,
+        "test": {
+          "pushRegistry": "192.168.1.139:5000", "pullRegistry": "localhost:5000", "remoteHost": "art-admin@192.168.1.139",
+          "buildArgs": { "ENV_R1": "env-art-test", "ENV_R2": "env-art-test" }
+        },
+        "prod": {
+          "pushRegistry": "192.168.1.232:5000", "pullRegistry": "localhost:5000", "remoteHost": "admin@192.168.1.232",
+          "buildArgs": { "ENV_R1": "env-art-prod", "ENV_R2": "env-art-prod" }
+        }
+      }
+    }
+  },
   "upagentRelease": {
     "storageAccount": "updayservice",
     "container": "upagent",

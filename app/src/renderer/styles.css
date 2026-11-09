@@ -406,6 +406,25 @@ td.stage-split { padding: 0; height: 1px; }
 }
 .release-status { display: block; margin-top: 4px; font-size: 12px; text-align: left; }
 
+/* ---- Local 佈版（勾佈版階段的 Local 時執行 shell/Deploy-Local.ps1）---- */
+#local-deploy-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(760px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#local-deploy-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#local-deploy-dialog .status { margin: 6px 0; }
+#local-deploy-dialog .status.ok { color: var(--ok); font-weight: 600; }
+#local-deploy-dialog #ld-phase:empty { display: none; }
+.ld-repos { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.ld-repo { display: flex; gap: 8px; align-items: flex-start; }
+.ld-repo input { margin-top: 3px; }
+.ld-repo .muted { display: block; font-size: 12px; }
+.ld-repo .error { display: block; font-size: 12px; color: var(--err); }
+.ld-repo.done { color: var(--ok); }
+.ld-rebuild { margin-top: 10px; font-size: 13px; }
+#ld-rebuild-row[hidden] { display: none; }
+.local-deploy-status { display: block; margin-top: 4px; font-size: 12px; text-align: left; }
+
 /* ---- 安排預設 Task（Pending 階段、尚未展開 Task）---- */
 #task-dialog {
   padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);

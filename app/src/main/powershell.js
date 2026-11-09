@@ -30,9 +30,10 @@ function resolveScript(scriptName) {
  * @param {object} [options]
  * @param {number} [options.timeout] 毫秒，0 = 不限時（預設 2 分鐘）
  * @param {(text: string) => void} [options.onStdout] 即時收到 stdout（長時間執行的腳本顯示進度用）
+ * @param {(text: string) => void} [options.onStderr] 即時收到 stderr（docker / git 的進度輸出在 stderr）
  * @param {AbortSignal} [options.signal] abort 時以 taskkill /T 結束腳本與它啟動的子程序（git、az…）
  */
-function runPowerShell(scriptName, args = [], { timeout = DEFAULT_TIMEOUT, onStdout, signal } = {}) {
+function runPowerShell(scriptName, args = [], { timeout = DEFAULT_TIMEOUT, onStdout, onStderr, signal } = {}) {
   const file = resolveScript(scriptName);
   const exe = process.env.POWERSHELL || 'powershell.exe';
   return new Promise((resolve, reject) => {
@@ -54,6 +55,7 @@ function runPowerShell(scriptName, args = [], { timeout = DEFAULT_TIMEOUT, onStd
     );
     // encoding 已設定，stdout 的 data 事件是字串（多位元組字元不會被切斷）
     if (onStdout) child.stdout.on('data', onStdout);
+    if (onStderr) child.stderr.on('data', onStderr);
     // 只 kill powershell.exe 的話，它啟動的 git / az / signtool 仍會繼續跑，所以連同子程序一起結束
     function onAbort() {
       execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true }, () => {});

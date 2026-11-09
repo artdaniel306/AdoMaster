@@ -137,7 +137,7 @@ async function setFlowCheck({ id, key, value, force = false } = {}) {
       }
     });
   }
-  if (key.startsWith(PLAN_KEY) || key.endsWith('.commits') || forcedStage || key === TEST_RECORD_KEY || key === UPAGENT_RELEASE_KEY) throw new Error('參數錯誤');
+  if (key.startsWith(PLAN_KEY) || key.endsWith('.commits') || key.endsWith('.localDeploy') || forcedStage || key === TEST_RECORD_KEY || key === UPAGENT_RELEASE_KEY) throw new Error('參數錯誤');
   if (force) {
     return updateRequirementState(id, (checks) => {
       if (value) checks[key] = true;

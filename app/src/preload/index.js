@@ -31,6 +31,14 @@ contextBridge.exposeInMainWorld('api', {
   /** UpAgent 發佈的即時輸出：cb({ id, stage, line })；步驟開始：cb({ id, stage, step }) */
   onUpagentReleaseLog: (cb) => ipcRenderer.on('upagentRelease:log', (_e, data) => cb(data)),
   onUpagentReleaseStep: (cb) => ipcRenderer.on('upagentRelease:step', (_e, data) => cb(data)),
+  /** 勾 Local 前查詢要做 Local 佈版（shell/Deploy-Local.ps1）的 repository */
+  localDeployStatus: (id, stage) => ipcRenderer.invoke('localDeploy:status', { id, stage }),
+  /** 依序對 repos 執行 Local 佈版，完成後回傳該 Requirement 更新後的狀態；rebuild = 忽略已 build 的 image tar */
+  runLocalDeploy: (id, stage, repos, { rebuild = false } = {}) => ipcRenderer.invoke('localDeploy:run', { id, stage, repos, rebuild: !!rebuild }),
+  cancelLocalDeploy: () => ipcRenderer.invoke('localDeploy:cancel'),
+  /** Local 佈版的即時輸出：cb({ id, stage, line })；步驟：cb({ id, stage, repo, step }) */
+  onLocalDeployLog: (cb) => ipcRenderer.on('localDeploy:log', (_e, data) => cb(data)),
+  onLocalDeployStep: (cb) => ipcRenderer.on('localDeploy:step', (_e, data) => cb(data)),
   loadRepoConfig:() => ipcRenderer.invoke('repos:config'),
   checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
   branchGraph: (repo, branch, { fetch = false, all = false } = {}) =>

@@ -64,7 +64,7 @@ There is no test suite, linter, or build step. Verify JS syntax with `node --che
 
 ### Local settings & data
 - **Settings = exactly two files** in `data/`, owned by `main/services/appConfig.js`:
-  - `data/config.json` — non-secret, **one section per feature** (`repos`, `upagentRelease`, …); Node uses `readConfig()` / `updateConfig(mutate)` (serialized, atomic, other sections preserved). Template `templates/config_example.json`.
+  - `data/config.json` — non-secret, **one section per feature** (`repos`, `upagentRelease`, `localDeploy`, …); Node uses `readConfig()` / `updateConfig(mutate)` (serialized, atomic, other sections preserved). Template `templates/config_example.json`.
   - `data/.env` — identity and secrets as flat `KEY=VALUE`; read by Python and PowerShell; a same-named **environment variable always wins**. Template `templates/env_example.txt`.
   - A new feature adds a section to `config.json` and/or keys to `.env` — **never a new config file**.
   - Legacy files (`script/.env`, `data/repos.json`, `data/upagent_release.config`) are converted by `migrateLegacyConfig()` (originals renamed to `*.bak`) and by `applyLegacy` on import. The old INI is parsed by hand on purpose: npm `ini` treats `#` / `;` in values as comments and would truncate passwords.
@@ -73,7 +73,7 @@ There is no test suite, linter, or build step. Verify JS syntax with `node --che
 ### Requirement 流程
 Full spec: **`docs/requirement-flow.md`**. Key invariants:
 - Stages: Pending → Implement + 規劃 (`plan`) → Test deploy → Test → Prod deploy → Release recap. Manual steps are checkboxes in `data/requirement_flow_state.json`, read/written only through `main/services/flowState.js` (serialized queue).
-- Only two actions write to ADO: creating the default Task and updating the Requirement state. Pipelines are only read; deploys are triggered by git push.
+- Only two actions write to ADO: creating the default Task and updating the Requirement state. Pipelines are only read; SaaS deploys are triggered by git push. Local (on-prem) deploys run `shell/Deploy-Local.ps1` (Docker build + ssh) from a dedicated deploy clone, never the dev clone.
 - Deploy merges never touch the local working tree and never `--force` push; conflicting merges are refused.
 - Prod deploy **never restarts** the App Service (customers are live); there is deliberately no `prodAppService` field.
 - A repo's `key` in `repos` is what the flow state stores — renaming it orphans old records.

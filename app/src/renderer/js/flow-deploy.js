@@ -3,6 +3,7 @@ import { el } from './dom.js';
 import { createMergeDialog } from './merge-dialog.js';
 import { createDeployDialog } from './deploy-dialog.js';
 import { createUpagentReleaseDialog } from './upagent-release-dialog.js';
+import { createLocalDeployDialog } from './local-deploy-dialog.js';
 import { saasKey } from './flow-stages.js';
 import {
   PLAN_REPOS_KEY,
@@ -13,11 +14,13 @@ import {
   RELEASE_TARGETS,
   releaseDbKey,
   releaseTargetOf,
+  localDeployKey,
 } from '../../shared/flow-rules.js';
 
 /**
  * 佈版階段（Test deploy / Prod deploy）的 SaaS / Local：
- *   勾選前確認 commit 已 merge 進環境 branch（merge-dialog.js）→ SaaS 有設定 Pipeline 時走 deploy-dialog.js
+ *   勾選前確認 commit 已 merge 進環境 branch（merge-dialog.js）→ SaaS 有設定 Pipeline 時走 deploy-dialog.js；
+ *   Local 有設定 localDeploy 時走 local-deploy-dialog.js（docker build + ssh 換 container）
  *   → 規劃含 upagent 時執行 UpAgent 發佈（upagent-release-dialog.js），以及格子裡的狀態列 / 發佈摘要。
  *
  * @param ctx requirement-flow.js 提供的共用環境：
@@ -28,6 +31,7 @@ export function createFlowDeploy(ctx) {
   const mergeDialog = createMergeDialog();
   const deployDialog = createDeployDialog();
   const releaseDialog = createUpagentReleaseDialog();
+  const localDialog = createLocalDeployDialog();
 
   /**
    * 勾佈版階段的 SaaS / Local 前：確認 Confirm Commit 的 commit 都已進到環境 branch。
@@ -66,6 +70,18 @@ export function createFlowDeploy(ctx) {
       planRepos: ctx.checks(req.id)[PLAN_REPOS_KEY],
       onChange: ctx.refresh,
     });
+    if (checks) ctx.setChecks(req.id, checks);
+    return ok;
+  }
+
+  /**
+   * 勾佈版階段的 Local 前（已確認 merge）：規劃中有設定 localDeploy 的 repository 執行 Local 佈版
+   * （shell/Deploy-Local.ps1）。回傳 true 代表可以勾選（沒有設定、已完成，或使用者選擇略過）。
+   */
+  async function ensureLocalDeployed(req, stage, text) {
+    const status = await api.localDeployStatus(req.id, stage.key);
+    if (!status.targets.length) return true;
+    const { ok, checks } = await localDialog.open({ req, stage, checkLabel: text, status, onChange: ctx.refresh });
     if (checks) ctx.setChecks(req.id, checks);
     return ok;
   }
@@ -120,10 +136,11 @@ export function createFlowDeploy(ctx) {
     });
   }
 
-  /** 進行中階段勾起佈版階段的 SaaS / Local（一般邏輯）：SaaS 走 deploySaas；Local 確認 merge、UpAgent 發佈後勾選 */
+  /** 進行中階段勾起佈版階段的 SaaS / Local（一般邏輯）：SaaS 走 deploySaas；Local 確認 merge、Local 佈版、UpAgent 發佈後勾選 */
   async function checkDeploy(req, stage, key, text) {
     if (key === saasKey(stage)) return deploySaas(req, stage, key, text);
     if (!(await ensureMerged(req, stage))) return;
+    if (!(await ensureLocalDeployed(req, stage, text))) return;
     if (!(await ensureReleased(req, stage, key, text))) return;
     ctx.setChecks(req.id, await api.setFlowCheck(req.id, key, true));
     ctx.update(req);
@@ -149,6 +166,28 @@ export function createFlowDeploy(ctx) {
     btn.title = '開啟 UpAgent 發佈視窗';
     btn.addEventListener('click', () => releaseDialog.show());
     return btn;
+  }
+
+  /** Local 佈版進行中 / 失敗時，在 Local 底下顯示狀態，點擊重新開啟視窗 */
+  function localStatusLine(req, stage) {
+    const text = localDialog.statusOf(req.id, stage.key);
+    if (!text) return null;
+    const btn = el('button', 'btn-link local-deploy-status', `🐳 ${text}`);
+    btn.type = 'button';
+    btn.title = '開啟 Local 佈版視窗';
+    btn.addEventListener('click', () => localDialog.show());
+    return btn;
+  }
+
+  /** 此階段已 Local 佈版的 repository（滑過顯示 image / 主機 / 時間） */
+  function localDeploySummary(records) {
+    const entries = Object.entries(records || {});
+    if (!entries.length) return null;
+    const line = el('div', 'check-summary repo-line repo-branch', `Local 佈版：${entries.map(([repo, r]) => `${repo} ${String(r.commit || '').slice(0, 7)}`).join(' / ')}`);
+    line.title = entries
+      .map(([repo, r]) => `${repo}：${r.image || '—'} → ${r.remoteHost || '—'}（${new Date(r.deployedAt).toLocaleString('zh-TW', { hour12: false })}）`)
+      .join('\n');
+    return line;
   }
 
   /** 已發佈的 UpAgent 版本與此環境 SaaS / Local 資料庫是否已寫入 */
@@ -182,6 +221,7 @@ export function createFlowDeploy(ctx) {
     const reason = confirmed ? '' : '請先完成 Confirm Commit';
     const deploying = deployDialog.statusOf(req.id, stage.key);
     const releasing = releaseDialog.statusOf(req.id, stage.key);
+    const localDeploying = localDialog.statusOf(req.id, stage.key);
     // 已勾選的仍可取消，避免 commit 變更後卡住
     box.append(
       ...stage.checks.map(([k, label]) =>
@@ -190,12 +230,16 @@ export function createFlowDeploy(ctx) {
           stage,
           k,
           label,
-          s[k] ? '' : releasing ? 'UpAgent 發佈進行中' : k === saasKey(stage) && deploying ? '佈版流程進行中' : reason
+          s[k] ? '' : releasing ? 'UpAgent 發佈進行中' : k === saasKey(stage) && deploying ? '佈版流程進行中' : k !== saasKey(stage) && localDeploying ? 'Local 佈版進行中' : reason
         )
       )
     );
     const line = deployStatusLine(req, stage);
     if (line) box.append(line);
+    const localLine = localStatusLine(req, stage);
+    if (localLine) box.append(localLine);
+    const localSummary = localDeploySummary(s[localDeployKey(stage)]);
+    if (localSummary) box.append(localSummary);
     const releaseLine = releaseStatusLine(req, stage);
     if (releaseLine) box.append(releaseLine);
     const release = s[UPAGENT_RELEASE_KEY];
