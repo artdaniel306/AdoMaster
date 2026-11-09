@@ -1,6 +1,7 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
 import { UPAGENT_CONNECTIONS } from '../../shared/flow-rules.js';
+import { initUpagentConnectionSettings } from './upagent-connection-settings-dialog.js';
 
 /**
  * 設定 UpAgent 連線 dialog（測試 / 檢核階段，規劃含 upagent 時）：
@@ -34,6 +35,7 @@ export function createUpagentConnectionDialog() {
   const okBtn = $('uc-ok');
   const cancelBtn = $('uc-cancel');
   const closeBtn = $('uc-close');
+  const settingsBtn = $('uc-settings');
 
   let busy = false;
   let onChanged = null;
@@ -46,7 +48,7 @@ export function createUpagentConnectionDialog() {
 
   function setBusy(v) {
     busy = v;
-    okBtn.disabled = cancelBtn.disabled = closeBtn.disabled = v;
+    okBtn.disabled = cancelBtn.disabled = closeBtn.disabled = settingsBtn.disabled = v;
     for (const input of targetsEl.querySelectorAll('input')) {
       input.disabled = v || !targets.find((t) => t.key === input.value)?.hasCode;
     }
@@ -69,7 +71,7 @@ export function createUpagentConnectionDialog() {
       if (t.key === current) label.append(el('span', 'uc-tag', '（目前）'));
       if (!t.hasCode) {
         label.append(el('span', 'uc-tag warn', '未設定 Activation Code'));
-        label.title = `請在 data/config.json 的 upagentConnection.activationCodes.${t.key} 設定`;
+        label.title = '請按「編輯設定…」填入 Activation Code';
       }
       targetsEl.append(label);
     }
@@ -115,6 +117,9 @@ export function createUpagentConnectionDialog() {
   dialog.addEventListener('cancel', (e) => {
     if (busy) e.preventDefault();
   });
+  settingsBtn.addEventListener('click', () => {
+    if (!busy) initUpagentConnectionSettings().open(reload);
+  });
   cancelBtn.addEventListener('click', () => dialog.close());
   closeBtn.addEventListener('click', () => dialog.close());
 
@@ -128,10 +133,16 @@ export function createUpagentConnectionDialog() {
     resultEl.hidden = true;
     reqEl.textContent = req ? `#${req.id} ${req.title}` : '';
     reqEl.hidden = !req;
+    dialog.showModal();
+    await reload();
+  }
+
+  /** 讀取要刪除的設定檔與各目標是否有 Activation Code（開啟時、編輯設定後） */
+  async function reload() {
+    showError('');
     filesEl.textContent = '讀取設定中…';
     targetsEl.replaceChildren();
     okBtn.disabled = true;
-    dialog.showModal();
     try {
       const status = await api.upagentConnectionStatus();
       filesEl.textContent = status.files

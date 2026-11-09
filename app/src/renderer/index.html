@@ -95,6 +95,35 @@
     </form>
   </dialog>
 
+  <dialog id="upagent-conn-settings-dialog">
+    <form id="ucs-form" class="dlg-box" method="dialog">
+      <header class="dlg-head">
+        <h3>UpAgent 連線設定</h3>
+        <button type="button" id="ucs-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <p id="ucs-file" class="muted"></p>
+        <section class="rs-repo">
+          <h4 class="es-title">UpAgent 設定檔</h4>
+          <p class="muted es-hint">切換連線時要刪除的檔案。只能選既有的檔案：若剛切換過連線（設定檔已被刪除），請先開啟 UpAgent 讓它重新產生。</p>
+          <div id="ucs-paths" class="ucs-paths"></div>
+          <button type="button" id="ucs-add" class="btn-ghost ucs-add">＋ 新增檔案…</button>
+        </section>
+        <section class="rs-repo">
+          <h4 class="es-title">Activation Code</h4>
+          <p class="muted es-hint">重新開啟 UpAgent 後輸入的代碼，決定連到哪個環境；空白 = 該環境無法切換。</p>
+          <div id="ucs-codes" class="es-grid"></div>
+        </section>
+        <p id="ucs-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" id="ucs-cancel" class="btn-ghost">取消</button>
+        <button type="submit" id="ucs-ok" class="btn-primary">儲存</button>
+      </footer>
+    </form>
+  </dialog>
+
   <dialog id="commit-dialog">
     <form id="cc-form" class="dlg-box" method="dialog">
       <header class="dlg-head">
@@ -194,6 +223,7 @@
         <p id="uc-error" class="status error" hidden></p>
       </div>
       <footer class="dlg-foot">
+        <button type="button" id="uc-settings" class="btn-ghost" title="編輯設定檔路徑與 Activation Code">編輯設定…</button>
         <span class="spacer"></span>
         <button type="button" id="uc-cancel" class="btn-ghost">關閉</button>
         <button type="submit" id="uc-ok" class="btn-primary">切換連線</button>

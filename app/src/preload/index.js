@@ -43,6 +43,12 @@ contextBridge.exposeInMainWorld('api', {
   upagentConnectionStatus: () => ipcRenderer.invoke('upagentConnection:status'),
   /** 切換 UpAgent 連線（刪掉 UpAgent 設定檔），回傳 { target, label, activationCode, files } */
   switchUpagentConnection: (target) => ipcRenderer.invoke('upagentConnection:switch', { target }),
+  /** 「UpAgent 連線設定」dialog：config.json 的 upagentConnection */
+  loadUpagentConnectionSettings: () => ipcRenderer.invoke('upagentConnection:loadSettings'),
+  /** configFile: string[]，codes: { local_test: '...', ... }（空白 = 刪除） */
+  saveUpagentConnectionSettings: (configFile, codes) => ipcRenderer.invoke('upagentConnection:saveSettings', { configFile, codes }),
+  /** 選擇 UpAgent 設定檔（可多選）；回傳路徑陣列（使用者資料夾換回 %APPDATA% 等），取消 = null */
+  pickUpagentConfigFile: (current) => ipcRenderer.invoke('upagentConnection:pickFile', current),
   loadRepoConfig:() => ipcRenderer.invoke('repos:config'),
   checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
   branchGraph: (repo, branch, { fetch = false, all = false } = {}) =>
@@ -63,4 +69,6 @@ contextBridge.exposeInMainWorld('api', {
   onRepoSettingsMenu: (cb) => ipcRenderer.on('menu:repoSettings', () => cb()),
   /** 選單「設定 → 連線與機密設定…」被點擊時呼叫 cb() */
   onEnvSettingsMenu: (cb) => ipcRenderer.on('menu:envSettings', () => cb()),
+  /** 選單「設定 → UpAgent 連線設定…」被點擊時呼叫 cb() */
+  onUpagentConnectionSettingsMenu: (cb) => ipcRenderer.on('menu:upagentConnectionSettings', () => cb()),
 });

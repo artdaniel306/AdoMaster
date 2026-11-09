@@ -287,6 +287,20 @@ td.stage-split { padding: 0; height: 1px; }
 }
 .rs-field .rs-warn { margin: 0; }
 
+/* ---- UpAgent 連線設定（選單「設定 → UpAgent 連線設定…」，編輯 config.json upagentConnection；沿用 rs-* / es-* 樣式）---- */
+#upagent-conn-settings-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(640px, 94vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#upagent-conn-settings-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#upagent-conn-settings-dialog .dlg-box { max-height: 90vh; }
+#upagent-conn-settings-dialog .dlg-body { overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+#ucs-file { margin: 0; word-break: break-all; }
+.ucs-paths { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.ucs-path-row { display: flex; gap: 6px; align-items: center; }
+.ucs-path-row .es-input { cursor: default; }
+.ucs-add { align-self: flex-start; margin-top: 6px; }
+
 /* ---- Confirm Commit（Test deploy / Prod deploy 佈版前）---- */
 #commit-dialog {
   padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);

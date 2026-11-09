@@ -49,6 +49,9 @@ function registerIpcHandlers() {
   ipcMain.handle('localDeploy:cancel', () => localDeploy.cancelLocalDeploy());
   ipcMain.handle('upagentConnection:status', () => upagentConnection.connectionStatus());
   ipcMain.handle('upagentConnection:switch', (_e, { target } = {}) => upagentConnection.switchConnection({ target }));
+  ipcMain.handle('upagentConnection:loadSettings', () => upagentConnection.loadConnectionSettings());
+  ipcMain.handle('upagentConnection:saveSettings', (_e, params) => upagentConnection.saveConnectionSettings(params));
+  ipcMain.handle('upagentConnection:pickFile', (e, current) => upagentConnection.pickConfigFile(BrowserWindow.fromWebContents(e.sender), current));
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());
   ipcMain.handle('repos:checkCommit', (_e, params) => gitCommit.checkCommit(params));
   ipcMain.handle('repos:branchGraph', (_e, params) => gitCommit.branchGraph(params));

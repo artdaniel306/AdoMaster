@@ -1,7 +1,8 @@
+const { dialog } = require('electron');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { readConfig, CONFIG_LABEL } = require('./appConfig');
+const { readConfig, updateConfig, CONFIG_LABEL } = require('./appConfig');
 const { UPAGENT_CONNECTIONS } = require('../../shared/flow-rules.js');
 
 /**
@@ -16,7 +17,7 @@ const { UPAGENT_CONNECTIONS } = require('../../shared/flow-rules.js');
  *   }
  */
 const SECTION = 'upagentConnection';
-const hint = (field) => `請在 ${CONFIG_LABEL} 的 ${SECTION}.${field} 設定`;
+const hint = (field) => `請從選單「設定 → UpAgent 連線設定…」設定（${CONFIG_LABEL} 的 ${SECTION}.${field}）`;
 
 /** 展開 %VAR% 與開頭的 ~，並要求是絕對路徑 */
 function expandPath(p) {
@@ -77,4 +78,79 @@ async function switchConnection({ target } = {}) {
   return { target, label: conn.label, activationCode, files: results };
 }
 
-module.exports = { connectionStatus, switchConnection };
+const DEFAULT_CONFIG_FILE = '%APPDATA%\\upagent\\config.json';
+
+/**
+ * 給「UpAgent 連線設定」dialog 用：config.json upagentConnection 的原始內容。
+ * @returns {{ file, exists, defaultConfigFile, configFile: string[], targets: [{ key, label, code }] }}
+ */
+async function loadConnectionSettings() {
+  const section = (await readConfig())?.[SECTION];
+  const ok = section && typeof section === 'object';
+  const codes = ok && section.activationCodes && typeof section.activationCodes === 'object' ? section.activationCodes : {};
+  return {
+    file: CONFIG_LABEL,
+    exists: !!ok,
+    defaultConfigFile: DEFAULT_CONFIG_FILE,
+    configFile: ok ? [].concat(section.configFile ?? []).filter((p) => typeof p === 'string' && p.trim()).map((p) => p.trim()) : [],
+    targets: UPAGENT_CONNECTIONS.map((t) => ({ ...t, code: codeOf(codes, t.key) })),
+  };
+}
+
+/**
+ * 儲存「UpAgent 連線設定」dialog 的內容到 config.json 的 upagentConnection（其他 section 與本 section 的其他欄位保留）。
+ * configFile 只有一個時存成字串，多個時存成陣列；Activation Code 空白 = 刪掉該 key。
+ * @param configFile string[]；codes { local_test: '...', ... }
+ */
+async function saveConnectionSettings({ configFile, codes } = {}) {
+  const files = [...new Set([].concat(configFile ?? []).map((p) => String(p ?? '').trim()).filter(Boolean))];
+  if (!files.length) throw new Error('請至少填入一個 UpAgent 設定檔路徑');
+  files.forEach(expandPath); // 路徑格式 / 環境變數檢查，失敗時丟出錯誤、不寫檔
+  const clean = {};
+  for (const { key, label } of UPAGENT_CONNECTIONS) {
+    const v = String(codes?.[key] ?? '').trim();
+    if (/[\r\n]/.test(v)) throw new Error(`${label} 的 Activation Code 不能包含換行`);
+    if (v) clean[key] = v;
+  }
+  await updateConfig((cfg) => {
+    const prev = cfg[SECTION] && typeof cfg[SECTION] === 'object' ? cfg[SECTION] : {};
+    const prevCodes = prev.activationCodes && typeof prev.activationCodes === 'object' ? prev.activationCodes : {};
+    // 保留不在 UPAGENT_CONNECTIONS 內的 code（手動加的）
+    const extra = Object.fromEntries(Object.entries(prevCodes).filter(([k]) => !UPAGENT_CONNECTIONS.some((t) => t.key === k)));
+    cfg[SECTION] = { ...prev, configFile: files.length === 1 ? files[0] : files, activationCodes: { ...extra, ...clean } };
+  });
+  return loadConnectionSettings();
+}
+
+/** 把絕對路徑開頭的使用者資料夾換回 %VAR%（匯出 / 匯入到別台電腦、別的帳號仍然有效）；越具體的變數越先比對 */
+const FOLD_VARS = ['LOCALAPPDATA', 'APPDATA', 'USERPROFILE'];
+function foldPath(p) {
+  for (const name of FOLD_VARS) {
+    const base = process.env[name] && path.normalize(process.env[name]);
+    if (base && (p.toLowerCase() === base.toLowerCase() || p.toLowerCase().startsWith(`${base.toLowerCase()}${path.sep}`))) {
+      return `%${name}%${p.slice(base.length)}`;
+    }
+  }
+  return p;
+}
+
+/**
+ * 讓使用者選擇 UpAgent 設定檔（可多選）；取消時回傳 null。
+ * 注意：檔案選擇器只能選既有的檔案（切換連線後設定檔會被刪掉，要等 UpAgent 重新產生後才選得到）。
+ * @param current 目前的路徑（可含 %VAR%），用來決定開啟的資料夾
+ * @returns {Promise<string[] | null>} 已換回 %VAR% 的路徑
+ */
+async function pickConfigFile(win, current) {
+  const dirOf = (p) => {
+    try { return path.dirname(expandPath(p)); } catch { return undefined; }
+  };
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: '選擇 UpAgent 設定檔',
+    defaultPath: (typeof current === 'string' && current.trim() && dirOf(current.trim())) || dirOf(DEFAULT_CONFIG_FILE),
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'JSON', extensions: ['json'] }, { name: '所有檔案', extensions: ['*'] }],
+  });
+  return canceled || !filePaths?.length ? null : filePaths.map((p) => foldPath(path.normalize(p)));
+}
+
+module.exports = { connectionStatus, switchConnection, loadConnectionSettings, saveConnectionSettings, pickConfigFile };
