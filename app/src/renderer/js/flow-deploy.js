@@ -6,6 +6,7 @@ import { createUpagentReleaseDialog } from './upagent-release-dialog.js';
 import { createLocalDeployDialog } from './local-deploy-dialog.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 import { saasKey } from './flow-stages.js';
+import { registerDeploySource } from './deploy-jobs.js';
 import {
   PLAN_REPOS_KEY,
   noRepoChange,
@@ -34,6 +35,8 @@ export function createFlowDeploy(ctx) {
   const releaseDialog = createUpagentReleaseDialog();
   const localDialog = createLocalDeployDialog();
   const confirmDialog = createConfirmDialog();
+  // 「佈版進度」dialog 也列出這些在背景執行的工作
+  for (const d of [deployDialog, localDialog, releaseDialog]) registerDeploySource({ summary: d.summary, show: d.show });
 
   /**
    * 勾佈版階段的 SaaS / Local 前：確認 Confirm Commit 的 commit 都已進到環境 branch。

@@ -380,6 +380,100 @@
     </div>
   </dialog>
 
+  <dialog id="manual-deploy-dialog">
+    <form id="md-form" class="dlg-box" method="dialog">
+      <header class="dlg-head">
+        <h3>手動佈版</h3>
+        <button type="button" id="md-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <p class="muted">不經 Requirement 流程，直接把某個 repository 的 commit 佈版到指定環境，動作與流程勾 SaaS / Local 時相同：merge 進環境 branch 並 push（不動本機 working tree）→ SaaS 監看 Pipeline 與佈版後動作 / Local 執行 docker 佈版 → upagent 另外發佈 UpAgent。先按「檢查」看要執行的步驟再開始；開始後可在「佈版進度」查看，並在背景執行。</p>
+        <div class="md-grid">
+          <span class="md-label">目標</span>
+          <div class="md-seg">
+            <label><input type="radio" name="md-target" value="saas" checked /> SaaS</label>
+            <label><input type="radio" name="md-target" value="local" /> Local</label>
+          </div>
+          <span class="md-label">環境</span>
+          <div class="md-seg">
+            <label><input type="radio" name="md-env" value="test" checked /> 測試環境</label>
+            <label><input type="radio" name="md-env" value="prod" /> 正式環境</label>
+          </div>
+          <label class="md-label" for="md-repo">Repository</label>
+          <select id="md-repo"></select>
+          <label class="md-label" for="md-commit">Commit</label>
+          <div class="md-commit-row">
+            <input id="md-commit" type="text" spellcheck="false" autocomplete="off" />
+            <button type="button" id="md-commit-check" class="btn-ghost">檢查 commit</button>
+          </div>
+          <span></span>
+          <p id="md-commit-result" class="cc-result" hidden></p>
+        </div>
+        <div id="md-release" hidden>
+          <h4 class="dp-sec">UpAgent 發佈</h4>
+          <div class="md-grid">
+            <span class="md-label">方式</span>
+            <div class="md-seg">
+              <label><input type="radio" name="md-mode" value="new" checked /> 完整發佈（更版）</label>
+              <label><input type="radio" name="md-mode" value="resume" /> 接續 / 只寫入資料庫</label>
+            </div>
+            <label class="md-label md-new" for="md-branch">Feature branch</label>
+            <select id="md-branch" class="md-new"></select>
+            <label class="md-label md-new" for="md-bump">版號遞增</label>
+            <select id="md-bump" class="md-new">
+              <option value="patch">patch（x.y.Z）</option>
+              <option value="minor">minor（x.Y.0）</option>
+            </select>
+            <label class="md-label md-resume" for="md-version">版號</label>
+            <input id="md-version" class="md-resume" type="text" placeholder="例：1.2.3" spellcheck="false" autocomplete="off" />
+            <label class="md-label md-resume" for="md-start">從哪一步開始</label>
+            <select id="md-start" class="md-resume"></select>
+            <label class="md-label" for="md-remark">資料庫備註</label>
+            <input id="md-remark" type="text" maxlength="500" placeholder="可留空，例：Sprint 20 Release" />
+          </div>
+          <p id="md-hsm" class="ur-hsm">🔑 會執行簽署：請先插上 HSM USB，簽署時會跳出 PIN 輸入視窗。</p>
+        </div>
+        <label id="md-rebuild-row" class="check md-rebuild" hidden><input id="md-rebuild" type="checkbox" /> 重新 build（忽略已存在的 image tar，例如改了部署用資料夾的設定）</label>
+        <div id="md-preview" hidden>
+          <h4 class="dp-sec">將執行的步驟</h4>
+          <ol id="md-steps" class="md-steps"></ol>
+          <ul id="md-warnings" class="md-warnings"></ul>
+        </div>
+        <p id="md-status" class="status"></p>
+        <p id="md-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" id="md-cancel" class="btn-ghost">取消</button>
+        <button type="button" id="md-preview-btn" class="btn-ghost">檢查</button>
+        <button type="submit" id="md-ok" class="btn-primary" disabled>開始佈版</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="deploy-progress-dialog">
+    <div class="dlg-box">
+      <header class="dlg-head">
+        <h3>佈版進度</h3>
+        <button type="button" id="pg-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <p class="muted">關閉此視窗不會中斷佈版，結束時會再通知。手動佈版在背景執行（重新載入畫面也不中斷；關閉 App 會中斷）。</p>
+        <h4 id="pg-flow-head" class="dp-sec" hidden>Requirement 流程</h4>
+        <div id="pg-flow" class="pg-list"></div>
+        <h4 id="pg-jobs-head" class="dp-sec" hidden>手動佈版</h4>
+        <div id="pg-jobs" class="pg-list"></div>
+        <p id="pg-empty" class="muted">目前沒有佈版工作。</p>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" id="pg-clear" class="btn-ghost" hidden>清除已結束</button>
+        <span class="spacer"></span>
+        <button type="button" id="pg-new" class="btn-ghost">手動佈版…</button>
+        <button type="button" id="pg-ok" class="btn-primary">關閉</button>
+      </footer>
+    </div>
+  </dialog>
+
   <main id="content">
     <header class="content-head">
       <div>
@@ -392,6 +486,10 @@
           <button class="tab" data-view="items" role="tab">Work Items</button>
         </nav>
         <label class="check"><input id="exact" type="checkbox" /> 不含子 Iteration</label>
+        <div class="deploy-actions">
+          <button id="manual-deploy-btn" class="btn-ghost" title="手動佈版（選單：佈版 → 手動佈版…）">🛠 手動佈版</button>
+          <button id="deploy-progress-btn" class="btn-ghost" title="佈版進度（選單：佈版 → 佈版進度…）">🚀 佈版進度<span id="deploy-progress-count" class="pg-count" hidden></span></button>
+        </div>
       </div>
     </header>
 

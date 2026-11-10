@@ -26,6 +26,8 @@ module.exports = {
   ITERATIONS_FILE: path.join(DATA_DIR, 'iterations.json'),
   FLOW_STATE_FILE: path.join(DATA_DIR, 'requirement_flow_state.json'),
   TEST_RECORDS_DIR: path.join(DATA_DIR, 'test_records'),
+  // Local 佈版各環境的 env 檔（localDeploy.repos.<repo>.<test|prod>.envFile 的相對路徑基準）
+  LOCAL_DEPLOY_ENV_DIR: path.join(DATA_DIR, 'local_deploy_env'),
   // 本機設定（見 services/appConfig.js）
   CONFIG_FILE: path.join(DATA_DIR, 'config.json'),
   ENV_FILE: path.join(DATA_DIR, '.env'),

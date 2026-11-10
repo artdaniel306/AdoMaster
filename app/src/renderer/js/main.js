@@ -8,6 +8,9 @@ import { initRepoSettings } from './repo-settings-dialog.js';
 import { initEnvSettings } from './env-settings-dialog.js';
 import { initUpagentConnectionSettings } from './upagent-connection-settings-dialog.js';
 import { initUpagentReleaseDbSettings } from './upagent-release-db-dialog.js';
+import { createManualDeployDialog } from './manual-deploy-dialog.js';
+import { createDeployProgressDialog } from './deploy-progress-dialog.js';
+import { api } from './api.js';
 
 const exactEl = $('exact');
 const views = {
@@ -52,4 +55,12 @@ initRepoSettings({ onSaved: () => views.flow.view.repaint() });
 initEnvSettings();
 initUpagentConnectionSettings();
 initUpagentReleaseDbSettings();
+
+// 佈版（選單「佈版」與標題列按鈕）：手動佈版 + 佈版進度
+const progress = createDeployProgressDialog({ openManual: () => manualDeploy.open(), badgeEl: $('deploy-progress-count') });
+const manualDeploy = createManualDeployDialog({ onStarted: (job) => progress.started(job) });
+$('manual-deploy-btn').addEventListener('click', () => manualDeploy.open());
+$('deploy-progress-btn').addEventListener('click', () => progress.open());
+api.onDeployMenu((action) => (action === 'manual' ? manualDeploy.open() : progress.open()));
+
 tree.load();

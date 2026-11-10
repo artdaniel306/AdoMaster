@@ -547,3 +547,70 @@ td.stage-split { padding: 0; height: 1px; }
 .uc-code-row { display: flex; gap: 6px; }
 .uc-code { flex: 1; font: 14px Consolas, "Courier New", monospace; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--hover); color: var(--fg); }
 .upagent-conn { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px; font-size: 12px; }
+
+/* ---- 手動佈版 / 佈版進度（選單「佈版」、標題列按鈕）---- */
+.deploy-actions { display: flex; gap: 6px; }
+.pg-count {
+  display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px;
+  background: var(--cur-border); color: #fff; font-size: 11px; font-weight: 600; text-align: center; line-height: 18px;
+}
+.pg-count[hidden] { display: none; }
+#manual-deploy-dialog, #deploy-progress-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(760px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#manual-deploy-dialog::backdrop, #deploy-progress-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#manual-deploy-dialog .dlg-box, #deploy-progress-dialog .dlg-box { max-height: 90vh; }
+#manual-deploy-dialog .dlg-body, #deploy-progress-dialog .dlg-body { overflow: auto; }
+#manual-deploy-dialog [hidden], #deploy-progress-dialog [hidden] { display: none !important; }
+#manual-deploy-dialog .status:empty { display: none; }
+.md-grid { display: grid; grid-template-columns: 110px 1fr; gap: 8px 10px; align-items: center; margin-top: 10px; }
+.md-label { font-weight: 600; }
+.md-seg { display: flex; gap: 16px; flex-wrap: wrap; }
+.md-seg label { display: flex; gap: 4px; align-items: center; }
+.md-grid select, .md-grid input[type="text"] {
+  padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; min-width: 0;
+}
+.md-commit-row { display: flex; gap: 6px; }
+.md-commit-row input { flex: 1; font-family: Consolas, "Courier New", monospace; }
+#md-version { font-family: Consolas, "Courier New", monospace; }
+#md-commit-result { grid-column: auto; margin: 0; white-space: normal; }
+.md-rebuild { display: block; margin-top: 10px; font-size: 13px; }
+.md-steps { margin: 4px 0 0; padding-left: 22px; }
+.md-steps li { margin: 2px 0; }
+.md-warnings { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.md-warnings .cc-result { white-space: normal; }
+.btn-primary.btn-prod { background: var(--err); border-color: var(--err); }
+
+.pg-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.pg-flow-job { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; }
+.pg-flow-job.running { border-color: var(--cur-border); }
+.pg-flow-job.failed { border-color: var(--err); }
+.pg-flow-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.pg-flow-info .muted { margin: 0; }
+.pg-job { padding: 8px 10px; border: 1px solid var(--border); border-left-width: 4px; border-radius: 6px; }
+.pg-job.running { border-left-color: var(--cur-border); }
+.pg-job.succeeded { border-left-color: var(--ok); }
+.pg-job.failed { border-left-color: var(--err); }
+.pg-job.canceled { border-left-color: var(--muted); }
+.pg-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.pg-head .muted { margin: 0; }
+.pg-status { font-size: 12px; font-weight: 600; }
+.pg-status.running { color: var(--cur-border); }
+.pg-status.succeeded { color: var(--ok); }
+.pg-status.failed { color: var(--err); }
+.pg-status.canceled { color: var(--muted); }
+.pg-steps { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.pg-step { display: grid; grid-template-columns: 18px auto 1fr; gap: 6px; align-items: baseline; }
+.pg-step.pending, .pg-step.skipped { color: var(--muted); }
+.pg-step.running .pg-icon { color: var(--cur-border); }
+.pg-step.done .pg-icon { color: var(--ok); }
+.pg-step.failed { color: var(--err); }
+.pg-detail { color: var(--muted); font-size: 12px; word-break: break-word; }
+.pg-step.failed .pg-detail { color: var(--err); }
+.pg-run { display: flex; gap: 6px; align-items: baseline; margin-top: 4px; font-size: 12px; }
+.pg-run .muted { margin: 0; }
+.pg-job .status.error { margin: 6px 0 0; }
+.pg-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+.pg-log { margin-top: 6px; font-size: 12px; }
+.pg-log summary { cursor: pointer; color: var(--muted); }

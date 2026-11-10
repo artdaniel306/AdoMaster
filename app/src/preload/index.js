@@ -39,6 +39,21 @@ contextBridge.exposeInMainWorld('api', {
   /** Local 佈版的即時輸出：cb({ id, stage, line })；步驟：cb({ id, stage, repo, step }) */
   onLocalDeployLog: (cb) => ipcRenderer.on('localDeploy:log', (_e, data) => cb(data)),
   onLocalDeployStep: (cb) => ipcRenderer.on('localDeploy:step', (_e, data) => cb(data)),
+  /**
+   * 手動佈版：params = { repo, env: 'test' | 'prod', target: 'saas' | 'local', commit, rebuild,
+   *   release?: { mode: 'new', bump, branch, remark } | { mode: 'resume', version, startFrom, remark } }（release 只有 upagent）
+   */
+  manualDeployPreview: (params) => ipcRenderer.invoke('manualDeploy:preview', params),
+  manualDeployStart: (params) => ipcRenderer.invoke('manualDeploy:start', params),
+  manualDeployCancel: (id) => ipcRenderer.invoke('manualDeploy:cancel', { id }),
+  manualDeployRetry: (id, { rerunAction = false } = {}) => ipcRenderer.invoke('manualDeploy:retry', { id, rerunAction: !!rerunAction }),
+  manualDeployDismiss: (id) => ipcRenderer.invoke('manualDeploy:dismiss', { id }),
+  manualDeployList: () => ipcRenderer.invoke('manualDeploy:list'),
+  /** 手動佈版工作的快照：cb(job)（job.removed = 已從清單移除）；輸出：cb({ id, line }) */
+  onManualDeployUpdate: (cb) => ipcRenderer.on('manualDeploy:update', (_e, data) => cb(data)),
+  onManualDeployLog: (cb) => ipcRenderer.on('manualDeploy:log', (_e, data) => cb(data)),
+  /** 選單「佈版 → 手動佈版… / 佈版進度…」被點擊時呼叫 cb('manual' | 'progress') */
+  onDeployMenu: (cb) => ipcRenderer.on('menu:deploy', (_e, action) => cb(action)),
   /** UpAgent 連線：要刪除的設定檔與各目標是否有 Activation Code */
   upagentConnectionStatus: () => ipcRenderer.invoke('upagentConnection:status'),
   /** 切換 UpAgent 連線（刪掉 UpAgent 設定檔），回傳 { target, label, activationCode, files } */

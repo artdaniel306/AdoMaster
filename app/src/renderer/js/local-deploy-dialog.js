@@ -8,6 +8,7 @@ const LOG_MAX_LINES = 3000;
 const STEP_TEXT = {
   Docker: '確認 Docker',
   Source: '切到環境 branch',
+  Env: '套用環境 .env',
   PreBuild: '前置指令',
   Build: 'Build image tar',
   Push: 'docker load + push',
@@ -74,7 +75,7 @@ export function createLocalDeployDialog() {
     if (!j) return;
     titleEl.textContent = `Local 佈版 · ${j.stage.label} ${j.checkLabel}`;
     reqEl.textContent = `#${j.req.id} ${j.req.title}`;
-    planEl.textContent = `勾「${j.stage.label} ${j.checkLabel}」前，將勾選的 repository 佈版到${ENV_LABEL[j.env]}地端主機：\n部署用資料夾切到環境 branch → (前置指令) → build 成 image tar（data/local_deploy/）→ docker load + push → ssh 到主機換掉 container（會有短暫停機）。\n同一個 commit 已 build 過 tar 時直接推送，不重新 build。\n已手動佈版可取消全部勾選，直接勾起。${j.unconfigured.length ? `\n未設定 Local 佈版（不會佈版）：${j.unconfigured.join('、')}` : ''}`;
+    planEl.textContent = `勾「${j.stage.label} ${j.checkLabel}」前，將勾選的 repository 佈版到${ENV_LABEL[j.env]}地端主機：\n部署用資料夾切到環境 branch → (套用該環境的 .env) → (前置指令) → build 成 image tar（data/local_deploy/）→ docker load + push → ssh 到主機換掉 container（會有短暫停機）。\n同一個 commit 已 build 過 tar 時直接推送，不重新 build。\n已手動佈版可取消全部勾選，直接勾起。${j.unconfigured.length ? `\n未設定 Local 佈版（不會佈版）：${j.unconfigured.join('、')}` : ''}`;
     renderRepos(j);
     rebuildRow.hidden = j.phase !== 'confirm' || !j.selected.size;
 
@@ -210,7 +211,7 @@ export function createLocalDeployDialog() {
    */
   function open({ req, stage, checkLabel, status, onChange }) {
     if (job) throw new Error(`已有 Local 佈版進行中：#${job.req.id} ${job.stage.label}`);
-    if (status.running) throw new Error(`已有 Local 佈版進行中：#${status.running.id} ${status.running.repo}`);
+    if (status.running) throw new Error(`已有 Local 佈版進行中：${status.running.label || `#${status.running.id} ${status.running.repo}`}`);
     return new Promise((resolve) => {
       job = {
         req,
@@ -252,5 +253,23 @@ export function createLocalDeployDialog() {
     }
   }
 
-  return { open, statusOf, show };
+  /** 「佈版進度」dialog 用：目前的 Local 佈版（沒有時回傳 null） */
+  function summary() {
+    if (!job) return null;
+    const text =
+      job.phase === 'running'
+        ? `執行中：${job.repo}${job.step ? ` · ${STEP_TEXT[job.step] || job.step}` : '…'}`
+        : job.phase === 'done'
+          ? job.doneMessage
+          : job.error || '等待確認';
+    return {
+      title: `#${job.req.id} ${job.req.title}`,
+      kind: `${job.stage.label} ${job.checkLabel} · Local 佈版`,
+      text,
+      active: job.phase === 'running',
+      failed: job.phase === 'confirm' && !!job.error,
+    };
+  }
+
+  return { open, statusOf, show, summary };
 }
