@@ -635,7 +635,7 @@ td.stage-split { padding: 0; height: 1px; }
 /* 正式環境排程重啟：日期 + 時段（restart-picker.js）與排程清單（restart-schedule-dialog.js） */
 .rp[hidden], .rp-msgs:empty { display: none; }
 .rp-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.rp-row select, .rp-row input[type="date"], #rs-note {
+.rp-row select, .rp-row input[type="date"], #rsch-note {
   padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; min-width: 0;
 }
 .rp-row input[type="date"]:disabled { opacity: .5; }

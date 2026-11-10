@@ -497,34 +497,34 @@
     <div class="dlg-box">
       <header class="dlg-head">
         <h3>正式環境排程重啟</h3>
-        <button type="button" id="rs-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+        <button type="button" id="rsch-close" class="btn-icon" title="關閉 (Esc)">✕</button>
       </header>
       <div class="dlg-body">
-        <p id="rs-target" class="muted"></p>
+        <p id="rsch-target" class="muted"></p>
         <h4 class="dp-sec">新增排程</h4>
         <div class="md-grid">
           <span class="md-label">Repository</span>
-          <div id="rs-repos" class="md-seg"></div>
+          <div id="rsch-repos" class="md-seg"></div>
           <span class="md-label">時間</span>
-          <div id="rs-picker" class="rp"></div>
-          <label class="md-label" for="rs-note">說明</label>
-          <input id="rs-note" type="text" maxlength="200" />
+          <div id="rsch-picker" class="rp"></div>
+          <label class="md-label" for="rsch-note">說明</label>
+          <input id="rsch-note" type="text" maxlength="200" />
         </div>
-        <ul id="rs-result" class="rp-msgs"></ul>
+        <ul id="rsch-result" class="rp-msgs"></ul>
         <h4 class="dp-sec rs-list-head">
           已排程
-          <label class="check"><input id="rs-expired" type="checkbox" /> 含已執行</label>
+          <label class="check"><input id="rsch-expired" type="checkbox" /> 含已執行</label>
         </h4>
-        <div id="rs-list" class="rs-list"></div>
-        <p id="rs-status" class="status"></p>
-        <p id="rs-error" class="status error" hidden></p>
+        <div id="rsch-list" class="rs-list"></div>
+        <p id="rsch-status" class="status"></p>
+        <p id="rsch-error" class="status error" hidden></p>
       </div>
       <footer class="dlg-foot">
-        <button type="button" id="rs-refresh" class="btn-ghost">重新整理</button>
-        <button type="button" id="rs-settings" class="btn-ghost">設定…</button>
+        <button type="button" id="rsch-refresh" class="btn-ghost">重新整理</button>
+        <button type="button" id="rsch-settings" class="btn-ghost">設定…</button>
         <span class="spacer"></span>
-        <button type="button" id="rs-cancel" class="btn-ghost">關閉</button>
-        <button type="button" id="rs-create" class="btn-primary btn-prod">建立排程</button>
+        <button type="button" id="rsch-cancel" class="btn-ghost">關閉</button>
+        <button type="button" id="rsch-create" class="btn-primary btn-prod">建立排程</button>
       </footer>
     </div>
   </dialog>

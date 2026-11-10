@@ -15,18 +15,18 @@ const timeText = (iso) => (iso ? new Date(iso).toLocaleString('zh-TW', { hour12:
  */
 export function createRestartScheduleDialog({ openSettings } = {}) {
   const dialog = $('restart-schedule-dialog');
-  const targetEl = $('rs-target');
-  const reposEl = $('rs-repos');
-  const noteEl = $('rs-note');
-  const resultEl = $('rs-result');
-  const expiredEl = $('rs-expired');
-  const listEl = $('rs-list');
-  const statusEl = $('rs-status');
-  const errorEl = $('rs-error');
-  const createBtn = $('rs-create');
-  const refreshBtn = $('rs-refresh');
-  const settingsBtn = $('rs-settings');
-  const picker = createRestartPicker($('rs-picker'), { allowNone: false, showExisting: false });
+  const targetEl = $('rsch-target');
+  const reposEl = $('rsch-repos');
+  const noteEl = $('rsch-note');
+  const resultEl = $('rsch-result');
+  const expiredEl = $('rsch-expired');
+  const listEl = $('rsch-list');
+  const statusEl = $('rsch-status');
+  const errorEl = $('rsch-error');
+  const createBtn = $('rsch-create');
+  const refreshBtn = $('rsch-refresh');
+  const settingsBtn = $('rsch-settings');
+  const picker = createRestartPicker($('rsch-picker'), { allowNone: false, showExisting: false });
   const confirmDialog = createConfirmDialog();
 
   let options = null;
@@ -170,8 +170,8 @@ export function createRestartScheduleDialog({ openSettings } = {}) {
   const close = () => {
     if (!busy) dialog.close();
   };
-  $('rs-close').addEventListener('click', close);
-  $('rs-cancel').addEventListener('click', close);
+  $('rsch-close').addEventListener('click', close);
+  $('rsch-cancel').addEventListener('click', close);
   dialog.addEventListener('cancel', (e) => {
     e.preventDefault();
     close();
