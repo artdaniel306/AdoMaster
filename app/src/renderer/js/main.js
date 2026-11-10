@@ -11,6 +11,7 @@ import { initUpagentReleaseDbSettings } from './upagent-release-db-dialog.js';
 import { createManualDeployDialog } from './manual-deploy-dialog.js';
 import { createDeployProgressDialog } from './deploy-progress-dialog.js';
 import { createRestartScheduleDialog } from './restart-schedule-dialog.js';
+import { initProdRestartSettings } from './prod-restart-settings-dialog.js';
 import { api } from './api.js';
 
 const exactEl = $('exact');
@@ -56,13 +57,14 @@ initRepoSettings({ onSaved: () => views.flow.view.repaint() });
 initEnvSettings();
 initUpagentConnectionSettings();
 initUpagentReleaseDbSettings();
+const prodRestartSettings = initProdRestartSettings();
 
 // 佈版（選單「佈版」與標題列按鈕）：手動佈版 + 佈版進度
 const progress = createDeployProgressDialog({ openManual: () => manualDeploy.open(), badgeEl: $('deploy-progress-count') });
 const manualDeploy = createManualDeployDialog({ onStarted: (job) => progress.started(job) });
 $('manual-deploy-btn').addEventListener('click', () => manualDeploy.open());
 $('deploy-progress-btn').addEventListener('click', () => progress.open());
-const restartSchedule = createRestartScheduleDialog();
+const restartSchedule = createRestartScheduleDialog({ openSettings: (onSaved) => prodRestartSettings.open(onSaved) });
 api.onDeployMenu((action) => (action === 'manual' ? manualDeploy.open() : action === 'restart' ? restartSchedule.open() : progress.open()));
 
 tree.load();

@@ -313,6 +313,21 @@ td.stage-split { padding: 0; height: 1px; }
   padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); font: inherit;
 }
 
+/* ---- 正式環境排程重啟設定（選單「設定 → 正式環境排程重啟設定…」，config.json prodRestart；沿用 rs-* / es-* 樣式）---- */
+#prod-restart-settings-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(720px, 94vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#prod-restart-settings-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#prod-restart-settings-dialog .dlg-box { max-height: 90vh; }
+#prod-restart-settings-dialog .dlg-body { overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+#prs-file { margin: 0; word-break: break-all; }
+.prs-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.prs-param-row { display: grid; grid-template-columns: 1fr 1.6fr auto; gap: 6px; align-items: center; }
+.prs-repo-row { display: grid; grid-template-columns: 9em 1fr 1fr; gap: 6px; align-items: center; }
+.prs-repo-name { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prs-add { align-self: flex-start; margin-top: 6px; }
+
 /* ---- Confirm Commit（Test deploy / Prod deploy 佈版前）---- */
 #commit-dialog {
   padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);

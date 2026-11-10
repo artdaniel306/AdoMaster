@@ -62,6 +62,10 @@ contextBridge.exposeInMainWorld('api', {
   /** 建立重啟排程：repos 為 repo key 陣列，slot 為 RESTART_SLOTS 的 key；回傳 { items: [{ repo, ok, state, message }] } */
   createRestartSchedules: (repos, date, slot, note) => ipcRenderer.invoke('prodRestart:create', { repos, date, slot, note }),
   deleteRestartSchedule: (name) => ipcRenderer.invoke('prodRestart:delete', { name }),
+  /** 「正式環境排程重啟設定」dialog：config.json 的 prodRestart */
+  loadProdRestartSettings: () => ipcRenderer.invoke('prodRestart:loadSettings'),
+  /** settings { subscription, resourceGroup, … }；parameters [{ name, value }]；repos [{ key, appService, resourceGroup }] */
+  saveProdRestartSettings: (settings, parameters, repos) => ipcRenderer.invoke('prodRestart:saveSettings', { settings, parameters, repos }),
   /** 選單「佈版 → 手動佈版… / 佈版進度… / 正式環境排程重啟…」被點擊時呼叫 cb('manual' | 'progress' | 'restart') */
   onDeployMenu: (cb) => ipcRenderer.on('menu:deploy', (_e, action) => cb(action)),
   /** UpAgent 連線：要刪除的設定檔與各目標是否有 Activation Code */
@@ -106,4 +110,5 @@ contextBridge.exposeInMainWorld('api', {
   onUpagentConnectionSettingsMenu: (cb) => ipcRenderer.on('menu:upagentConnectionSettings', () => cb()),
   /** 選單「設定 → UpAgent 發佈資料庫設定…」被點擊時呼叫 cb() */
   onUpagentReleaseDbSettingsMenu: (cb) => ipcRenderer.on('menu:upagentReleaseDbSettings', () => cb()),
+  onProdRestartSettingsMenu: (cb) => ipcRenderer.on('menu:prodRestartSettings', () => cb()),
 });

@@ -138,6 +138,41 @@
     </form>
   </dialog>
 
+  <dialog id="prod-restart-settings-dialog">
+    <form id="prs-form" class="dlg-box" method="dialog">
+      <header class="dlg-head">
+        <h3>正式環境排程重啟設定</h3>
+        <button type="button" id="prs-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <p id="prs-file" class="muted"></p>
+        <section class="rs-repo">
+          <h4 class="es-title">Azure Automation</h4>
+          <div id="prs-automation" class="es-grid"></div>
+        </section>
+        <section class="rs-repo">
+          <h4 class="es-title">Runbook 參數</h4>
+          <div id="prs-params" class="prs-rows"></div>
+          <button type="button" id="prs-add-param" class="btn-ghost prs-add">＋ 新增參數</button>
+        </section>
+        <section class="rs-repo">
+          <h4 class="es-title">正式環境 App Service</h4>
+          <div id="prs-repos" class="prs-rows"></div>
+        </section>
+        <section class="rs-repo">
+          <h4 class="es-title">排程</h4>
+          <div id="prs-schedule" class="es-grid"></div>
+        </section>
+        <p id="prs-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" id="prs-cancel" class="btn-ghost">取消</button>
+        <button type="submit" id="prs-ok" class="btn-primary">儲存</button>
+      </footer>
+    </form>
+  </dialog>
+
   <dialog id="commit-dialog">
     <form id="cc-form" class="dlg-box" method="dialog">
       <header class="dlg-head">
@@ -486,6 +521,7 @@
       </div>
       <footer class="dlg-foot">
         <button type="button" id="rs-refresh" class="btn-ghost">重新整理</button>
+        <button type="button" id="rs-settings" class="btn-ghost">設定…</button>
         <span class="spacer"></span>
         <button type="button" id="rs-cancel" class="btn-ghost">關閉</button>
         <button type="button" id="rs-create" class="btn-primary btn-prod">建立排程</button>

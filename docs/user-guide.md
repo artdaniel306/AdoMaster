@@ -107,7 +107,7 @@ push 環境 branch 會觸發 ADO Pipeline 自動佈版（在 Repository 設定�
 
 ### 正式環境排程重啟
 
-正式環境的 App Service 只能透過 Azure Automation 排在固定時段重啟：**午休 12:30**、**下班 18:30**、**深夜 23:30**。設定方式見「設定 → 正式環境排程重啟設定」。需要先執行 `az login`，登入的帳號要有該 Automation Account 的權限。
+正式環境的 App Service 只能透過 Azure Automation 排在固定時段重啟：**午休 12:30**、**下班 18:30**、**深夜 23:30**。設定方式見「正式環境排程重啟設定」（選單「設定 → 正式環境排程重啟設定…」，或排程重啟視窗的「設定…」）。需要先執行 `az login`，登入的帳號要有該 Automation Account 的權限。
 
 - **Prod deploy 勾 SaaS**：佈版視窗的確認畫面有「正式環境排程重啟」，先選日期再選時段。預設是「不排程重啟」。這個區塊只會列出這次要 merge、而且有設定 Pipeline 的 repository，同時會列出這些 repository 在 Automation 中尚未執行的排程。
   - 排程不是馬上建立，要等 push 觸發的 Run **成功後**才建立。如果到那時選的時段已經過了，或距離現在不到 6 分鐘，就會建立失敗，佈版結果會顯示「佈版後動作失敗」。這時可以選「仍然勾起」，再從選單補排程。
@@ -207,18 +207,20 @@ push 環境 branch 會觸發 ADO Pipeline 自動佈版（在 Repository 設定�
 
 ### 正式環境排程重啟設定
 
-目前還沒有設定畫面，請直接編輯 `data/config.json` 的 `prodRestart`（範本在 `templates/config_example.json`）。需要事先在 Azure Automation 建好重啟 App Service 的 Runbook，並且已經發佈。
+選單「設定 → 正式環境排程重啟設定…」（或「正式環境排程重啟」視窗的「設定…」）編輯 `data/config.json` 的 `prodRestart`。需要事先在 Azure Automation 建好重啟 App Service 的 Runbook，並且已經發佈。標示 **\*** 的欄位必填。
 
-| 欄位 | 說明 |
+| 區塊 / 欄位 | 說明 |
 |---|---|
-| `subscription` | 選填，空白時使用 `az` 目前的訂閱 |
-| `resourceGroup` / `automationAccount` | Automation Account 所在的 Resource Group 與 Automation Account 名稱 |
-| `runbook` | 負責重啟的 Runbook 名稱 |
-| `runbookParameters` | 傳給 Runbook 的參數，值裡的 `{欄位}` 會換成 `repos.<repository>` 的同名欄位，`{repo}` 會換成 repository key。例如 `{ "AppServiceName": "{appService}" }` |
-| `runOn` | 選填，指定 Hybrid Worker Group |
-| `timeZone` / `utcOffset` | Schedule 的時區（預設 `Asia/Taipei`）與時段的 UTC 位移（預設 `+08:00`） |
-| `schedulePrefix` | Schedule 名稱的前綴（預設 `adomaster-restart`）。只會列出和刪除這個前綴開頭的排程 |
-| `repos` | `{ "<repository key>": { "appService": "...", "resourceGroup": "..." } }`。只有列在這裡的 repository 可以排程重啟 |
+| Automation Account / Resource Group | Automation Account 名稱與它所在的 Resource Group |
+| Runbook | 負責重啟的 Runbook 名稱 |
+| 訂閱 | 選填，空白時使用 `az` 目前的訂閱 |
+| Hybrid Worker Group | 選填，空白時在 Azure 雲端執行 Runbook |
+| Runbook 參數 | 傳給 Runbook 的參數名稱與值，名稱要和 Runbook 定義的參數一致。值裡的 `{appService}`、`{resourceGroup}` 會換成下方該 repository 的欄位，`{repo}` 會換成 repository key。例如 `AppServiceName` = `{appService}` |
+| 正式環境 App Service | 每個 repository 的正式環境 App Service 名稱與 Resource Group。App Service 空白 = 這個 repository 不能排程重啟。Runbook 參數用到的欄位（例如 `{resourceGroup}`）不能空白 |
+| 時區 / UTC 位移 | Schedule 的時區（預設 `Asia/Taipei`）與時段的 UTC 位移（預設 `+08:00`），空白 = 預設值 |
+| 排程名稱前綴 | Schedule 名稱的前綴（預設 `adomaster-restart`）。只會列出和刪除這個前綴開頭的排程，變更後舊前綴的排程要到 Azure Portal 管理 |
+
+設定畫面沒有的欄位（例如 `repos.<repository>` 裡自訂、給 Runbook 參數用的欄位）請直接編輯 `data/config.json`，儲存時會保留。
 
 ### UpAgent 連線設定
 

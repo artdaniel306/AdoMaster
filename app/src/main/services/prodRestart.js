@@ -1,5 +1,5 @@
 const { runPowerShellJson } = require('../powershell');
-const { readConfig, CONFIG_LABEL } = require('./appConfig');
+const { readConfig, updateConfig, CONFIG_LABEL } = require('./appConfig');
 const { RESTART_DATE_RE, restartSlot } = require('../../shared/flow-rules.js');
 
 /**
@@ -12,6 +12,7 @@ const { RESTART_DATE_RE, restartSlot } = require('../../shared/flow-rules.js');
  *
  * 呼叫點：佈版後動作（afterDeploy.js → After-ProdDeploy.ps1 -RestartDate -RestartTime）與
  * 選單「佈版 → 正式環境排程重啟…」（restart-schedule-dialog.js）。
+ * 設定畫面：選單「設定 → 正式環境排程重啟設定…」（prod-restart-settings-dialog.js → loadSettings / saveSettings）。
  */
 
 /** 查詢 / 建立 / 刪除要呼叫 Azure API（含 az 取 token），給足時間 */
@@ -93,4 +94,122 @@ async function deleteSchedule({ name } = {}) {
   return runPowerShellJson('Restart-Schedule.ps1', ['-Action', 'Delete', '-Name', name], { timeout: SCRIPT_TIMEOUT });
 }
 
-module.exports = { restartOptions, normalizeRestart, restartArgs, listSchedules, createSchedules, deleteSchedule };
+// ---- 設定畫面（選單「設定 → 正式環境排程重啟設定…」）----
+
+const SECTION = 'prodRestart';
+/** Restart-Schedule.ps1 的預設值（欄位空白 = 刪掉 key，讓腳本用預設值） */
+const DEFAULTS = { timeZone: 'Asia/Taipei', utcOffset: '+08:00', schedulePrefix: 'adomaster-restart' };
+/** 設定畫面可編輯的單值欄位；required = 必填 */
+const FIELDS = [
+  { key: 'subscription' },
+  { key: 'resourceGroup', required: true },
+  { key: 'automationAccount', required: true },
+  { key: 'runbook', required: true },
+  { key: 'runOn' },
+  { key: 'timeZone' },
+  { key: 'utcOffset', re: /^[+-]\d{2}:\d{2}$/, hint: '格式 +08:00' },
+  { key: 'schedulePrefix', re: /^[A-Za-z0-9][\w-]*$/, hint: '只能用英數字、- 與 _' },
+];
+const FIELD_LABEL = {
+  subscription: '訂閱', resourceGroup: 'Resource Group', automationAccount: 'Automation Account', runbook: 'Runbook',
+  runOn: 'Hybrid Worker Group', timeZone: '時區', utcOffset: 'UTC 位移', schedulePrefix: '排程名稱前綴',
+};
+/** 尚未設定時預先帶入的 Runbook 參數（同 templates/config_example.json） */
+const DEFAULT_PARAMETERS = [
+  { name: 'ResourceGroupName', value: '{resourceGroup}' },
+  { name: 'AppServiceName', value: '{appService}' },
+];
+const str = (v) => (typeof v === 'string' ? v.trim() : v == null ? '' : String(v).trim());
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * 讀取設定畫面的內容。repository 清單 = config.json repos（依順序）+ prodRestart.repos 中其他的 key。
+ * @returns {{ file, exists, defaults, settings, parameters: [{ name, value }], repos: [{ key, label, appService, resourceGroup }] }}
+ */
+async function loadSettings() {
+  const cfg = (await readConfig()) || {};
+  const section = isObj(cfg[SECTION]) ? cfg[SECTION] : null;
+  const s = section || {};
+  const settings = Object.fromEntries(FIELDS.map(({ key }) => [key, str(s[key])]));
+  const parameters = isObj(s.runbookParameters)
+    ? Object.entries(s.runbookParameters).map(([name, value]) => ({ name, value: str(value) }))
+    : section ? [] : DEFAULT_PARAMETERS.map((p) => ({ ...p }));
+  const restartRepos = isObj(s.repos) ? s.repos : {};
+  const known = (Array.isArray(cfg.repos) ? cfg.repos : []).filter((r) => r && typeof r.key === 'string' && r.key);
+  const keys = [...new Set([...known.map((r) => r.key), ...Object.keys(restartRepos)])];
+  const repos = keys.map((key) => {
+    const r = isObj(restartRepos[key]) ? restartRepos[key] : {};
+    const k = known.find((x) => x.key === key);
+    return { key, label: k?.label || key, appService: str(r.appService), resourceGroup: str(r.resourceGroup) };
+  });
+  return { file: CONFIG_LABEL, exists: !!section, defaults: DEFAULTS, settings, parameters, repos };
+}
+
+/**
+ * 儲存設定畫面的內容到 config.json 的 prodRestart（其他 section、本 section 未列出的欄位、各 repo 的其他欄位都保留）。
+ * 選填欄位空白 = 刪掉 key；App Service 空白 = 該 repository 不能排程重啟（從 repos 移除）。
+ * Runbook 參數值中的 {欄位} 必須在每個有設定的 repository 都有值（與 Restart-Schedule.ps1 的取代規則相同）。
+ */
+async function saveSettings({ settings, parameters, repos } = {}) {
+  const values = {};
+  for (const f of FIELDS) {
+    const v = str(settings?.[f.key]);
+    if (/[\r\n]/.test(v)) throw new Error(`${FIELD_LABEL[f.key]} 不能包含換行`);
+    if (!v && f.required) throw new Error(`請填入 ${FIELD_LABEL[f.key]}`);
+    if (v && f.re && !f.re.test(v)) throw new Error(`${FIELD_LABEL[f.key]} 格式錯誤（${f.hint}）`);
+    values[f.key] = v;
+  }
+
+  const params = {};
+  for (const p of Array.isArray(parameters) ? parameters : []) {
+    const name = str(p?.name);
+    const value = str(p?.value);
+    if (!name && !value) continue;
+    if (!/^[A-Za-z_]\w*$/.test(name)) throw new Error(`Runbook 參數名稱「${name}」格式錯誤（英數字與 _，不能以數字開頭）`);
+    if (Object.keys(params).some((k) => k.toLowerCase() === name.toLowerCase())) throw new Error(`Runbook 參數「${name}」重複`);
+    if (!value) throw new Error(`請填入 Runbook 參數「${name}」的值`);
+    if (/[\r\n]/.test(value)) throw new Error(`Runbook 參數「${name}」不能包含換行`);
+    params[name] = value;
+  }
+  if (!Object.keys(params).length) throw new Error('請至少設定一個 Runbook 參數');
+  const fields = [...new Set(Object.values(params).flatMap((v) => [...v.matchAll(/\{(\w+)\}/g)].map((m) => m[1])))].filter((f) => f !== 'repo');
+
+  const input = new Map();
+  for (const r of Array.isArray(repos) ? repos : []) {
+    const key = str(r?.key);
+    if (!key) continue;
+    const appService = str(r.appService);
+    const resourceGroup = str(r.resourceGroup);
+    if (/[\r\n]/.test(appService + resourceGroup)) throw new Error(`${key} 的設定不能包含換行`);
+    input.set(key, { appService, resourceGroup });
+  }
+
+  await updateConfig((cfg) => {
+    const prev = isObj(cfg[SECTION]) ? cfg[SECTION] : {};
+    const prevRepos = isObj(prev.repos) ? prev.repos : {};
+    const next = { ...prev };
+    for (const f of FIELDS) {
+      if (values[f.key]) next[f.key] = values[f.key];
+      else delete next[f.key];
+    }
+    next.runbookParameters = params;
+    const nextRepos = {};
+    // 畫面沒有列出的 repo（理論上不會有）原樣保留
+    for (const [key, r] of Object.entries(prevRepos)) if (!input.has(key)) nextRepos[key] = r;
+    for (const [key, { appService, resourceGroup }] of input) {
+      if (!appService) continue;
+      const r = { ...(isObj(prevRepos[key]) ? prevRepos[key] : {}), appService };
+      if (resourceGroup) r.resourceGroup = resourceGroup;
+      else delete r.resourceGroup;
+      for (const field of fields) {
+        if (!str(r[field])) throw new Error(`${key} 缺少 ${field}（Runbook 參數用到 {${field}}）`);
+      }
+      nextRepos[key] = r;
+    }
+    next.repos = nextRepos;
+    cfg[SECTION] = next;
+  });
+  return loadSettings();
+}
+
+module.exports = { loadSettings, saveSettings, restartOptions, normalizeRestart, restartArgs, listSchedules, createSchedules, deleteSchedule };

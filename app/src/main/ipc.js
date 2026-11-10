@@ -62,6 +62,8 @@ function registerIpcHandlers() {
   ipcMain.handle('prodRestart:options', () => prodRestart.restartOptions());
   ipcMain.handle('prodRestart:list', () => prodRestart.listSchedules());
   ipcMain.handle('prodRestart:create', (_e, params) => prodRestart.createSchedules(params));
+  ipcMain.handle('prodRestart:loadSettings', () => prodRestart.loadSettings());
+  ipcMain.handle('prodRestart:saveSettings', (_e, params) => prodRestart.saveSettings(params));
   ipcMain.handle('prodRestart:delete', (_e, { name } = {}) => prodRestart.deleteSchedule({ name }));
   ipcMain.handle('upagentConnection:status', () => upagentConnection.connectionStatus());
   ipcMain.handle('upagentConnection:switch', (_e, { target } = {}) => upagentConnection.switchConnection({ target }));

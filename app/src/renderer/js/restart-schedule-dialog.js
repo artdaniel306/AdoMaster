@@ -10,9 +10,10 @@ const timeText = (iso) => (iso ? new Date(iso).toLocaleString('zh-TW', { hour12:
 /**
  * 「佈版 → 正式環境排程重啟…」：查看 Azure Automation 中的重啟排程（prodRestart:list），
  * 為選擇的 repository 新增排程（prodRestart:create，同一時間已排程的不會重複建立），或刪除排程（prodRestart:delete）。
- * 設定在 data/config.json 的 prodRestart（main/services/prodRestart.js）。
+ * 設定在 data/config.json 的 prodRestart（main/services/prodRestart.js）；「設定…」開啟設定 dialog，儲存後重新讀取。
+ * @param openSettings (onSaved) => void，開啟「正式環境排程重啟設定」dialog
  */
-export function createRestartScheduleDialog() {
+export function createRestartScheduleDialog({ openSettings } = {}) {
   const dialog = $('restart-schedule-dialog');
   const targetEl = $('rs-target');
   const reposEl = $('rs-repos');
@@ -24,6 +25,7 @@ export function createRestartScheduleDialog() {
   const errorEl = $('rs-error');
   const createBtn = $('rs-create');
   const refreshBtn = $('rs-refresh');
+  const settingsBtn = $('rs-settings');
   const picker = createRestartPicker($('rs-picker'), { allowNone: false, showExisting: false });
   const confirmDialog = createConfirmDialog();
 
@@ -42,6 +44,7 @@ export function createRestartScheduleDialog() {
     statusEl.textContent = text;
     createBtn.disabled = b || !options?.configured;
     refreshBtn.disabled = b || !options?.configured;
+    settingsBtn.disabled = b;
   }
 
   const checkedRepos = () => [...reposEl.querySelectorAll('input:checked')].map((x) => x.value);
@@ -160,6 +163,9 @@ export function createRestartScheduleDialog() {
 
   createBtn.addEventListener('click', create);
   refreshBtn.addEventListener('click', refresh);
+  settingsBtn.addEventListener('click', () => {
+    if (!busy) openSettings?.(load);
+  });
   expiredEl.addEventListener('change', renderList);
   const close = () => {
     if (!busy) dialog.close();
@@ -171,13 +177,13 @@ export function createRestartScheduleDialog() {
     close();
   });
 
-  async function open() {
+  /** 讀取設定與排程清單（開啟時、設定儲存後） */
+  async function load() {
     showError('');
     resultEl.replaceChildren();
     listEl.replaceChildren();
     targetEl.textContent = '';
     items = [];
-    dialog.showModal();
     try {
       await loadRepos(); // repository 標籤的顏色
     } catch {
@@ -197,6 +203,12 @@ export function createRestartScheduleDialog() {
     }
     targetEl.textContent = `Automation：${options.automationAccount}　Runbook：${options.runbook}`;
     await refresh();
+  }
+
+  async function open() {
+    if (dialog.open) return;
+    dialog.showModal();
+    await load();
   }
 
   return { open };
