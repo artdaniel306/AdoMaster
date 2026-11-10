@@ -1,5 +1,7 @@
 const { execFile } = require('node:child_process');
 const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
 const Anser = require('anser');
 const { loadRepoConfig, fieldHint } = require('./repoConfig');
 const { COMMIT_RE, COMMIT_FORMAT_HINT } = require('../../shared/flow-rules.js');
@@ -12,7 +14,7 @@ const { COMMIT_RE, COMMIT_FORMAT_HINT } = require('../../shared/flow-rules.js');
 
 const FETCH_TIMEOUT = 60_000;
 
-function git(cwd, args, timeout = 15_000) {
+function git(cwd, args, timeout = 15_000, extraEnv = null) {
   return new Promise((resolve, reject) => {
     execFile(
       'git',
@@ -22,7 +24,7 @@ function git(cwd, args, timeout = 15_000) {
         timeout,
         windowsHide: true,
         maxBuffer: 4 * 1024 * 1024,
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' }, // fetch 需要帳密時直接失敗，不要卡住
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...extraEnv }, // fetch 需要帳密時直接失敗，不要卡住
       },
       (err, stdout, stderr) => {
         if (err) {
@@ -128,17 +130,19 @@ async function isAncestor(cwd, a, b) {
 
 /**
  * 不 checkout 試算 merge：`git merge-tree --write-tree`（git 2.38+）。
- * @returns {{ tree: string|null, conflicts: string[] }} 有衝突時 tree 為 null
+ * @param keepConflictTree 有衝突時仍回傳 tree（含衝突標記；呼叫端要自己把衝突的路徑換掉）
+ * @returns {{ tree: string|null, conflicts: string[] }} 有衝突時 tree 為 null（keepConflictTree 除外）
  */
-async function trialMerge(cwd, base, commit) {
+async function trialMerge(cwd, base, commit, { keepConflictTree = false } = {}) {
   try {
     const out = await git(cwd, ['merge-tree', '--write-tree', '--name-only', '--no-messages', base, commit]);
     return { tree: out.split(/\r?\n/)[0].trim(), conflicts: [] };
   } catch (err) {
     if (err.code === 1) {
       // exit 1 = 有衝突：第一行是 tree，之後是衝突的檔案
-      const conflicts = [...new Set(String(err.stdout || '').split(/\r?\n/).slice(1).filter(Boolean))];
-      return { tree: null, conflicts };
+      const lines = String(err.stdout || '').split(/\r?\n/);
+      const conflicts = [...new Set(lines.slice(1).filter(Boolean))];
+      return { tree: keepConflictTree ? lines[0].trim() || null : null, conflicts };
     }
     throw new Error(`git merge-tree 失敗（需要 git 2.38 以上）：${(err.stderr || err.message).trim()}`);
   }
@@ -394,10 +398,46 @@ async function commitAndPush(r, { tree, base, source, target, message }) {
   return mergeCommit;
 }
 
+/** path 是否等於 keep 中的某個路徑或在它底下 */
+const underAny = (p, keep) => keep.some((k) => p === k || p.startsWith(`${k}/`));
+
+/**
+ * 把 tree 中 keep 的路徑換回 base（feature branch merge 前）的內容，回傳新的 tree：
+ * 等同 merge 後 `git checkout <base> -- <path>`（base 沒有的路徑則刪掉）。
+ * 用暫存的 index 檔（GIT_INDEX_FILE）操作，不動本機 clone 的 index / working tree。
+ */
+async function restorePaths(cwd, tree, base, keep) {
+  const indexFile = path.join(os.tmpdir(), `adomaster-index-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const env = { GIT_INDEX_FILE: indexFile };
+  const run = (args) => git(cwd, args, 15_000, env);
+  try {
+    await run(['read-tree', tree]);
+    for (const p of keep) {
+      await run(['rm', '-r', '-f', '-q', '--cached', '--ignore-unmatch', '--', `:(literal)${p}`]);
+      const type = await git(cwd, ['cat-file', '-t', `${base}:${p}`]).then((s) => s.trim(), () => '');
+      if (type === 'tree') {
+        await run(['read-tree', `--prefix=${p}/`, `${base}:${p}`]);
+      } else if (type === 'blob') {
+        const [meta] = (await git(cwd, ['ls-tree', base, '--', `:(literal)${p}`])).split('\t');
+        const [mode, , sha] = meta.trim().split(/\s+/);
+        await run(['update-index', '--add', '--cacheinfo', `${mode},${sha},${p}`]);
+      }
+    }
+    return (await run(['write-tree'])).trim();
+  } catch (err) {
+    throw new Error(`還原 ${keep.join(', ')} 失敗：${(err.stderr || err.message).trim()}`);
+  } finally {
+    await Promise.all([fs.rm(indexFile, { force: true }), fs.rm(`${indexFile}.lock`, { force: true })]);
+  }
+}
+
 /**
  * 正式環境 merge 完之後：把 origin/<fromBranch>（prodBranch）反向 merge 回該 repository 設定的所有 feature branch
  * （data/config.json repos 的 `branches`；環境 branch 本身除外），讓 feature branch 都以 production 為基礎。
  * 跟 mergeNoFf 一樣一律建立 merge commit（即使可以 fast-forward）、不動本機 working tree、不 --force push。
+ * repos 的 `backMergeKeepPaths`（{ "<feature branch>": ["<路徑>", ...] }，例：peach_101 的 tenant_db/migrations）：
+ *   merge 後把這些路徑還原成該 feature branch 原本的內容（production 對它們的改動不帶進來）；
+ *   只在這些路徑內的衝突也一併以 feature branch 的版本解決。
  * 個別 branch 失敗不影響其他 branch，也不丟錯（正式環境已經 push 了），結果逐一回報：
  *   state：'merged' 已建立 merge commit 並 push | 'upToDate' 已包含 | 'missing' remote 沒有此 branch
  *          | 'conflict' 有衝突（請手動處理）| 'failed' 其他錯誤
@@ -437,13 +477,18 @@ async function mergeBackToFeatures({ repo, fromBranch, reqId } = {}) {
       } else if (await isAncestor(r.path, source, base)) {
         Object.assign(item, { state: 'upToDate', message: `✓ ${branch} 已包含 ${fromBranch}` });
       } else {
-        const { tree, conflicts } = await trialMerge(r.path, base, source);
-        if (!tree) {
-          Object.assign(item, { state: 'conflict', message: `merge 會有衝突，請手動處理：${conflicts.join(', ')}` });
+        const keep = r.backMergeKeepPaths[branch] || [];
+        let { tree, conflicts } = await trialMerge(r.path, base, source, { keepConflictTree: keep.length > 0 });
+        const realConflicts = conflicts.filter((p) => !underAny(p, keep));
+        if (realConflicts.length) {
+          Object.assign(item, { state: 'conflict', message: `merge 會有衝突，請手動處理：${realConflicts.join(', ')}` });
         } else {
-          const message = `Merge ${fromBranch} (${source.slice(0, 10)}) into ${branch}${reqId ? `\n\nRequirement #${reqId}` : ''}`;
+          if (keep.length) tree = await restorePaths(r.path, tree, base, keep);
+          const kept = keep.length ? `\n\nKeep ${branch} version of: ${keep.join(', ')}` : '';
+          const message = `Merge ${fromBranch} (${source.slice(0, 10)}) into ${branch}${kept}${reqId ? `\n\nRequirement #${reqId}` : ''}`;
           item.mergeCommit = await commitAndPush(r, { tree, base, source, target: branch, message });
-          Object.assign(item, { state: 'merged', message: `✓ 已建立 merge commit ${item.mergeCommit.slice(0, 10)} 並 push` });
+          const note = keep.length ? `（${keep.join(', ')} 保留 ${branch} 原本的內容）` : '';
+          Object.assign(item, { state: 'merged', message: `✓ 已建立 merge commit ${item.mergeCommit.slice(0, 10)} 並 push${note}` });
         }
       }
     } catch (err) {

@@ -99,6 +99,7 @@ commit 一律經由規劃的 **feature branch** 進入環境 branch，不會把�
 - 會一起帶進環境 branch、但不在確認的 commit 中的 commit（feature branch 上其他人的變更），會在訊息中以 ⚠ 提示，滑鼠移到訊息上可看清單。
 - merge 會發生**衝突**時無法繼續，請先手動處理後再勾選。
 - **正式環境**：merge 進正式環境 branch 後，會把它**反向 merge 回所有 feature branch**（同樣一律建立 merge commit），讓 feature branch 保持以正式版為基礎。反向 merge 失敗或衝突時不影響已完成的佈版，結果會列在對話框中，請手動處理。
+  - 特定 feature branch 的某些資料夾不能跟著正式版改（例：peach_101 的 `tenant_db/migrations`）時，在 `data/config.json` 該 repository 加上 `"backMergeKeepPaths": { "peach_101": ["tenant_db/migrations"] }`：反向 merge 後這些路徑會還原成該 branch 原本的內容（只在這些路徑內的衝突也會以 branch 的版本解決）。
 
 ### SaaS 佈版（Pipeline）
 

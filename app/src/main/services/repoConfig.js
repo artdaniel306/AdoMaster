@@ -20,6 +20,8 @@ const { CONFIG_LABEL, readConfig, updateConfig } = require('./appConfig');
  *   - testPipeline / prodPipeline：環境 branch push 後自動佈版的 Pipeline 名稱（可寫「資料夾\名稱」；空白 = 沒有自動佈版）
  *   - testAppService / testResourceGroup：測試環境 Pipeline Run 成功後要重啟的 App Service（afterDeploy.js；
  *     空白 = 不重啟；Resource Group 空白時自動查詢）。正式環境刻意沒有對應欄位（不自動重啟）
+ *   - backMergeKeepPaths（選填，設定 dialog 不編輯）：{ "peach_101": ["tenant_db/migrations"] }
+ *     正式環境反向 merge 回 feature branch 時，這些路徑保留該 branch 原本的內容（見 gitCommit.mergeBackToFeatures）
  */
 const FILE_LABEL = `${CONFIG_LABEL} 的 repos`;
 const KEY_RE = /^[A-Za-z0-9_.-]+$/;
@@ -72,8 +74,23 @@ function normalizeRepos(repos) {
       appServices: Object.fromEntries(
         Object.entries(APP_SERVICE_FIELDS).map(([stage, f]) => [stage, { name: str(r[f.name]), resourceGroup: str(r[f.resourceGroup]) }])
       ),
+      backMergeKeepPaths: keepPaths(r.backMergeKeepPaths),
     };
   });
+}
+
+/**
+ * backMergeKeepPaths：{ "<feature branch>": ["<路徑>", ...] } → 反向 merge 時保留該 branch 原本內容的路徑。
+ * 路徑一律相對 repository 根目錄、改成 `/` 分隔、去掉前後的 `/`（接受 `tenant_db\migrations`）。
+ */
+function keepPaths(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+  const out = {};
+  for (const [branch, paths] of Object.entries(v)) {
+    const cleaned = list(paths).map((p) => p.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')).filter((p) => p && p !== '.' && !p.split('/').includes('..'));
+    if (str(branch) && cleaned.length) out[str(branch)] = cleaned;
+  }
+  return out;
 }
 
 /** 設定 dialog 編輯的欄位（其餘欄位原樣保留） */

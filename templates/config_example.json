@@ -11,7 +11,8 @@
       "testPipeline": "",
       "prodPipeline": "",
       "testAppService": "crmapptest-service",
-      "testResourceGroup": "UpDay_Prod_RG"
+      "testResourceGroup": "UpDay_Prod_RG",
+      "backMergeKeepPaths": { "feature/yyy": ["tenant_db/migrations"] }
     },
     {
       "key": "crmappui",
