@@ -2,6 +2,7 @@ import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
 import { repoTag } from './repos.js';
 import { backMergeRows, backMergeProblems, hasBackMerges } from './back-merge.js';
+import { mergeItemRow, willMerge } from './merge-dialog.js';
 import { createRestartPicker, restartText } from './restart-picker.js';
 import { restartSlot } from '../../shared/flow-rules.js';
 
@@ -68,11 +69,11 @@ export function createDeployDialog() {
 
   const pipelineOf = (j, repo) => j.pipelines.find((p) => p.repo === repo);
   const activeRuns = (j) => j.pipelines.flatMap((p) => p.runs.filter((r) => r.active).map((run) => ({ repo: p.repo, run })));
-  const needsMerge = (j) => j.mergeStatus.items.some((x) => !x.merged);
+  const needsMerge = (j) => j.mergeStatus.items.some(willMerge);
   const blocked = (j) => j.mergeStatus.items.some((x) => !x.merged && !x.canMerge);
   /** 正式環境：這次會 merge 且有 Pipeline 的 repository（Run 成功後才會執行佈版後動作 / 排程重啟） */
   const restartRepos = (j) =>
-    j.stage.key === 'prodDeploy' ? j.mergeStatus.items.filter((x) => !x.merged && pipelineOf(j, x.repo)).map((x) => x.repo) : [];
+    j.stage.key === 'prodDeploy' ? j.mergeStatus.items.filter((x) => willMerge(x) && pipelineOf(j, x.repo)).map((x) => x.repo) : [];
 
   function renderRestart(j) {
     const show = j.restartRepos.length > 0;
@@ -105,16 +106,7 @@ export function createDeployDialog() {
 
   function renderMerge(j) {
     mergeHead.hidden = !j.mergeStatus.items.length;
-    mergeEl.replaceChildren(
-      ...j.mergeStatus.items.map((x) => {
-        const row = el('div', 'mg-item');
-        const name = el('div', 'cc-name');
-        name.append(repoTag(x.repo), el('code', 'repo-commit', `${x.commit} → ${x.envBranch}`));
-        const cls = x.merged ? 'ok' : x.canMerge ? 'warn' : 'bad';
-        row.append(name, el('div', `cc-result ${cls}`, x.message));
-        return row;
-      })
-    );
+    mergeEl.replaceChildren(...j.mergeStatus.items.map(mergeItemRow));
     // Prod deploy：prodBranch 反向 merge 回 feature branch 的結果
     const { backMerges } = j.mergeStatus;
     if (hasBackMerges(backMerges)) {

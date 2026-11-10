@@ -89,7 +89,14 @@ AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也�
 
 勾選 SaaS / Local 前會先檢查：確認的 commit 是否都已進入該 repository 的環境 branch（測試環境 branch / 正式環境 branch）。
 
-- 尚未 merge 時會詢問「要現在 merge 嗎」。確定後會在環境 branch **建立 merge commit**（即使可以 fast-forward 也一樣）並 push，**不會動到本機的 working tree**，也不會 `--force` push。
+commit 一律經由規劃的 **feature branch** 進入環境 branch，不會把開發 branch 直接 merge 進環境 branch：
+
+1. commit 已在 feature branch 中 → 略過；不在 → 先在 feature branch **建立 merge commit** 並 push。
+2. 再把 feature branch 上包含這個 commit 的 commit merge 進環境 branch。commit 已在 feature branch 中時，用它進入 feature branch 的那個 commit，不會帶進之後才加入 feature branch 的 commit。
+3. upagent 例外：merge 的是**版本 tag**（`v<版號>`，含版號 commit），見下方「UpAgent 發佈」。
+
+- 尚未 merge 時會詢問「要現在 merge 嗎」，每列顯示 merge 的路徑（`commit → feature branch → 環境 branch`）。確定後一律**建立 merge commit**（即使可以 fast-forward 也一樣）並 push，**不會動到本機的 working tree**，也不會 `--force` push。
+- 會一起帶進環境 branch、但不在確認的 commit 中的 commit（feature branch 上其他人的變更），會在訊息中以 ⚠ 提示，滑鼠移到訊息上可看清單。
 - merge 會發生**衝突**時無法繼續，請先手動處理後再勾選。
 - **正式環境**：merge 進正式環境 branch 後，會把它**反向 merge 回所有 feature branch**（同樣一律建立 merge commit），讓 feature branch 保持以正式版為基礎。反向 merge 失敗或衝突時不影響已完成的佈版，結果會列在對話框中，請手動處理。
 
@@ -159,6 +166,8 @@ push 環境 branch 會觸發 ADO Pipeline 自動佈版（在 Repository 設定�
 規劃中包含 `upagent` 時，勾選佈版階段的 SaaS / Local 會先進行 UpAgent 發佈：版號遞增 → 等待 GitHub Action → 下載 → 簽署 → 更新 latest.yml → 發佈到 Azure Blob → 寫入資料庫。
 
 - **版號遞增**：patch（x.y.Z）或 minor（x.Y.0）。資料庫備註（remark）可留空。
+- **branch 順序**：Confirm Commit 不在 upagent 的 feature branch 時，會先 merge 進 feature branch（建立 merge commit）→ 在 feature branch 上 `npm version` 並 push tag → 發佈完成後把版本 tag merge 進環境 branch（正式環境再反向 merge 回 feature branch）。所以還沒更版時，「佈版前的 merge」不會先 merge upagent。
+- 已發佈但 merge 進環境 branch 失敗（例如衝突）時，發佈進度仍會保留；手動處理後再勾選，會在佈版前的 merge 補上。
 - **簽署需要 HSM**：請先插上 HSM USB，簽署時會跳出 PIN 輸入視窗。
 - 失敗時再勾選會從下一個步驟接續；GitHub Action 失敗時可以按「**重跑 GitHub Action**」，透過 GitHub API 重跑整個 workflow run 後接續等待結果（Token 需要 Actions 寫入權限）。
 - 同一個 upagent feature branch 上的多個 Requirement 會**共用版號**：Confirm Commit 已包含在某個已發佈的版本中時，會沿用該版本（顯示「沿用 #id」），只補寫尚未寫入的資料庫。

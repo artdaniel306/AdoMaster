@@ -1,9 +1,9 @@
 const { CONFIG_FILE, ENV_FILE } = require('../paths');
 const { readConfig } = require('./appConfig');
 const { runPowerShellJson } = require('../powershell');
-const { loadRepoConfig, fieldHint } = require('./repoConfig');
+const { loadRepoConfig, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
 const { loadFlowState, updateRequirementState, updateFlowState } = require('./flowState');
-const { git } = require('./gitCommit');
+const { git, mergeNoFf, mergeViaFeature, mergeBackToFeatures } = require('./gitCommit');
 const {
   COMMIT_STAGES,
   PLAN_REPOS_KEY,
@@ -112,6 +112,17 @@ async function adoptPublishedRelease(id, stage) {
   });
 }
 
+/**
+ * 佈版 merge 用（requirementFlow.deployMergeStatus）：這張 Requirement 在此階段要 merge 進環境 branch 的 UpAgent 版號——
+ * 自己的發佈紀錄的版號，或 Confirm Commit 已包含在其中的已發佈版本（只查詢，不寫入沿用紀錄）；都沒有（尚未更版）時回傳 ''。
+ */
+async function releaseVersionFor(id, stage) {
+  const state = await loadFlowState();
+  const own = releaseOf(state[id] || {}).version;
+  if (own) return own;
+  return (await findCoveringRelease(state, id, stage))?.version || '';
+}
+
 /** 某個資料庫寫入完成：記到這張 Requirement 及所有同版本的紀錄 */
 function markDbWritten(id, db, at) {
   return updateFlowState((state) => {
@@ -175,13 +186,13 @@ async function runRelease(send, { id, stage, target, bump, remark, rerunAction =
   if (!repo?.path) throw new Error(`尚未設定 upagent 的本機路徑，請在 ${fieldHint(UPAGENT_REPO, 'path')} 設定`);
 
   const args = ['-Environment', plan.env, '-Target', plan.target, '-UpagentDir', repo.path, '-StartFrom', plan.startFrom, '-ConfigPath', CONFIG_FILE, '-EnvPath', ENV_FILE];
+  const featureBranch = checks[PLAN_REPOS_KEY]?.[UPAGENT_REPO];
+  const confirmCommit = checks[commitsKey(stage)]?.[UPAGENT_REPO];
   if (plan.startFrom === 'Bump') {
-    // 從規劃選的 upagent feature branch 建版；有 Confirm Commit 時，腳本會確認它已在 feature branch 中
-    const branch = checks[PLAN_REPOS_KEY]?.[UPAGENT_REPO];
-    if (!branch) throw new Error('規劃未選擇 upagent 的 feature branch');
-    args.push('-Bump', bump, '-Branch', branch);
-    const commit = checks[commitsKey(stage)]?.[UPAGENT_REPO];
-    if (commit) args.push('-ExpectedCommit', commit);
+    // 從規劃選的 upagent feature branch 建版；Confirm Commit 會先 merge 進 feature branch（before），腳本再確認它已在其中
+    if (!featureBranch) throw new Error('規劃未選擇 upagent 的 feature branch');
+    args.push('-Bump', bump, '-Branch', featureBranch);
+    if (confirmCommit) args.push('-ExpectedCommit', confirmCommit);
   } else {
     args.push('-Version', plan.version);
   }
@@ -192,6 +203,7 @@ async function runRelease(send, { id, stage, target, bump, remark, rerunAction =
   }
 
   const log = (line) => send('upagentRelease:log', { id, stage, line });
+  let version = plan.version || '';
   // 依腳本輸出的標記即時存進度：app 中途關閉 / 腳本失敗時，下次仍能從正確的步驟接續
   let saving = Promise.resolve();
   const queue = (fn) => {
@@ -200,6 +212,7 @@ async function runRelease(send, { id, stage, target, bump, remark, rerunAction =
   const save = (mutate) => queue(() => updateRelease(id, mutate));
   function onMarker(kind, value) {
     if (kind === 'version' && /^\d+\.\d+\.\d+$/.test(value)) {
+      version = value;
       save((rel) => {
         if (rel.version !== value) {
           // 新版本：清掉舊版本的進度
@@ -228,8 +241,49 @@ async function runRelease(send, { id, stage, target, bump, remark, rerunAction =
     onStep: (step) => send('upagentRelease:step', { id, stage, step }),
     onMarker,
     settle: () => saving,
+    // 開發 branch → feature branch：Bump 要在包含 Confirm Commit 的 feature branch 上更版
+    before: plan.startFrom === 'Bump' && confirmCommit ? () => mergeIntoFeature({ commit: confirmCommit, featureBranch, reqId: id, log }) : null,
+    // feature branch → 環境 branch：發佈完成後把版本 tag 的 commit merge 進環境 branch（已在其中則略過）
+    after: confirmCommit && featureBranch ? () => version && mergeReleaseIntoEnv({ stage, version, commit: confirmCommit, featureBranch, reqId: id, log }) : null,
   });
   return (await loadFlowState())[id] || {};
+}
+
+/** Bump 前：Confirm Commit 不在 feature branch 時，以 merge commit（--no-ff）merge 進去並 push（已在其中則略過） */
+async function mergeIntoFeature({ commit, featureBranch, reqId, log }) {
+  log(`▶ 確認 Confirm Commit ${commit.slice(0, 10)} 已在 ${featureBranch}…`);
+  const r = await mergeNoFf({
+    repo: UPAGENT_REPO,
+    commit,
+    envBranch: featureBranch,
+    message: `Merge ${commit.slice(0, 10)} into ${featureBranch}${reqId ? `\n\nRequirement #${reqId}` : ''}`,
+  });
+  log(r.mergeCommit ? `已建立 merge commit ${r.mergeCommit.slice(0, 10)} 並 push 到 ${featureBranch}` : `✓ ${commit.slice(0, 10)} 已在 ${featureBranch}`);
+}
+
+/**
+ * 發佈後：把版本 tag（v<version>）merge 進此階段 upagent 的環境 branch；正式環境 merge 後再反向 merge 回所有 feature branch。
+ * 失敗時丟錯（發佈進度已存；下次勾選時佈版 merge 會再處理）。
+ */
+async function mergeReleaseIntoEnv({ stage, version, commit, featureBranch, reqId, log }) {
+  const repo = (await loadRepoConfig()).repos.find((r) => r.key === UPAGENT_REPO);
+  const envBranch = repo?.deployBranches?.[stage];
+  if (!envBranch) throw new Error(`已發佈 ${version}，但尚未設定 upagent 的環境 branch（${fieldHint(UPAGENT_REPO, DEPLOY_BRANCH_FIELDS[stage])}），無法 merge`);
+  const tag = `v${version}`;
+  let r;
+  try {
+    r = await mergeViaFeature({ repo: UPAGENT_REPO, commit, featureBranch, envBranch, source: tag, reqId });
+  } catch (err) {
+    throw new Error(`已發佈 ${version}，但 ${tag} merge 進 ${envBranch} 失敗：${err.message}`);
+  }
+  if (!r.mergeCommit) return log(`✓ ${tag} 已在 ${envBranch}`);
+  log(`已把 ${tag} merge 進 ${envBranch}（merge commit ${r.mergeCommit.slice(0, 10)}）並 push`);
+  if (stage !== 'prodDeploy') return;
+  try {
+    for (const x of (await mergeBackToFeatures({ repo: UPAGENT_REPO, fromBranch: envBranch, reqId })).items) log(`反向 merge 回 ${x.branch}：${x.message}`);
+  } catch (err) {
+    log(`⚠ 反向 merge 回 feature branch 失敗：${err.message}`);
+  }
 }
 
 /** 顯示用：目前佔用 UpAgent 發佈的是哪個流程 */
@@ -241,8 +295,10 @@ const ownerLabel = (r) => (r.id ? `#${r.id}` : '手動佈版');
  * @param owner { id, stage, target }（手動佈版 id 為 null）
  * @param signal 外部的 AbortSignal（手動佈版的停止）；cancelRelease 也會停止
  * @param settle 結束前等待（例如進度寫入），等完才釋放「執行中」
+ * @param before 執行腳本前（已佔用「執行中」）先做的事，例如把 Confirm Commit merge 進 feature branch
+ * @param after  腳本成功後（仍佔用「執行中」）再做的事，例如把版本 tag merge 進環境 branch
  */
-async function execRelease({ owner, args, log, onStep, onMarker, signal, settle }) {
+async function execRelease({ owner, args, log, onStep, onMarker, signal, settle, before, after }) {
   if (running) throw new Error(`已有 UpAgent 發佈進行中：${ownerLabel(running)}`);
   if (signal?.aborted) throw new Error('已停止');
   const controller = new AbortController();
@@ -264,7 +320,14 @@ async function execRelease({ owner, args, log, onStep, onMarker, signal, settle 
     }
   };
   try {
+    if (before) {
+      onStep?.('Bump');
+      await before();
+      if (controller.signal.aborted) throw new Error('已停止');
+    }
     await runPowerShellJson('Release-UpAgent.ps1', args, { timeout: 0, onStdout, signal: controller.signal });
+    if (pending) onStdout('\n');
+    await after?.();
   } catch (err) {
     if (!controller.signal.aborted && lastError) err.message = lastError;
     throw err;
@@ -356,4 +419,4 @@ function cancelRelease() {
   return !!running;
 }
 
-module.exports = { releaseStatus, runRelease, cancelRelease, runManualRelease, releaseConfigExists, versionContaining };
+module.exports = { releaseStatus, runRelease, cancelRelease, runManualRelease, releaseConfigExists, versionContaining, releaseVersionFor };

@@ -3,9 +3,32 @@ import { $, el } from './dom.js';
 import { repoTag } from './repos.js';
 import { backMergeRows, backMergeProblems, hasBackMerges } from './back-merge.js';
 
+/** merge 的路徑：Confirm Commit → feature branch → 環境 branch（upagent 已更版時為版本 tag → 環境 branch） */
+function mergeRoute(x) {
+  if (x.sourceRef) return `${x.sourceRef} → ${x.envBranch}`;
+  return x.featureBranch ? `${x.commit} → ${x.featureBranch} → ${x.envBranch}` : `${x.commit} → ${x.envBranch}`;
+}
+
+/** deployMergeStatus 的一個 item 的顯示列（merge dialog 與佈版 dialog 共用） */
+export function mergeItemRow(x) {
+  const row = el('div', 'mg-item');
+  const name = el('div', 'cc-name');
+  name.append(repoTag(x.repo), el('code', 'repo-commit', mergeRoute(x)));
+  const cls = x.merged ? 'ok' : x.canMerge ? 'warn' : 'bad';
+  const result = el('div', `cc-result ${cls}`, x.message);
+  const extra = x.extra?.length ? `\n\n會一起帶進的 commit：\n${x.extra.join('\n')}${x.extraMore ? '\n…' : ''}` : '';
+  result.title = (x.subject ? `${x.full}\n${x.subject}` : x.message) + extra;
+  row.append(name, result);
+  return row;
+}
+
+/** 這次 merge 時真的會 merge 的 item（deferred = upagent 尚未更版，交給 UpAgent 發佈） */
+export const willMerge = (x) => !x.merged && !x.deferred;
+
 /**
  * 勾 Test deploy / Prod deploy 的 SaaS / Local 時，若 Confirm Commit 的 commit 尚未進到環境 branch，
- * 跳出此 dialog 詢問是否現在 merge；確認後由 main process 建立 merge commit（--no-ff）並 push 到環境 branch。
+ * 跳出此 dialog 詢問是否現在 merge；確認後由 main process 經由 feature branch（commit 不在其中時先 merge 進去）
+ * 建立 merge commit（--no-ff）並 push 到環境 branch。
  * Prod deploy 另會把 prodBranch 反向 merge 回 feature branch，完成後停在畫面上顯示結果。
  */
 export function createMergeDialog() {
@@ -29,18 +52,7 @@ export function createMergeDialog() {
   }
 
   function renderItems(items) {
-    listEl.replaceChildren(
-      ...items.map((x) => {
-        const row = el('div', 'mg-item');
-        const name = el('div', 'cc-name');
-        name.append(repoTag(x.repo), el('code', 'repo-commit', `${x.commit} → ${x.envBranch}`));
-        const cls = x.merged ? 'ok' : x.canMerge ? 'warn' : 'bad';
-        const result = el('div', `cc-result ${cls}`, x.message);
-        result.title = x.subject ? `${x.full}\n${x.subject}` : x.message;
-        row.append(name, result);
-        return row;
-      })
-    );
+    listEl.replaceChildren(...items.map(mergeItemRow));
     const blocked = items.some((x) => !x.merged && !x.canMerge);
     okBtn.disabled = blocked;
     hintEl.textContent = blocked ? '有 repository merge 會發生衝突，請先手動處理後再勾選。' : '';

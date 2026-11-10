@@ -2,7 +2,8 @@ const fs = require('node:fs/promises');
 const { runScriptJson, tempFile, removeTemp } = require('../python');
 const { loadFlowState, updateRequirementState } = require('./flowState');
 const { loadRepoConfig, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
-const { checkCommit, checkMerged, mergeNoFf, mergeBackToFeatures } = require('./gitCommit');
+const { checkCommit, checkDeployMerge, mergeViaFeature, mergeBackToFeatures } = require('./gitCommit');
+const { releaseVersionFor } = require('./upagentRelease');
 const {
   PLAN_KEY,
   PLAN_REPOS_KEY,
@@ -20,6 +21,8 @@ const {
   commitsConfirmed,
   upagentReleasePlan,
   releaseTargetOf,
+  UPAGENT_REPO,
+  RELEASE_ENV,
 } = require('../../shared/flow-rules.js');
 
 const NOTE_MAX = 2000;
@@ -63,15 +66,20 @@ async function updateRequirementStateInAdo({ id, state } = {}) {
 }
 
 /**
- * 佈版階段：Confirm Commit 的每個 commit 是否已進到該 repository 的環境 branch
- * （data/config.json 的 repos 的 `testBranch` / `prodBranch`）。
- * @returns {{ stage, commits, items: [{ repo, commit, envBranch, merged, canMerge, conflicts, message }], allMerged }}
+ * 佈版階段：Confirm Commit 的每個 commit 是否已（經由 feature branch）進到該 repository 的環境 branch
+ * （data/config.json 的 repos 的 `testBranch` / `prodBranch`）。見 gitCommit.checkDeployMerge：
+ *   一般 repository：開發 branch 的 commit → 規劃的 feature branch → 環境 branch，不直接 merge 進環境 branch。
+ *   upagent（需要 UpAgent 發佈）：已有版號（自己的或可沿用的已發佈版本）→ 把版本 tag 的 commit merge 進環境 branch；
+ *     還沒有版號 → deferred：由 UpAgent 發佈先 merge 進 feature branch、更版後再 merge 進環境 branch。
+ * @returns {{ stage, commits, items: [checkDeployMerge 的結果], allMerged }}
+ *   allMerged：都已 merge（deferred 的交給 UpAgent 發佈，不擋這一步；勾選時 setFlowCheck 仍要求真的已 merge）
  */
 async function deployMergeStatus({ id, stage, fetch = true } = {}) {
   if (!Number.isInteger(id) || !COMMIT_STAGES.includes(stage)) throw new Error('參數錯誤');
   const checks = (await loadFlowState())[id] || {};
   if (!commitsConfirmed(checks, stage)) throw new Error('請先完成 Confirm Commit');
-  const repos = Object.keys(checks[PLAN_REPOS_KEY] || {});
+  const featureBranches = checks[PLAN_REPOS_KEY] || {};
+  const repos = Object.keys(featureBranches);
   const commits = checks[commitsKey(stage)] || {};
   // 不需修改 repository（Confirm Commit 自動完成），或跳階段勾起 Confirm Commit 而沒有 commit 可檢查
   if (!repos.length || !checks[PLAN_KEY] || !commitsCover(checks, stage)) {
@@ -83,10 +91,18 @@ async function deployMergeStatus({ id, stage, fetch = true } = {}) {
     if (!r) throw new Error(`未知的 repository：${repo}`);
     const envBranch = r.deployBranches[stage];
     if (!envBranch) throw new Error(`尚未設定 ${repo} 的環境 branch，請在 ${fieldHint(repo, DEPLOY_BRANCH_FIELDS[stage])} 設定`);
-    return { repo, commit: commits[repo], envBranch };
+    return { repo, commit: commits[repo], featureBranch: featureBranches[repo], envBranch };
   });
-  const items = await Promise.all(targets.map((t) => checkMerged({ ...t, fetch })));
-  return { stage, commits, items, allMerged: items.every((x) => x.merged) };
+  const items = await Promise.all(
+    targets.map(async (t) => {
+      if (t.repo === UPAGENT_REPO && RELEASE_ENV[stage]) {
+        const version = await releaseVersionFor(id, stage);
+        return checkDeployMerge({ ...t, fetch, ...(version ? { source: `v${version}` } : { deferred: true }) });
+      }
+      return checkDeployMerge({ ...t, fetch });
+    })
+  );
+  return { stage, commits, items, allMerged: items.every((x) => x.merged || x.deferred) };
 }
 
 /** 反向 merge 回 feature branch 的階段：正式環境 merge 完後，feature branch 都要以 production 為基礎 */
@@ -120,7 +136,8 @@ function backMergeProblems(backMerges) {
 }
 
 /**
- * 把尚未 merge 的 commit 以 merge commit（--no-ff）merge 進環境 branch，
+ * 把尚未 merge 的 commit 經由 feature branch merge 進環境 branch（gitCommit.mergeViaFeature：不在 feature branch 時先 merge 進去，
+ * 一律建立 merge commit（--no-ff））；upagent 則是 merge 版本 tag；deferred（UpAgent 尚未更版）的略過，由 UpAgent 發佈處理。
  * 回傳最新的 deployMergeStatus，另加 mergeCommits: { repo: 這次 push 的 merge commit }。
  * Prod deploy：merge 進 prodBranch 之後，再把 prodBranch 反向 merge 回該 repository 的所有 feature branch
  * （一律建立 merge commit），結果放在 backMerges: { repo: [{ branch, state, message, mergeCommit? }] }。
@@ -129,14 +146,19 @@ async function mergeDeploy({ id, stage } = {}) {
   const status = await deployMergeStatus({ id, stage });
   const blocked = status.items.filter((x) => !x.merged && !x.canMerge);
   if (blocked.length) throw new Error(blocked.map((x) => `${x.repo}：${x.message}`).join('；'));
-  const featureBranches = (await loadFlowState())[id]?.[PLAN_REPOS_KEY] || {};
   const results = await Promise.allSettled(
     status.items
-      .filter((x) => !x.merged)
-      .map((x) => {
-        const from = featureBranches[x.repo] ? `${featureBranches[x.repo]} (${x.full.slice(0, 10)})` : x.full.slice(0, 10);
-        return mergeNoFf({ ...x, message: `Merge ${from} into ${x.envBranch}\n\nRequirement #${id}` });
-      })
+      .filter((x) => !x.merged && !x.deferred)
+      .map((x) =>
+        mergeViaFeature({
+          repo: x.repo,
+          commit: x.commit,
+          featureBranch: x.featureBranch,
+          envBranch: x.envBranch,
+          source: x.sourceRef,
+          reqId: id,
+        })
+      )
   );
   const merged = results.filter((r) => r.status === 'fulfilled' && r.value.mergeCommit).map((r) => r.value);
   // 已 merge 進 prodBranch 的 repository 先反向 merge 回 feature branch，即使其他 repository 失敗也照做
@@ -189,6 +211,7 @@ async function setFlowCheck({ id, key, value, force = false } = {}) {
     // 勾 SaaS / Local 前，commit 必須已進到環境 branch。
     // renderer 勾選前已呼叫 deployMergeStatus（含 git fetch）或 mergeDeploy，這裡不再 fetch，只用本機的 remote 狀態再確認
     const status = await deployMergeStatus({ id, stage, fetch: false });
+    if (status.items.some((x) => x.deferred)) throw new Error('請先完成 UpAgent 發佈（更版後才會 merge 進環境 branch）');
     const pending = status.items.filter((x) => !x.merged);
     if (pending.length) throw new Error(`尚未 merge 進環境 branch：${pending.map((x) => `${x.repo} → ${x.envBranch}`).join('、')}`);
     verifiedCommits = JSON.stringify(status.commits);
