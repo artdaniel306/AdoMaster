@@ -75,6 +75,24 @@
       }
     }
   },
+  "prodRestart": {
+    "subscription": "",
+    "resourceGroup": "UpDay_Prod_RG",
+    "automationAccount": "upday-automation",
+    "runbook": "Restart-AppService",
+    "runbookParameters": {
+      "ResourceGroupName": "{resourceGroup}",
+      "AppServiceName": "{appService}"
+    },
+    "runOn": "",
+    "timeZone": "Asia/Taipei",
+    "utcOffset": "+08:00",
+    "schedulePrefix": "adomaster-restart",
+    "repos": {
+      "crmapp": { "appService": "crmapp-service", "resourceGroup": "UpDay_Prod_RG" },
+      "crmappui": { "appService": "crmappui-service", "resourceGroup": "UpDay_Prod_RG" }
+    }
+  },
   "upagentConnection": {
     "configFile": "%APPDATA%\\upagent\\config.json",
     "activationCodes": {

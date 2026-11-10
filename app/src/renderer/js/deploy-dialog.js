@@ -2,6 +2,8 @@ import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
 import { repoTag } from './repos.js';
 import { backMergeRows, backMergeProblems, hasBackMerges } from './back-merge.js';
+import { createRestartPicker, restartText } from './restart-picker.js';
+import { restartSlot } from '../../shared/flow-rules.js';
 
 /** 查詢 Pipeline Run 的間隔 */
 const POLL_MS = 15_000;
@@ -34,7 +36,8 @@ const PHASE_TEXT = {
  *   3. merge + push 到環境 branch（觸發自動佈版）
  *   4. 監看 push 觸發的 Run（sourceVersion = 這次的 merge commit）直到結束
  *   5. 佈版後動作（Run 成功的 repository 各一次，main/services/afterDeploy.js）：
- *      測試環境 → 重啟 data/config.json 的 repos 設定的 testAppService；正式環境 → 只呼叫預留的 shell（目前不做事，不重啟）
+ *      測試環境 → 重啟 data/config.json 的 repos 設定的 testAppService；
+ *      正式環境 → 不立即重啟，確認畫面選的日期 / 時段交給 After-ProdDeploy.ps1 在 Azure Automation 排程重啟（不選 = 不排程）
  *   6. 通知結果：全部成功 → 自動勾起 SaaS；有失敗 / 找不到 Run / 佈版後動作失敗 → 由使用者決定是否仍然勾起
  * 等待 / 監看期間可以關閉 dialog 讓它在背景繼續，結束時會再跳出來通知。一次只能有一個佈版流程。
  */
@@ -51,6 +54,10 @@ export function createDeployDialog() {
   const bgBtn = $('dp-bg');
   const okBtn = $('dp-ok');
   const mergeHead = mergeEl.previousElementSibling;
+  const restartHead = $('dp-restart-head');
+  const restartEl = $('dp-restart');
+  const restartChosenEl = $('dp-restart-chosen');
+  const restartPicker = createRestartPicker(restartEl);
 
   /**
    * 目前的佈版流程：
@@ -63,6 +70,21 @@ export function createDeployDialog() {
   const activeRuns = (j) => j.pipelines.flatMap((p) => p.runs.filter((r) => r.active).map((run) => ({ repo: p.repo, run })));
   const needsMerge = (j) => j.mergeStatus.items.some((x) => !x.merged);
   const blocked = (j) => j.mergeStatus.items.some((x) => !x.merged && !x.canMerge);
+  /** 正式環境：這次會 merge 且有 Pipeline 的 repository（Run 成功後才會執行佈版後動作 / 排程重啟） */
+  const restartRepos = (j) =>
+    j.stage.key === 'prodDeploy' ? j.mergeStatus.items.filter((x) => !x.merged && pipelineOf(j, x.repo)).map((x) => x.repo) : [];
+
+  function renderRestart(j) {
+    const show = j.restartRepos.length > 0;
+    restartHead.hidden = !show;
+    restartEl.hidden = !show || j.phase !== 'confirm';
+    restartChosenEl.hidden = !show || j.phase === 'confirm';
+    if (show && j.phase !== 'confirm') {
+      restartChosenEl.textContent = j.restart
+        ? `${restartText(j.restart.date, restartSlot(j.restart.slot).time)} 重啟 ${j.restartRepos.join('、')}（Run 成功後建立排程）`
+        : '不排程重啟';
+    }
+  }
 
   function setPhase(j, phase) {
     j.phase = phase;
@@ -164,8 +186,9 @@ export function createDeployDialog() {
     phaseEl.className = `status${j.phase === 'done' ? (j.outcome.success ? ' ok' : ' error') : j.phase === 'confirm' ? '' : ' loading'}`;
     renderMerge(j);
     renderPipelines(j);
+    renderRestart(j);
     hintEl.textContent = j.phase === 'confirm' && blocked(j) ? '有 repository merge 會發生衝突，請先手動處理後再勾選。' : '';
-    const err = j.phase === 'done' ? j.outcome.error : j.pollError;
+    const err = j.phase === 'done' ? j.outcome.error : j.phase === 'confirm' ? j.confirmError : j.pollError;
     errorEl.textContent = err || '';
     errorEl.hidden = !err;
     renderButtons(j);
@@ -267,7 +290,7 @@ export function createDeployDialog() {
         t.after = { state: 'running', message: '' };
         render();
         try {
-          const r = await j.afterDeployFn(t.repo, t.mergeCommit);
+          const r = await j.afterDeployFn(t.repo, t.mergeCommit, j.restart);
           t.after = { state: 'ok', message: r?.message || '' };
         } catch (err) {
           t.after = { state: 'bad', message: cleanError(err) };
@@ -325,6 +348,14 @@ export function createDeployDialog() {
     const j = job;
     if (!j) return;
     if (j.phase === 'confirm') {
+      try {
+        j.restart = j.restartRepos.length ? restartPicker.value() : null;
+      } catch (err) {
+        j.confirmError = err.message;
+        render();
+        return;
+      }
+      j.confirmError = '';
       run(j);
       return;
     }
@@ -368,7 +399,8 @@ export function createDeployDialog() {
    * @param pipelineRuns deployPipelineRuns 的結果
    * @param mergeFn () => Promise<mergeDeploy 的結果>
    * @param runsFn () => Promise<deployPipelineRuns 的結果>
-   * @param afterDeployFn (repo, mergeCommit) => Promise<{ message }>，Run 成功後的佈版後動作
+   * @param afterDeployFn (repo, mergeCommit, restart) => Promise<{ message }>，Run 成功後的佈版後動作
+   *   （restart：正式環境確認畫面選的 { date, slot }，null = 不排程重啟）
    * @param checkFn () => Promise，勾起 checkbox
    * @param onChange (reqId) => void，流程狀態改變時呼叫（重繪該列）
    */
@@ -392,7 +424,12 @@ export function createDeployDialog() {
       afterDeployFn,
       checkFn,
       onChange,
+      restart: null,
+      restartRepos: [],
+      confirmError: '',
     };
+    job.restartRepos = restartRepos(job);
+    if (job.restartRepos.length) restartPicker.load(job.restartRepos);
     render();
     dialog.showModal();
     if (needsMerge(job)) job.onChange?.(req.id);

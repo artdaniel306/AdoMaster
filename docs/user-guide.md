@@ -100,10 +100,24 @@ push 環境 branch 會觸發 ADO Pipeline 自動佈版（在 Repository 設定�
 1. 先等待 Pipeline 沒有進行中 / 停等的 Run；
 2. 在環境 branch 建立 merge commit 並 push（觸發自動佈版）；
 3. 監看新的 Run 直到結束（每 15 秒更新）；已全部 merge 時只等待 Run 結束；
-4. **測試環境**的 Run 成功後會重啟該 repository 的測試環境 App Service 並等待網站回應（需先 `az login`）。**正式環境絕不會重啟**（客戶正在使用）。
+4. **測試環境**的 Run 成功後會重啟該 repository 的測試環境 App Service 並等待網站回應（需先 `az login`）。**正式環境絕不會立即重啟**（客戶正在使用），只能排程重啟，見下方「正式環境排程重啟」。
 5. 全部成功會自動勾選 SaaS；失敗時可選擇「仍然勾起」或「不勾選」。
 
 等待期間可以按「**背景執行**」關閉視窗，佈版結束時會再通知；SaaS 下方的狀態列可以重新開啟視窗。同一時間只能進行一個佈版。
+
+### 正式環境排程重啟
+
+正式環境的 App Service 只能透過 Azure Automation 排在固定時段重啟：**午休 12:30**、**下班 18:30**、**深夜 23:30**。設定方式見「設定 → 正式環境排程重啟設定」。需要先執行 `az login`，登入的帳號要有該 Automation Account 的權限。
+
+- **Prod deploy 勾 SaaS**：佈版視窗的確認畫面有「正式環境排程重啟」，先選日期再選時段。預設是「不排程重啟」。這個區塊只會列出這次要 merge、而且有設定 Pipeline 的 repository，同時會列出這些 repository 在 Automation 中尚未執行的排程。
+  - 排程不是馬上建立，要等 push 觸發的 Run **成功後**才建立。如果到那時選的時段已經過了，或距離現在不到 6 分鐘，就會建立失敗，佈版結果會顯示「佈版後動作失敗」。這時可以選「仍然勾起」，再從選單補排程。
+- **手動佈版**：選「正式環境」加「SaaS」時，同樣可以選擇日期與時段。
+- **選單「佈版 → 正式環境排程重啟…」**：
+  - 會列出 Automation 中的重啟排程，勾「含已執行」可以看到已經執行過的排程。
+  - 可以選 repository、日期和時段來新增排程，也可以刪除排程。
+  - 滑鼠移到說明上，可以看到 Schedule 名稱、Runbook 參數和建立時間。
+- **不會重複建立**：同一個 repository 在同一個時間只會有一個排程。Schedule 的名稱是 `<前綴>-<repository>-<日期>-<時間>`，如果已經排過，會顯示「已排程…未重複建立」。
+- **紀錄**：Automation 本身就是紀錄。每個 Schedule 的說明會寫入 Requirement 編號（或「手動佈版」）、commit、建立者與建立時間。
 
 ### Local 佈版（地端 Docker）
 
@@ -188,8 +202,23 @@ push 環境 branch 會觸發 ADO Pipeline 自動佈版（在 Repository 設定�
 | Feature branches | 規劃時可選的 branch，一行一個 |
 | 測試環境 branch / 正式環境 branch | 佈版時 merge 的目標 branch |
 | 測試環境 Pipeline / 正式環境 Pipeline | push 後觸發的 Pipeline，可寫「資料夾\名稱」；空白 = 不監看 |
-| 測試環境 App Service | 測試環境 Pipeline Run 成功後重啟（需先 `az login`）；正式環境不會重啟 |
+| 測試環境 App Service | 測試環境 Pipeline Run 成功後重啟（需先 `az login`）；正式環境只能排程重啟（見「正式環境排程重啟設定」） |
 | 測試環境 Resource Group | App Service 所在的 Resource Group；空白時自動查詢 |
+
+### 正式環境排程重啟設定
+
+目前還沒有設定畫面，請直接編輯 `data/config.json` 的 `prodRestart`（範本在 `templates/config_example.json`）。需要事先在 Azure Automation 建好重啟 App Service 的 Runbook，並且已經發佈。
+
+| 欄位 | 說明 |
+|---|---|
+| `subscription` | 選填，空白時使用 `az` 目前的訂閱 |
+| `resourceGroup` / `automationAccount` | Automation Account 所在的 Resource Group 與 Automation Account 名稱 |
+| `runbook` | 負責重啟的 Runbook 名稱 |
+| `runbookParameters` | 傳給 Runbook 的參數，值裡的 `{欄位}` 會換成 `repos.<repository>` 的同名欄位，`{repo}` 會換成 repository key。例如 `{ "AppServiceName": "{appService}" }` |
+| `runOn` | 選填，指定 Hybrid Worker Group |
+| `timeZone` / `utcOffset` | Schedule 的時區（預設 `Asia/Taipei`）與時段的 UTC 位移（預設 `+08:00`） |
+| `schedulePrefix` | Schedule 名稱的前綴（預設 `adomaster-restart`）。只會列出和刪除這個前綴開頭的排程 |
+| `repos` | `{ "<repository key>": { "appService": "...", "resourceGroup": "..." } }`。只有列在這裡的 repository 可以排程重啟 |
 
 ### UpAgent 連線設定
 

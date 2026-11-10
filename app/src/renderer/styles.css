@@ -555,15 +555,15 @@ td.stage-split { padding: 0; height: 1px; }
   background: var(--cur-border); color: #fff; font-size: 11px; font-weight: 600; text-align: center; line-height: 18px;
 }
 .pg-count[hidden] { display: none; }
-#manual-deploy-dialog, #deploy-progress-dialog {
+#manual-deploy-dialog, #deploy-progress-dialog, #restart-schedule-dialog {
   padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
   width: min(760px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
 }
-#manual-deploy-dialog::backdrop, #deploy-progress-dialog::backdrop { background: rgba(0, 0, 0, .35); }
-#manual-deploy-dialog .dlg-box, #deploy-progress-dialog .dlg-box { max-height: 90vh; }
-#manual-deploy-dialog .dlg-body, #deploy-progress-dialog .dlg-body { overflow: auto; }
-#manual-deploy-dialog [hidden], #deploy-progress-dialog [hidden] { display: none !important; }
-#manual-deploy-dialog .status:empty { display: none; }
+#manual-deploy-dialog::backdrop, #deploy-progress-dialog::backdrop, #restart-schedule-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#manual-deploy-dialog .dlg-box, #deploy-progress-dialog .dlg-box, #restart-schedule-dialog .dlg-box { max-height: 90vh; }
+#manual-deploy-dialog .dlg-body, #deploy-progress-dialog .dlg-body, #restart-schedule-dialog .dlg-body { overflow: auto; }
+#manual-deploy-dialog [hidden], #deploy-progress-dialog [hidden], #restart-schedule-dialog [hidden] { display: none !important; }
+#manual-deploy-dialog .status:empty, #restart-schedule-dialog .status:empty { display: none; }
 .md-grid { display: grid; grid-template-columns: 110px 1fr; gap: 8px 10px; align-items: center; margin-top: 10px; }
 .md-label { font-weight: 600; }
 .md-seg { display: flex; gap: 16px; flex-wrap: wrap; }
@@ -614,3 +614,23 @@ td.stage-split { padding: 0; height: 1px; }
 .pg-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
 .pg-log { margin-top: 6px; font-size: 12px; }
 .pg-log summary { cursor: pointer; color: var(--muted); }
+
+/* 正式環境排程重啟：日期 + 時段（restart-picker.js）與排程清單（restart-schedule-dialog.js） */
+.rp[hidden], .rp-msgs:empty { display: none; }
+.rp-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.rp-row select, .rp-row input[type="date"], #rs-note {
+  padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; min-width: 0;
+}
+.rp-row input[type="date"]:disabled { opacity: .5; }
+.rp-msgs { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rp-msgs .cc-result { white-space: normal; }
+.rp-msgs .muted { font-size: 12px; }
+#dp-restart-chosen { margin: 4px 0 0; }
+.rs-list-head { display: flex; gap: 12px; align-items: center; }
+.rs-list-head .check { font-weight: normal; font-size: 12px; }
+.rs-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.rs-item { display: grid; grid-template-columns: auto 160px 110px 1fr auto; gap: 10px; align-items: center; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; }
+.rs-item.expired { opacity: .6; }
+.rs-item .cc-result { grid-column: auto; }
+.rs-when { font-variant-numeric: tabular-nums; }
+.rs-desc { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,13 +1,15 @@
 const { runPowerShellJson } = require('../powershell');
 const { loadRepoConfig } = require('./repoConfig');
 const { loadFlowState } = require('./flowState');
+const { normalizeRestart, restartArgs } = require('./prodRestart');
 const { PLAN_KEY, PLAN_REPOS_KEY, COMMIT_STAGES } = require('../../shared/flow-rules.js');
 
 /**
  * 佈版後動作：勾 SaaS 的自動佈版流程中，push 觸發的 Pipeline Run 成功後，對該 repository 各執行一次。
  *   - 測試環境（testDeploy）：data/config.json 的 repos 有設定 testAppService 時，以 shell/Restart-AppService.ps1 重啟該 App Service
  *     （testResourceGroup 選填，空白時由 App Service 名稱自動查詢；需先 az login）；沒設定則不做任何事。
- *   - 正式環境（prodDeploy）：正式環境有客戶在用，不可直接重啟。只呼叫預留的 shell/After-ProdDeploy.ps1（目前沒有任何邏輯）。
+ *   - 正式環境（prodDeploy）：正式環境有客戶在用，不可直接重啟。呼叫 shell/After-ProdDeploy.ps1：佈版時有選重啟日期 / 時段
+ *     （restart = { date, slot }）就在 Azure Automation 排程重啟（data/config.json 的 prodRestart，見 prodRestart.js），沒選則不做事。
  */
 
 /** 重啟 + 等網站回應（腳本預設最多等 300 秒）的上限 */
@@ -16,21 +18,25 @@ const RESTART_TIMEOUT = 10 * 60_000;
 /**
  * @returns {{ action: 'none' | 'restart' | 'prod', message: string, result?: object }}
  */
-async function runAfterDeploy({ id, stage, repo, commit } = {}) {
+async function runAfterDeploy({ id, stage, repo, commit, restart } = {}) {
   if (!Number.isInteger(id) || !COMMIT_STAGES.includes(stage) || typeof repo !== 'string') throw new Error('參數錯誤');
   const checks = (await loadFlowState())[id] || {};
   const planRepos = checks[PLAN_KEY] ? Object.keys(checks[PLAN_REPOS_KEY] || {}) : [];
   if (!planRepos.includes(repo)) throw new Error(`#${id} 的規劃沒有選 ${repo}`);
-  return afterDeployRepo({ stage, repo, commit });
+  return afterDeployRepo({ stage, repo, commit, restart, note: `Requirement #${id}` });
 }
 
-/** 對某 repository 執行佈版後動作（流程與手動佈版共用，不檢查 Requirement 的規劃） */
-async function afterDeployRepo({ stage, repo, commit } = {}) {
+/**
+ * 對某 repository 執行佈版後動作（流程與手動佈版共用，不檢查 Requirement 的規劃）。
+ * restart（只有正式環境）：{ date, slot } = 排程重啟，null = 不排程；note 寫進 Automation Schedule 的說明。
+ */
+async function afterDeployRepo({ stage, repo, commit, restart, note } = {}) {
   if (!COMMIT_STAGES.includes(stage) || typeof repo !== 'string') throw new Error('參數錯誤');
   if (stage === 'prodDeploy') {
     const args = ['-Repo', repo];
     if (typeof commit === 'string' && commit) args.push('-Commit', commit);
-    const result = await runPowerShellJson('After-ProdDeploy.ps1', args);
+    args.push(...restartArgs(normalizeRestart(restart), note));
+    const result = await runPowerShellJson('After-ProdDeploy.ps1', args, { timeout: RESTART_TIMEOUT });
     return { action: 'prod', message: String(result?.message || '正式環境佈版後動作已執行'), result };
   }
 

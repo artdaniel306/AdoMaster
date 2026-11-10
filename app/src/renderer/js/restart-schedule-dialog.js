@@ -1,0 +1,203 @@
+import { api, cleanError } from './api.js';
+import { $, el } from './dom.js';
+import { loadRepos, repoTag } from './repos.js';
+import { createConfirmDialog } from './confirm-dialog.js';
+import { createRestartPicker, restartText } from './restart-picker.js';
+import { restartSlot } from '../../shared/flow-rules.js';
+
+const timeText = (iso) => (iso ? new Date(iso).toLocaleString('zh-TW', { hour12: false }) : '');
+
+/**
+ * 「佈版 → 正式環境排程重啟…」：查看 Azure Automation 中的重啟排程（prodRestart:list），
+ * 為選擇的 repository 新增排程（prodRestart:create，同一時間已排程的不會重複建立），或刪除排程（prodRestart:delete）。
+ * 設定在 data/config.json 的 prodRestart（main/services/prodRestart.js）。
+ */
+export function createRestartScheduleDialog() {
+  const dialog = $('restart-schedule-dialog');
+  const targetEl = $('rs-target');
+  const reposEl = $('rs-repos');
+  const noteEl = $('rs-note');
+  const resultEl = $('rs-result');
+  const expiredEl = $('rs-expired');
+  const listEl = $('rs-list');
+  const statusEl = $('rs-status');
+  const errorEl = $('rs-error');
+  const createBtn = $('rs-create');
+  const refreshBtn = $('rs-refresh');
+  const picker = createRestartPicker($('rs-picker'), { allowNone: false, showExisting: false });
+  const confirmDialog = createConfirmDialog();
+
+  let options = null;
+  let items = [];
+  let busy = false;
+
+  function showError(msg) {
+    errorEl.textContent = msg || '';
+    errorEl.hidden = !msg;
+  }
+
+  function setBusy(b, text = '') {
+    busy = b;
+    statusEl.className = b ? 'status loading' : 'status';
+    statusEl.textContent = text;
+    createBtn.disabled = b || !options?.configured;
+    refreshBtn.disabled = b || !options?.configured;
+  }
+
+  const checkedRepos = () => [...reposEl.querySelectorAll('input:checked')].map((x) => x.value);
+
+  function renderRepos() {
+    reposEl.replaceChildren(
+      ...(options?.repos || []).map((r) => {
+        const label = el('label');
+        const box = el('input');
+        box.type = 'checkbox';
+        box.value = r.key;
+        box.addEventListener('change', () => picker.setRepos(checkedRepos()));
+        label.append(box, repoTag(r.key), el('span', 'muted', r.appService || ''));
+        return label;
+      })
+    );
+    if (options && options.configured && !options.repos.length) reposEl.append(el('span', 'cc-result bad', 'prodRestart.repos 沒有設定任何 repository'));
+  }
+
+  function renderList() {
+    const shown = items.filter((s) => expiredEl.checked || !s.expired);
+    if (!shown.length) {
+      listEl.replaceChildren(el('div', 'muted', items.length ? '沒有尚未執行的重啟排程' : '沒有重啟排程'));
+      return;
+    }
+    listEl.replaceChildren(
+      ...shown.map((s) => {
+        const row = el('div', `rs-item${s.expired ? ' expired' : ''}`);
+        const when = el('span', 'rs-when', restartText(s.date, s.time));
+        const linked = (s.links || []).length > 0;
+        const state = s.expired ? ['muted', '已執行'] : linked ? ['ok', '待執行'] : ['bad', '未連結 Runbook'];
+        const desc = el('span', 'muted rs-desc', s.description || '');
+        desc.title = [
+          s.description,
+          `Schedule：${s.name}`,
+          ...(s.links || []).map((l) => `Runbook ${l.runbook}：${Object.entries(l.parameters || {}).map(([k, v]) => `${k}=${v}`).join(', ')}`),
+          s.createdAt ? `建立時間：${timeText(s.createdAt)}` : '',
+        ].filter(Boolean).join('\n');
+        const del = el('button', 'btn-ghost btn-danger', '刪除');
+        del.type = 'button';
+        del.addEventListener('click', () => remove(s));
+        row.append(repoTag(s.repo), when, el('span', `cc-result ${state[0]}`, state[1]), desc, del);
+        return row;
+      })
+    );
+  }
+
+  async function refresh() {
+    if (!options?.configured) return;
+    setBusy(true, '查詢 Automation 的重啟排程（az）…');
+    showError('');
+    try {
+      const r = await api.listRestartSchedules();
+      items = r.items;
+      targetEl.textContent = `Automation：${r.automationAccount}　Runbook：${r.runbook}`;
+      renderList();
+    } catch (err) {
+      showError(cleanError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(s) {
+    if (busy) return;
+    const ok = await confirmDialog.open({
+      title: '刪除重啟排程',
+      message: `確定要刪除 ${s.repo} ${restartText(s.date, s.time)} 的重啟排程嗎？\n（${s.name}）`,
+      okLabel: '刪除',
+    });
+    if (!ok) return;
+    setBusy(true, `刪除 ${s.name}…`);
+    showError('');
+    try {
+      await api.deleteRestartSchedule(s.name);
+    } catch (err) {
+      showError(cleanError(err));
+    } finally {
+      setBusy(false);
+    }
+    await refresh();
+  }
+
+  async function create() {
+    if (busy) return;
+    showError('');
+    resultEl.replaceChildren();
+    const repos = checkedRepos();
+    let v;
+    try {
+      if (!repos.length) throw new Error('請選擇要重啟的 repository');
+      v = picker.value();
+    } catch (err) {
+      showError(err.message);
+      return;
+    }
+    const ok = await confirmDialog.open({
+      title: '排程重啟正式環境',
+      message: `確定要在 ${restartText(v.date, restartSlot(v.slot).time)} 重啟以下 repository 的正式環境 App Service 嗎？\n\n${repos
+        .map((r) => `${r}：${options.repos.find((x) => x.key === r)?.appService || ''}`)
+        .join('\n')}`,
+      okLabel: '建立排程',
+    });
+    if (!ok) return;
+    setBusy(true, '建立排程…');
+    try {
+      const r = await api.createRestartSchedules(repos, v.date, v.slot, noteEl.value.trim());
+      resultEl.replaceChildren(...r.items.map((x) => el('li', `cc-result ${x.ok ? (x.state === 'exists' ? 'warn' : 'ok') : 'bad'}`, `${x.repo}：${x.message}`)));
+    } catch (err) {
+      showError(cleanError(err));
+    } finally {
+      setBusy(false);
+    }
+    await refresh();
+  }
+
+  createBtn.addEventListener('click', create);
+  refreshBtn.addEventListener('click', refresh);
+  expiredEl.addEventListener('change', renderList);
+  const close = () => {
+    if (!busy) dialog.close();
+  };
+  $('rs-close').addEventListener('click', close);
+  $('rs-cancel').addEventListener('click', close);
+  dialog.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    close();
+  });
+
+  async function open() {
+    showError('');
+    resultEl.replaceChildren();
+    listEl.replaceChildren();
+    targetEl.textContent = '';
+    items = [];
+    dialog.showModal();
+    try {
+      await loadRepos(); // repository 標籤的顏色
+    } catch {
+      // 只影響顏色
+    }
+    try {
+      options = await api.prodRestartOptions();
+    } catch (err) {
+      options = { configured: false, error: cleanError(err), repos: [] };
+    }
+    renderRepos();
+    picker.load([]);
+    setBusy(false);
+    if (!options.configured) {
+      showError(options.error);
+      return;
+    }
+    targetEl.textContent = `Automation：${options.automationAccount}　Runbook：${options.runbook}`;
+    await refresh();
+  }
+
+  return { open };
+}

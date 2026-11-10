@@ -3,6 +3,7 @@ const { loadRepoConfig, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfi
 const { checkMerged, mergeNoFf, mergeBackToFeatures } = require('./gitCommit');
 const { repoPipelineRuns } = require('./pipelines');
 const { afterDeployRepo } = require('./afterDeploy');
+const prodRestart = require('./prodRestart');
 const localDeploy = require('./localDeploy');
 const upagentRelease = require('./upagentRelease');
 const { CONFIG_LABEL } = require('./appConfig');
@@ -13,13 +14,14 @@ const {
   RELEASE_STEPS,
   RELEASE_DB_LABEL,
   releaseDbKey,
+  restartSlot,
 } = require('../../shared/flow-rules.js');
 
 /**
  * 手動佈版（選單「佈版 → 手動佈版…」）：不經 Requirement 流程，直接把某個 repository 的某個 commit
  * 佈版到 測試 / 正式 環境的 SaaS 或 Local。重用流程的佈版動作，順序與勾 SaaS / Local 時相同：
  *   SaaS：（有 Pipeline）等待進行中的 Run → merge 進環境 branch 並 push（觸發 Pipeline）→ 監看 push 觸發的 Run → 佈版後動作
- *         （測試環境重啟 App Service；正式環境只呼叫預留的 After-ProdDeploy.ps1，不重啟）
+ *         （測試環境重啟 App Service；正式環境不立即重啟，After-ProdDeploy.ps1 依選擇的日期 / 時段在 Azure Automation 排程重啟）
  *   Local：merge 進環境 branch → （有 localDeploy 設定）shell/Deploy-Local.ps1
  *   upagent：再執行 UpAgent 發佈（shell/Release-UpAgent.ps1，寫入該環境 SaaS / Local 的資料庫）
  *   正式環境 merge 後同樣把 prodBranch 反向 merge 回所有 feature branch。
@@ -98,6 +100,8 @@ function normalizeParams(p = {}) {
   const commit = str(p.commit).toLowerCase();
   if (commit && !COMMIT_RE.test(commit)) throw new Error(`commit 格式錯誤（${COMMIT_FORMAT_HINT}）`);
   const out = { repo, env: p.env, target: p.target, commit, rebuild: p.target === 'local' && p.rebuild === true };
+  // 正式環境 SaaS：Pipeline Run 成功後在 Azure Automation 排程重啟（null = 不排程）
+  out.restart = p.env === 'prod' && p.target === 'saas' ? prodRestart.normalizeRestart(p.restart) : null;
   if (repo === UPAGENT_REPO) {
     const u = p.release || {};
     const remark = str(u.remark);
@@ -175,6 +179,12 @@ async function preview(raw) {
   if (p.target === 'local' && !local && !release) {
     warnings.push(`${p.repo} 沒有設定${ENV_LABEL[p.env]}的 Local 佈版（${CONFIG_LABEL} 的 localDeploy.repos.${p.repo}.${p.env}）：只會 merge 進環境 branch。`);
   }
+  if (p.restart) {
+    const opts = await prodRestart.restartOptions();
+    if (!opts.configured) errors.push(`無法排程重啟：${opts.error}`);
+    else if (!opts.repos.some((x) => x.key === p.repo)) errors.push(`無法排程重啟：${CONFIG_LABEL} 的 prodRestart.repos 沒有設定 ${p.repo}`);
+    if (!pipeline) warnings.push('沒有設定 Pipeline：不會執行佈版後動作，也不會排程重啟。');
+  }
   if (p.env === 'prod') warnings.push('正式環境有客戶在使用，請確認 commit 已在測試環境驗證過。');
 
   const steps = planSteps({ p, envBranch, merge, pipeline, appService, local, release });
@@ -190,7 +200,14 @@ function planSteps({ p, envBranch, pipeline, appService, local, release }) {
     steps.push({ key: 'watch', label: '監看 push 觸發的 Pipeline Run' });
     steps.push({
       key: 'afterDeploy',
-      label: p.env === 'prod' ? '佈版後動作（After-ProdDeploy.ps1，不重啟）' : appService ? `重啟 App Service ${appService}` : '佈版後動作（未設定 App Service，不重啟）',
+      label:
+        p.env === 'prod'
+          ? p.restart
+            ? `佈版後動作：排程 ${p.restart.date} ${restartSlot(p.restart.slot).label} ${p.restart.time} 重啟（Azure Automation）`
+            : '佈版後動作（After-ProdDeploy.ps1，不排程重啟）'
+          : appService
+            ? `重啟 App Service ${appService}`
+            : '佈版後動作（未設定 App Service，不重啟）',
     });
   }
   if (local) steps.push({ key: 'localDeploy', label: `Local 佈版到 ${local.remoteHost}（container ${local.appName}）` });
@@ -367,7 +384,7 @@ async function execute(job) {
       }
       step.detail = '執行中…';
       emit(job);
-      const r = await afterDeployRepo({ stage, repo: p.repo, commit: mergeCommit });
+      const r = await afterDeployRepo({ stage, repo: p.repo, commit: mergeCommit, restart: p.restart, note: '手動佈版' });
       step.detail = r.message || '沒有設定 App Service，不需重啟';
       log(`✔ 佈版後動作：${step.detail}`);
     });

@@ -37,6 +37,8 @@ function buildMenu() {
       submenu: [
         { label: '手動佈版…', click: (_item, win) => win?.webContents.send('menu:deploy', 'manual') },
         { label: '佈版進度…', click: (_item, win) => win?.webContents.send('menu:deploy', 'progress') },
+        { type: 'separator' },
+        { label: '正式環境排程重啟…', click: (_item, win) => win?.webContents.send('menu:deploy', 'restart') },
       ],
     },
     { role: 'editMenu' },

@@ -10,6 +10,7 @@ import { initUpagentConnectionSettings } from './upagent-connection-settings-dia
 import { initUpagentReleaseDbSettings } from './upagent-release-db-dialog.js';
 import { createManualDeployDialog } from './manual-deploy-dialog.js';
 import { createDeployProgressDialog } from './deploy-progress-dialog.js';
+import { createRestartScheduleDialog } from './restart-schedule-dialog.js';
 import { api } from './api.js';
 
 const exactEl = $('exact');
@@ -61,6 +62,7 @@ const progress = createDeployProgressDialog({ openManual: () => manualDeploy.ope
 const manualDeploy = createManualDeployDialog({ onStarted: (job) => progress.started(job) });
 $('manual-deploy-btn').addEventListener('click', () => manualDeploy.open());
 $('deploy-progress-btn').addEventListener('click', () => progress.open());
-api.onDeployMenu((action) => (action === 'manual' ? manualDeploy.open() : progress.open()));
+const restartSchedule = createRestartScheduleDialog();
+api.onDeployMenu((action) => (action === 'manual' ? manualDeploy.open() : action === 'restart' ? restartSchedule.open() : progress.open()));
 
 tree.load();

@@ -20,8 +20,11 @@ contextBridge.exposeInMainWorld('api', {
   deployMergeStatus: (id, stage) => ipcRenderer.invoke('flow:mergeStatus', { id, stage }),
   mergeDeploy: (id, stage) => ipcRenderer.invoke('flow:mergeDeploy', { id, stage }),
   deployPipelineRuns: (id, stage) => ipcRenderer.invoke('flow:pipelineRuns', { id, stage }),
-  /** Pipeline Run 成功後的佈版後動作（測試環境：重啟 App Service；正式環境：預留的 shell，目前不做事） */
-  afterDeploy: (id, stage, repo, commit) => ipcRenderer.invoke('flow:afterDeploy', { id, stage, repo, commit }),
+  /**
+   * Pipeline Run 成功後的佈版後動作（測試環境：重啟 App Service；正式環境：After-ProdDeploy.ps1，
+   * restart = { date, slot } 時在 Azure Automation 排程重啟，null = 不排程）
+   */
+  afterDeploy: (id, stage, repo, commit, restart = null) => ipcRenderer.invoke('flow:afterDeploy', { id, stage, repo, commit, restart }),
   /** target = 'saas' | 'local'（各自寫入不同的資料庫） */
   upagentReleaseStatus: (id, stage, target) => ipcRenderer.invoke('upagentRelease:status', { id, stage, target }),
   /** 執行 UpAgent 發佈（shell/Release-UpAgent.ps1），完成後回傳該 Requirement 更新後的狀態 */
@@ -52,7 +55,14 @@ contextBridge.exposeInMainWorld('api', {
   /** 手動佈版工作的快照：cb(job)（job.removed = 已從清單移除）；輸出：cb({ id, line }) */
   onManualDeployUpdate: (cb) => ipcRenderer.on('manualDeploy:update', (_e, data) => cb(data)),
   onManualDeployLog: (cb) => ipcRenderer.on('manualDeploy:log', (_e, data) => cb(data)),
-  /** 選單「佈版 → 手動佈版… / 佈版進度…」被點擊時呼叫 cb('manual' | 'progress') */
+  /** 正式環境排程重啟：config.json prodRestart 的摘要 { configured, error, automationAccount, runbook, repos: [{ key, appService }] } */
+  prodRestartOptions: () => ipcRenderer.invoke('prodRestart:options'),
+  /** Automation 中已排程的重啟（含已過期）：{ automationAccount, runbook, items } */
+  listRestartSchedules: () => ipcRenderer.invoke('prodRestart:list'),
+  /** 建立重啟排程：repos 為 repo key 陣列，slot 為 RESTART_SLOTS 的 key；回傳 { items: [{ repo, ok, state, message }] } */
+  createRestartSchedules: (repos, date, slot, note) => ipcRenderer.invoke('prodRestart:create', { repos, date, slot, note }),
+  deleteRestartSchedule: (name) => ipcRenderer.invoke('prodRestart:delete', { name }),
+  /** 選單「佈版 → 手動佈版… / 佈版進度… / 正式環境排程重啟…」被點擊時呼叫 cb('manual' | 'progress' | 'restart') */
   onDeployMenu: (cb) => ipcRenderer.on('menu:deploy', (_e, action) => cb(action)),
   /** UpAgent 連線：要刪除的設定檔與各目標是否有 Activation Code */
   upagentConnectionStatus: () => ipcRenderer.invoke('upagentConnection:status'),

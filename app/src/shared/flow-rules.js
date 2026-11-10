@@ -130,3 +130,17 @@ export function upagentReleasePlan(checks, stage, target) {
   const startFrom = RELEASE_STEPS[Math.min(done + 1, RELEASE_STEPS.length - 1)];
   return { env, target, db, startFrom, version: startFrom === 'Bump' ? undefined : rel.version };
 }
+
+/**
+ * 正式環境排程重啟 App Service 的時段（Azure Automation 的 Schedule + Runbook，見 main/services/prodRestart.js）。
+ * 正式環境有客戶在用，不立即重啟，只能排在這幾個時間。
+ */
+export const RESTART_SLOTS = [
+  { key: 'lunch', label: '午休', time: '12:30' },
+  { key: 'evening', label: '下班', time: '18:30' },
+  { key: 'night', label: '深夜', time: '23:30' },
+];
+export const restartSlot = (key) => RESTART_SLOTS.find((s) => s.key === key) || null;
+export const RESTART_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** 時間 → 時段名稱（例 '23:30' → '深夜'），不是預設時段時回傳 '' */
+export const restartSlotLabel = (time) => RESTART_SLOTS.find((s) => s.time === time)?.label || '';

@@ -16,6 +16,7 @@ const upagentConnection = require('./services/upagentConnection');
 const upagentReleaseDb = require('./services/upagentReleaseDb');
 const userGuide = require('./services/userGuide');
 const manualDeploy = require('./services/manualDeploy');
+const prodRestart = require('./services/prodRestart');
 
 /**
  * IPC channel → service 對照。renderer 只能透過 preload 暴露的 window.api 呼叫這些 channel。
@@ -57,6 +58,11 @@ function registerIpcHandlers() {
   ipcMain.handle('manualDeploy:retry', (_e, { id, rerunAction } = {}) => manualDeploy.retry({ id, rerunAction }));
   ipcMain.handle('manualDeploy:dismiss', (_e, { id } = {}) => manualDeploy.dismiss({ id }));
   ipcMain.handle('manualDeploy:list', () => manualDeploy.list());
+  // 正式環境排程重啟（Azure Automation Schedule + Runbook）
+  ipcMain.handle('prodRestart:options', () => prodRestart.restartOptions());
+  ipcMain.handle('prodRestart:list', () => prodRestart.listSchedules());
+  ipcMain.handle('prodRestart:create', (_e, params) => prodRestart.createSchedules(params));
+  ipcMain.handle('prodRestart:delete', (_e, { name } = {}) => prodRestart.deleteSchedule({ name }));
   ipcMain.handle('upagentConnection:status', () => upagentConnection.connectionStatus());
   ipcMain.handle('upagentConnection:switch', (_e, { target } = {}) => upagentConnection.switchConnection({ target }));
   ipcMain.handle('upagentConnection:loadSettings', () => upagentConnection.loadConnectionSettings());

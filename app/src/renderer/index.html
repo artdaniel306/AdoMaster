@@ -309,6 +309,9 @@
         <div id="dp-merge" class="cc-repos"></div>
         <h4 class="dp-sec">Pipeline</h4>
         <div id="dp-pipelines" class="cc-repos"></div>
+        <h4 id="dp-restart-head" class="dp-sec" hidden>正式環境排程重啟</h4>
+        <div id="dp-restart" class="rp" hidden></div>
+        <p id="dp-restart-chosen" class="muted" hidden></p>
         <p id="dp-hint" class="muted"></p>
         <p id="dp-error" class="status error" hidden></p>
       </div>
@@ -434,6 +437,10 @@
           <p id="md-hsm" class="ur-hsm">🔑 會執行簽署：請先插上 HSM USB，簽署時會跳出 PIN 輸入視窗。</p>
         </div>
         <label id="md-rebuild-row" class="check md-rebuild" hidden><input id="md-rebuild" type="checkbox" /> 重新 build（忽略已存在的 image tar，例如改了部署用資料夾的設定）</label>
+        <div id="md-restart" hidden>
+          <h4 class="dp-sec">正式環境排程重啟</h4>
+          <div id="md-restart-picker" class="rp"></div>
+        </div>
         <div id="md-preview" hidden>
           <h4 class="dp-sec">將執行的步驟</h4>
           <ol id="md-steps" class="md-steps"></ol>
@@ -449,6 +456,41 @@
         <button type="submit" id="md-ok" class="btn-primary" disabled>開始佈版</button>
       </footer>
     </form>
+  </dialog>
+
+  <dialog id="restart-schedule-dialog">
+    <div class="dlg-box">
+      <header class="dlg-head">
+        <h3>正式環境排程重啟</h3>
+        <button type="button" id="rs-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <p id="rs-target" class="muted"></p>
+        <h4 class="dp-sec">新增排程</h4>
+        <div class="md-grid">
+          <span class="md-label">Repository</span>
+          <div id="rs-repos" class="md-seg"></div>
+          <span class="md-label">時間</span>
+          <div id="rs-picker" class="rp"></div>
+          <label class="md-label" for="rs-note">說明</label>
+          <input id="rs-note" type="text" maxlength="200" />
+        </div>
+        <ul id="rs-result" class="rp-msgs"></ul>
+        <h4 class="dp-sec rs-list-head">
+          已排程
+          <label class="check"><input id="rs-expired" type="checkbox" /> 含已執行</label>
+        </h4>
+        <div id="rs-list" class="rs-list"></div>
+        <p id="rs-status" class="status"></p>
+        <p id="rs-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" id="rs-refresh" class="btn-ghost">重新整理</button>
+        <span class="spacer"></span>
+        <button type="button" id="rs-cancel" class="btn-ghost">關閉</button>
+        <button type="button" id="rs-create" class="btn-primary btn-prod">建立排程</button>
+      </footer>
+    </div>
   </dialog>
 
   <dialog id="deploy-progress-dialog">

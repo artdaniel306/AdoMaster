@@ -2,6 +2,7 @@ import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
 import { loadRepos } from './repos.js';
 import { createConfirmDialog } from './confirm-dialog.js';
+import { createRestartPicker } from './restart-picker.js';
 import { RELEASE_STEPS, UPAGENT_REPO } from '../../shared/flow-rules.js';
 
 const STEP_TEXT = {
@@ -46,8 +47,14 @@ export function createManualDeployDialog({ onStarted }) {
   const previewBtn = $('md-preview-btn');
   const okBtn = $('md-ok');
   const confirmDialog = createConfirmDialog();
+  const restartEl = $('md-restart');
+  const restartPicker = createRestartPicker($('md-restart-picker'));
 
   let repos = [];
+  /** 排程重啟目前載入的 repository（換 repository 時重新查詢已排程的重啟） */
+  let restartRepo = null;
+  /** 排程重啟的選擇不完整 / 時間已過時的錯誤訊息 */
+  let restartError = '';
   /** 上次「檢查」的參數（JSON）與結果；表單變更後失效 */
   let checked = null;
   let busy = false;
@@ -64,8 +71,19 @@ export function createManualDeployDialog({ onStarted }) {
     errorEl.hidden = !msg;
   }
 
+  const prodSaas = () => radio('md-env') === 'prod' && radio('md-target') === 'saas';
+
   function params() {
     const p = { repo: repoEl.value, env: radio('md-env'), target: radio('md-target'), commit: commitEl.value.trim(), rebuild: rebuildEl.checked };
+    restartError = '';
+    p.restart = null;
+    if (prodSaas()) {
+      try {
+        p.restart = restartPicker.value();
+      } catch (err) {
+        restartError = err.message;
+      }
+    }
     if (isUpagent()) {
       p.release =
         mode() === 'resume'
@@ -85,6 +103,11 @@ export function createManualDeployDialog({ onStarted }) {
     const signs = !resume || RELEASE_STEPS.indexOf(startEl.value) <= RELEASE_STEPS.indexOf('Sign');
     hsmEl.hidden = !upagent || !signs;
     rebuildRow.hidden = radio('md-target') !== 'local';
+    restartEl.hidden = !prodSaas();
+    if (prodSaas() && restartRepo !== repoEl.value) {
+      restartRepo = repoEl.value;
+      restartPicker.load(restartRepo ? [restartRepo] : []);
+    }
     commitEl.placeholder = resume ? '選填：有填才會先 merge 進環境 branch' : '要佈版的 commit（縮寫即可）';
     if (upagent) {
       const r = repos.find((x) => x.key === UPAGENT_REPO);
@@ -125,6 +148,10 @@ export function createManualDeployDialog({ onStarted }) {
   async function runPreview() {
     if (busy) return null;
     const p = params();
+    if (restartError) {
+      showError(restartError);
+      return null;
+    }
     busy = true;
     previewBtn.disabled = true;
     okBtn.disabled = true;
@@ -185,6 +212,10 @@ export function createManualDeployDialog({ onStarted }) {
     e.preventDefault();
     if (busy) return;
     const p = params();
+    if (restartError) {
+      showError(restartError);
+      return;
+    }
     // 檢查後又改了表單：重新檢查，讓使用者看過步驟再按一次
     if (!checked || checked.key !== JSON.stringify(p)) {
       await runPreview();
@@ -240,6 +271,7 @@ export function createManualDeployDialog({ onStarted }) {
     repoEl.replaceChildren(...repos.map((r) => new Option(r.label === r.key ? r.key : `${r.label}（${r.key}）`, r.key)));
     if (repos.some((r) => r.key === current)) repoEl.value = current;
     commitResultEl.hidden = true;
+    restartRepo = null; // 每次開啟都重新查詢已排程的重啟
     layout();
     invalidate();
     showError(loadError);

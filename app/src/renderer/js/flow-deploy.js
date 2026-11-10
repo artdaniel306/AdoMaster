@@ -144,8 +144,8 @@ export function createFlowDeploy(ctx) {
       pipelineRuns,
       mergeFn: () => api.mergeDeploy(req.id, stage.key),
       runsFn: () => api.deployPipelineRuns(req.id, stage.key),
-      // Run 成功後：測試環境重啟 App Service；正式環境只呼叫預留的 shell（不重啟）
-      afterDeployFn: (repo, commit) => api.afterDeploy(req.id, stage.key, repo, commit),
+      // Run 成功後：測試環境重啟 App Service；正式環境依確認畫面選的時段在 Azure Automation 排程重啟（不立即重啟）
+      afterDeployFn: (repo, commit, restart) => api.afterDeploy(req.id, stage.key, repo, commit, restart),
       // 佈版 dialog 以 checkFn 是否成功判斷「已勾起」：UpAgent 發佈沒完成要丟錯，dialog 會提供「仍然勾起」重試
       checkFn: async () => {
         if (!(await ensureReleased(req, stage, key, text))) throw new Error('UpAgent 發佈未完成，尚未勾起');
