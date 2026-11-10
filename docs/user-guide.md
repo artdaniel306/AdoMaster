@@ -241,6 +241,19 @@ push 環境 branch 會觸發 ADO Pipeline 自動佈版（在 Repository 設定�
 
 `upagentRelease` 的其他欄位（storage / github / codesign）與 `localDeploy` 目前沒有設定畫面，請直接編輯 `data/config.json`（可參考 `templates/config_example.json`）。
 
+## 同步所有 Repository
+
+選單「工具 → 同步所有 Repository…」：把 `data/config.json` 中所有 repository 與雲端同步，按「開始同步」執行。
+
+- 同步對象：Repository 設定的本機路徑（開發用 clone），以及 `localDeploy` 的 `projectDir`（部署用 clone）；相同路徑只做一次。資料夾不存在、不是 git repository 或沒有 remote 的會略過。
+- 每個 repository 先 `git fetch --all`，再檢查每個有追蹤 remote branch 的 local branch：
+  - **只落後** remote：快轉到 remote 最新版。目前 checkout 中的 branch 用 `git merge --ff-only`，未提交的修改會被覆蓋時 git 會拒絕，結果顯示「失敗」，工作目錄不受影響。
+  - **分岔**（同時領先與落後）：不處理，請自行 merge / rebase。
+  - **upstream 已刪除**：不處理。
+- 不會 merge、rebase、push，也不會刪除任何 branch。
+- **只 fetch，不快轉**：只更新 remote branch，並列出可以快轉的 local branch。
+- 執行中可以按「停止」中止。
+
 ## 匯出 / 匯入本地資料
 
 選單「檔案 → 匯出本地資料… / 匯入本地資料…」：把不在 git、也無法從 ADO 取回的資料打包成 zip，方便換電腦或備份。內容包含 `data/.env`、`data/config.json`、流程勾選紀錄、測試記錄與圖片，以及畫面上的偏好（固定的 Iteration、目前的 UpAgent 連線等）。

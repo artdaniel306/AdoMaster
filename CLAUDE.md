@@ -82,4 +82,5 @@ Full spec: **`docs/requirement-flow.md`**. Key invariants:
 - Deploy merges never touch the local working tree and never `--force` push; conflicting merges are refused.
 - Menu「佈版」: **手動佈版** (`manualDeploy.js`, runs in main) deploys one repo/commit to SaaS/Local × test/prod with the same actions but no Requirement and no flow-state writes; **佈版進度** lists manual jobs + the flow's background deploy jobs (`deploy-jobs.js`). See the spec's last section.
 - Prod deploy **never restarts** the App Service immediately (customers are live); there is deliberately no `prodAppService` field. Restarts are only **scheduled** in Azure Automation at fixed slots (`RESTART_SLOTS`) via `shell/Restart-Schedule.ps1` (`prodRestart` in `config.json`; menu「佈版 → 正式環境排程重啟…」) — see the spec's「正式環境排程重啟」section.
+- Menu「工具 → 同步所有 Repository…」runs `shell/Sync-Repos.ps1` (fetch + fast-forward-only of all configured dev / deploy clones; never merges or pushes).
 - A repo's `key` in `repos` is what the flow state stores — renaming it orphans old records.

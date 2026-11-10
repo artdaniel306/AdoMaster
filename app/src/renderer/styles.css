@@ -648,6 +648,26 @@ td.stage-split { padding: 0; height: 1px; }
 .rs-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .rs-item { display: grid; grid-template-columns: auto 160px 110px 1fr auto; gap: 10px; align-items: center; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; }
 .rs-item.expired { opacity: .6; }
+
+/* ---- 同步所有 Repository（選單「工具」，shell/Sync-Repos.ps1）---- */
+#repo-sync-dialog {
+  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
+  width: min(760px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+}
+#repo-sync-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#repo-sync-dialog .dlg-box { max-height: 90vh; }
+#repo-sync-dialog .dlg-body { overflow: auto; }
+#repo-sync-dialog [hidden] { display: none !important; }
+#repo-sync-dialog .status:empty { display: none; }
+.sy-fetch-only { display: inline-flex; gap: 4px; align-items: center; }
+.sy-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.sy-list:empty { display: none; }
+.sy-repo { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; }
+.sy-head { display: flex; gap: 10px; align-items: center; }
+.sy-head .sy-path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
+.sy-head .cc-result { grid-column: auto; }
+.sy-branches { list-style: none; margin: 4px 0 0; padding: 0 0 0 12px; display: flex; flex-direction: column; gap: 2px; }
+.sy-branches .cc-result { white-space: normal; }
 .rs-item .cc-result { grid-column: auto; }
 .rs-when { font-variant-numeric: tabular-nums; }
 .rs-desc { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

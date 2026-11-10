@@ -84,6 +84,16 @@ contextBridge.exposeInMainWorld('api', {
   saveUpagentReleaseDbSettings: (dbs) => ipcRenderer.invoke('upagentReleaseDb:saveSettings', { dbs }),
   /** 選擇 psql 執行檔；取消 = null */
   pickPsql: (current) => ipcRenderer.invoke('upagentReleaseDb:pickPsql', current),
+  /**
+   * 雲端同步所有 repository（shell/Sync-Repos.ps1）；fetchOnly = 只 fetch 不快轉。
+   * 回傳 { repos: [{ key, kind: 'dev' | 'deploy', path, status, message, upToDate, branches: [{ branch, upstream, status, detail }] }] }
+   */
+  runRepoSync: (fetchOnly = false) => ipcRenderer.invoke('repoSync:run', { fetchOnly: !!fetchOnly }),
+  cancelRepoSync: () => ipcRenderer.invoke('repoSync:cancel'),
+  /** 同步的即時輸出：cb({ line }) */
+  onRepoSyncLog: (cb) => ipcRenderer.on('repoSync:log', (_e, data) => cb(data)),
+  /** 選單「工具 → 同步所有 Repository…」被點擊時呼叫 cb() */
+  onRepoSyncMenu: (cb) => ipcRenderer.on('menu:repoSync', () => cb()),
   loadRepoConfig:() => ipcRenderer.invoke('repos:config'),
   checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
   branchGraph: (repo, branch, { fetch = false, all = false } = {}) =>

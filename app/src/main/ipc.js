@@ -17,6 +17,7 @@ const upagentReleaseDb = require('./services/upagentReleaseDb');
 const userGuide = require('./services/userGuide');
 const manualDeploy = require('./services/manualDeploy');
 const prodRestart = require('./services/prodRestart');
+const repoSync = require('./services/repoSync');
 
 /**
  * IPC channel → service 對照。renderer 只能透過 preload 暴露的 window.api 呼叫這些 channel。
@@ -73,6 +74,11 @@ function registerIpcHandlers() {
   ipcMain.handle('upagentReleaseDb:loadSettings', () => upagentReleaseDb.loadReleaseDbSettings());
   ipcMain.handle('upagentReleaseDb:saveSettings', (_e, params) => upagentReleaseDb.saveReleaseDbSettings(params));
   ipcMain.handle('upagentReleaseDb:pickPsql', (e, current) => upagentReleaseDb.pickPsql(BrowserWindow.fromWebContents(e.sender), current));
+  // 雲端同步所有 repository（shell/Sync-Repos.ps1）：輸出以 repoSync:log 送給呼叫的視窗
+  ipcMain.handle('repoSync:run', (e, { fetchOnly } = {}) =>
+    repoSync.runSync((channel, payload) => !e.sender.isDestroyed() && e.sender.send(channel, payload), { fetchOnly: !!fetchOnly })
+  );
+  ipcMain.handle('repoSync:cancel', () => repoSync.cancelSync());
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());
   ipcMain.handle('repos:checkCommit', (_e, params) => gitCommit.checkCommit(params));
   ipcMain.handle('repos:branchGraph', (_e, params) => gitCommit.branchGraph(params));

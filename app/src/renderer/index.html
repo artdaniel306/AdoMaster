@@ -529,6 +529,29 @@
     </div>
   </dialog>
 
+  <dialog id="repo-sync-dialog">
+    <div class="dlg-box">
+      <header class="dlg-head">
+        <h3>同步所有 Repository</h3>
+        <button type="button" id="sy-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <label class="check sy-fetch-only" title="只 git fetch，列出可快轉的 branch，不移動 local branch">
+          <input id="sy-fetch-only" type="checkbox" /> 只 fetch，不快轉
+        </label>
+        <div id="sy-result" class="sy-list"></div>
+        <p id="sy-status" class="status"></p>
+        <p id="sy-error" class="status error" hidden></p>
+        <pre id="sy-log" class="ur-log" hidden></pre>
+      </div>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" id="sy-cancel" class="btn-ghost">關閉</button>
+        <button type="button" id="sy-run" class="btn-primary">開始同步</button>
+      </footer>
+    </div>
+  </dialog>
+
   <dialog id="deploy-progress-dialog">
     <div class="dlg-box">
       <header class="dlg-head">

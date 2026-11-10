@@ -7,6 +7,7 @@ const { openHelpWindow } = require('./helpWindow');
  * 、UpAgent 連線設定（upagent-connection-settings-dialog.js）、UpAgent 發佈資料庫設定（upagent-release-db-dialog.js）
  * 與正式環境排程重啟設定（prod-restart-settings-dialog.js），
  * 「佈版」放手動佈版（manual-deploy-dialog.js）、佈版進度（deploy-progress-dialog.js）與正式環境排程重啟（restart-schedule-dialog.js），
+ * 「工具」放同步所有 Repository（repo-sync-dialog.js），
  * 同樣只通知 renderer，
  * 「說明 → 使用手冊」（F1）由 main 直接開獨立視窗（helpWindow.js，內容是 docs/user-guide.md），
  * 其餘沿用 Electron 預設的編輯 / 檢視 / 視窗選單。
@@ -43,6 +44,10 @@ function buildMenu() {
         { type: 'separator' },
         { label: '正式環境排程重啟…', click: (_item, win) => win?.webContents.send('menu:deploy', 'restart') },
       ],
+    },
+    {
+      label: '工具',
+      submenu: [{ label: '同步所有 Repository…', click: (_item, win) => win?.webContents.send('menu:repoSync') }],
     },
     { role: 'editMenu' },
     { role: 'viewMenu' },
