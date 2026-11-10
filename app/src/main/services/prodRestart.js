@@ -1,6 +1,6 @@
 const { runPowerShellJson } = require('../powershell');
 const { readConfig, updateConfig, CONFIG_LABEL } = require('./appConfig');
-const { RESTART_DATE_RE, restartSlot } = require('../../shared/flow-rules.js');
+const { RESTART_DATE_RE, restartSlot, runbookParamFields } = require('../../shared/flow-rules.js');
 
 /**
  * 正式環境排程重啟 App Service（正式環境有客戶在用，不立即重啟，只排在 RESTART_SLOTS 的時段）。
@@ -124,7 +124,8 @@ const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /**
  * 讀取設定畫面的內容。repository 清單 = config.json repos（依順序）+ prodRestart.repos 中其他的 key。
- * @returns {{ file, exists, defaults, settings, parameters: [{ name, value }], repos: [{ key, label, appService, resourceGroup }] }}
+ * enabled = 已在 prodRestart.repos（可排程重啟）；values = 該 repo 在 prodRestart.repos 的所有單值欄位（release、server、appService…）。
+ * @returns {{ file, exists, defaults, settings, parameters: [{ name, value }], repos: [{ key, label, enabled, values: { 欄位: 值 } }] }}
  */
 async function loadSettings() {
   const cfg = (await readConfig()) || {};
@@ -138,17 +139,23 @@ async function loadSettings() {
   const known = (Array.isArray(cfg.repos) ? cfg.repos : []).filter((r) => r && typeof r.key === 'string' && r.key);
   const keys = [...new Set([...known.map((r) => r.key), ...Object.keys(restartRepos)])];
   const repos = keys.map((key) => {
-    const r = isObj(restartRepos[key]) ? restartRepos[key] : {};
+    const enabled = isObj(restartRepos[key]);
+    const values = Object.fromEntries(
+      Object.entries(enabled ? restartRepos[key] : {})
+        .filter(([, v]) => v == null || typeof v !== 'object')
+        .map(([f, v]) => [f, str(v)]),
+    );
     const k = known.find((x) => x.key === key);
-    return { key, label: k?.label || key, appService: str(r.appService), resourceGroup: str(r.resourceGroup) };
+    return { key, label: k?.label || key, enabled, values };
   });
   return { file: CONFIG_LABEL, exists: !!section, defaults: DEFAULTS, settings, parameters, repos };
 }
 
 /**
  * 儲存設定畫面的內容到 config.json 的 prodRestart（其他 section、本 section 未列出的欄位、各 repo 的其他欄位都保留）。
- * 選填欄位空白 = 刪掉 key；App Service 空白 = 該 repository 不能排程重啟（從 repos 移除）。
- * Runbook 參數值中的 {欄位} 必須在每個有設定的 repository 都有值（與 Restart-Schedule.ps1 的取代規則相同）。
+ * 選填欄位空白 = 刪掉 key；repository 沒勾選（enabled = false）= 不能排程重啟（從 repos 移除）。
+ * 畫面送來的 repo 欄位（values）空白 = 刪掉該欄位；沒送來的欄位保留。
+ * Runbook 參數值中的 {欄位} 必須在每個勾選的 repository 都有值（與 Restart-Schedule.ps1 的取代規則相同）。
  */
 async function saveSettings({ settings, parameters, repos } = {}) {
   const values = {};
@@ -172,16 +179,20 @@ async function saveSettings({ settings, parameters, repos } = {}) {
     params[name] = value;
   }
   if (!Object.keys(params).length) throw new Error('請至少設定一個 Runbook 參數');
-  const fields = [...new Set(Object.values(params).flatMap((v) => [...v.matchAll(/\{(\w+)\}/g)].map((m) => m[1])))].filter((f) => f !== 'repo');
+  const fields = runbookParamFields(Object.values(params));
 
   const input = new Map();
   for (const r of Array.isArray(repos) ? repos : []) {
     const key = str(r?.key);
     if (!key) continue;
-    const appService = str(r.appService);
-    const resourceGroup = str(r.resourceGroup);
-    if (/[\r\n]/.test(appService + resourceGroup)) throw new Error(`${key} 的設定不能包含換行`);
-    input.set(key, { appService, resourceGroup });
+    const values = {};
+    for (const [f, v] of Object.entries(isObj(r.values) ? r.values : {})) {
+      if (!/^\w+$/.test(f)) continue;
+      const s = str(v);
+      if (/[\r\n]/.test(s)) throw new Error(`${key} 的 ${f} 不能包含換行`);
+      values[f] = s;
+    }
+    input.set(key, { enabled: !!r.enabled, values });
   }
 
   await updateConfig((cfg) => {
@@ -196,11 +207,13 @@ async function saveSettings({ settings, parameters, repos } = {}) {
     const nextRepos = {};
     // 畫面沒有列出的 repo（理論上不會有）原樣保留
     for (const [key, r] of Object.entries(prevRepos)) if (!input.has(key)) nextRepos[key] = r;
-    for (const [key, { appService, resourceGroup }] of input) {
-      if (!appService) continue;
-      const r = { ...(isObj(prevRepos[key]) ? prevRepos[key] : {}), appService };
-      if (resourceGroup) r.resourceGroup = resourceGroup;
-      else delete r.resourceGroup;
+    for (const [key, { enabled, values }] of input) {
+      if (!enabled) continue;
+      const r = { ...(isObj(prevRepos[key]) ? prevRepos[key] : {}) };
+      for (const [f, v] of Object.entries(values)) {
+        if (v) r[f] = v;
+        else delete r[f];
+      }
       for (const field of fields) {
         if (!str(r[field])) throw new Error(`${key} 缺少 ${field}（Runbook 參數用到 {${field}}）`);
       }

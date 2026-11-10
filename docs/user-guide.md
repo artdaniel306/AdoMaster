@@ -215,12 +215,14 @@ push 環境 branch 會觸發 ADO Pipeline 自動佈版（在 Repository 設定�
 | Runbook | 負責重啟的 Runbook 名稱 |
 | 訂閱 | 選填，空白時使用 `az` 目前的訂閱 |
 | Hybrid Worker Group | 選填，空白時在 Azure 雲端執行 Runbook |
-| Runbook 參數 | 傳給 Runbook 的參數名稱與值，名稱要和 Runbook 定義的參數一致。值裡的 `{appService}`、`{resourceGroup}` 會換成下方該 repository 的欄位，`{repo}` 會換成 repository key。例如 `AppServiceName` = `{appService}` |
-| 正式環境 App Service | 每個 repository 的正式環境 App Service 名稱與 Resource Group。App Service 空白 = 這個 repository 不能排程重啟。Runbook 參數用到的欄位（例如 `{resourceGroup}`）不能空白 |
+| Runbook 參數 | 傳給 Runbook 的參數名稱與值，名稱要和 Runbook 定義的參數一致。值裡的 `{欄位}` 會換成下方該 repository 的同名欄位，`{repo}` 會換成 repository key。例如 `AppServiceName` = `{appService}`，或 `Release` = `{release}`、`Server` = `{server}` |
+| Repository | 勾選 = 這個 repository 可以排程重啟（沒勾 = 從設定移除）。欄位會依 Runbook 參數用到的 `{欄位}` 自動產生（例如用了 `{release}`、`{server}` 就有 release、server 兩欄），勾選的 repository 每一欄都必填 |
 | 時區 / UTC 位移 | Schedule 的時區（預設 `Asia/Taipei`）與時段的 UTC 位移（預設 `+08:00`），空白 = 預設值 |
 | 排程名稱前綴 | Schedule 名稱的前綴（預設 `adomaster-restart`）。只會列出和刪除這個前綴開頭的排程，變更後舊前綴的排程要到 Azure Portal 管理 |
 
-設定畫面沒有的欄位（例如 `repos.<repository>` 裡自訂、給 Runbook 參數用的欄位）請直接編輯 `data/config.json`，儲存時會保留。
+`repos.<repository>` 裡目前 Runbook 參數沒用到的欄位不會顯示，但儲存時會保留。
+
+安裝版的設定檔在 `%APPDATA%\AdoMaster\data\config.json`（不是專案資料夾裡的 `data\config.json`），除非用環境變數 `ADOMASTER_DATA_DIR` 指定。
 
 ### UpAgent 連線設定
 

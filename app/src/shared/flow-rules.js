@@ -144,3 +144,10 @@ export const restartSlot = (key) => RESTART_SLOTS.find((s) => s.key === key) || 
 export const RESTART_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** 時間 → 時段名稱（例 '23:30' → '深夜'），不是預設時段時回傳 '' */
 export const restartSlotLabel = (time) => RESTART_SLOTS.find((s) => s.time === time)?.label || '';
+/**
+ * prodRestart.runbookParameters 的值中用到的 {欄位}（依出現順序、不重複，不含 {repo}）。
+ * 每個 {欄位} 由 prodRestart.repos.<repo>.<欄位> 取代（與 shell/Restart-Schedule.ps1 相同規則）。
+ */
+export const runbookParamFields = (values) => [
+  ...new Set(values.flatMap((v) => [...String(v ?? '').matchAll(/\{(\w+)\}/g)].map((m) => m[1]))),
+].filter((f) => f !== 'repo');
