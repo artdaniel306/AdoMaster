@@ -1,5 +1,5 @@
 import { api, cleanError } from './api.js';
-import { $, el } from './dom.js';
+import { $, el, errorSetter } from './dom.js';
 import { loadRepos } from './repos.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 import { createRestartPicker } from './restart-picker.js';
@@ -63,10 +63,7 @@ export function createManualDeployDialog({ onStarted }) {
   const isUpagent = () => repoEl.value === UPAGENT_REPO;
   const mode = () => radio('md-mode') || 'new';
 
-  function showError(msg) {
-    errorEl.textContent = msg || '';
-    errorEl.hidden = !msg;
-  }
+  const showError = errorSetter(errorEl);
 
   const prodSaas = () => radio('md-env') === 'prod' && radio('md-target') === 'saas';
   const isCustomer = () => radio('md-env') === 'customer';

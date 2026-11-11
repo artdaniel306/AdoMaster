@@ -1,6 +1,6 @@
 # 架構優化計畫：第二批、第三批
 
-進度：第一步（2-5、2-6、3-7）已完成。
+進度：第一步（2-5、2-6、3-7）、第二步（2-1、2-2）已完成（2-1、2-2 待手動驗證）。
 
 第一批（bug 修正、共用常數、`Common.ps1`、`runPowerShellLines`、`exclusiveRunner`、`findRepo`）已在 commit `e2f35ab refactor` 完成。
 本文件列出剩下的項目，依建議順序排列。每項都標了成本 / 效益與驗證方式；做完一項就勾起來，並同步更新 CLAUDE.md / 文件。
@@ -11,7 +11,9 @@
 
 ## 第二批：去除重複的 UI 與拆大檔（成本中，風險中）
 
-### 2-1. 設定 dialog 共用 `form-dialog.js`
+### 2-1. ✅ 設定 dialog 共用 `form-dialog.js`
+- 完成情況：`form-dialog.js` 提供 `textInput` / `secretInput` / `inputBox` / `fieldRow` / `envOverrideWarn` / `bindFormDialog`（依 `<prefix>-*` id 接線；儲存中「取消」、✕、Esc 都不能關閉；任何輸入改變時清錯誤）。5 個設定 dialog 978 → 710 行。
+  `errorSetter` 放在 `dom.js`（不只設定 dialog 用），另外 9 個模組的 `showError` 也改用它（`requirement-flow.js` 的 `showError(prefix, err)` 簽名不同，保留）。
 - **現況**：15 個 renderer 模組各自定義 `showError`；`textInput`、`field()`、密碼 👁 切換、「讀取中 → load → render → 啟用確定」「busy → save → 關閉 / 顯示錯誤」流程在 5 個設定 dialog 重複
   （`env-settings-dialog.js`、`repo-settings-dialog.js`、`upagent-connection-settings-dialog.js`、`upagent-release-db-dialog.js`、`prod-restart-settings-dialog.js`）。
 - **問題**：行為已經不一致 —— `env-settings-dialog.js`、`repo-settings-dialog.js` 沒有「儲存中不能關閉」（`cancel` 事件）的防護，和之前修過的「關不掉 dialog」是同一類問題。
@@ -22,7 +24,9 @@
 - **效益**：每個設定 dialog 約少 30–50 行；之後新增設定畫面只需寫欄位與 save。
 - **成本**：中
 
-### 2-2. 背景工作 dialog 共用元件
+### 2-2. ✅ 背景工作 dialog 共用元件
+- 完成情況：`background-job-dialog.js`（`createBackgroundJobDialog`，依 `<prefix>-*` id 接線；專屬部分用 `init` / `confirm` / `render` / `runningText` hook）、`log-view.js`（`createLogView`，`deploy-progress-dialog.js` 收合時只累積、展開才繪製）、`dom.js` 的 `notify`。
+  `finish` 統一用 `!ok || !dialog.open || phase !== 'done'`（UpAgent 原本少了 phase 判斷，但只會在 done 時以 ok 呼叫，行為相同）。Local 佈版「執行中」文字改用 repository 顯示名稱。
 - **現況**：`local-deploy-dialog.js`（266 行）與 `upagent-release-dialog.js`（262 行）約七成相同：`appendLog`、`run` 的 catch、`finish`、`dismiss`、停止 / 背景 / 關閉按鈕接線、`open` 的 job 骨架、`statusOf` / `show` / `summary`。
   兩份已開始分岔（`local-deploy-dialog.js` 的 `finish` 多了 `j.phase !== 'done'` 判斷）。
 - **做法**：

@@ -1,5 +1,5 @@
 import { cleanError } from './api.js';
-import { $ } from './dom.js';
+import { $, errorSetter } from './dom.js';
 
 /**
  * 安排預設 Task dialog（Pending 階段、尚未展開 Task 時）：
@@ -18,10 +18,7 @@ export function createTaskDialog() {
   let onCreate = null; // (description) => Promise
   let busy = false;
 
-  function showError(msg) {
-    errorEl.textContent = msg;
-    errorEl.hidden = !msg;
-  }
+  const showError = errorSetter(errorEl);
 
   function setBusy(v) {
     busy = v;

@@ -1,8 +1,7 @@
 import { api, cleanError } from './api.js';
-import { $, el } from './dom.js';
+import { $, el, errorSetter } from './dom.js';
 import { loadRepos, repoTag } from './repos.js';
-
-const LOG_MAX_LINES = 2000;
+import { createLogView } from './log-view.js';
 
 /** Sync-Repos.ps1 的 branch status → [樣式, 文字] */
 const BRANCH_STATUS = {
@@ -27,13 +26,10 @@ export function createRepoSyncDialog() {
   const runBtn = $('sy-run');
   const cancelBtn = $('sy-cancel');
 
+  const log = createLogView(logEl, { maxLines: 2000 });
   let busy = false;
-  let lines = [];
 
-  function showError(msg) {
-    errorEl.textContent = msg || '';
-    errorEl.hidden = !msg;
-  }
+  const showError = errorSetter(errorEl);
 
   function setBusy(b, text = '') {
     busy = b;
@@ -44,16 +40,8 @@ export function createRepoSyncDialog() {
     cancelBtn.textContent = b ? '停止' : '關閉';
   }
 
-  function appendLog(line) {
-    lines.push(line);
-    if (lines.length > LOG_MAX_LINES) lines.splice(0, lines.length - LOG_MAX_LINES);
-    const atBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 24;
-    logEl.textContent = lines.join('\n');
-    if (atBottom) logEl.scrollTop = logEl.scrollHeight;
-    logEl.hidden = false;
-  }
   api.onRepoSyncLog(({ line }) => {
-    if (busy) appendLog(line);
+    if (busy) log.append(line);
   });
 
   function repoState(r) {
@@ -94,8 +82,7 @@ export function createRepoSyncDialog() {
     if (busy) return;
     showError('');
     resultEl.replaceChildren();
-    lines = [];
-    logEl.textContent = '';
+    log.reset();
     logEl.hidden = true;
     const fetchOnly = fetchOnlyEl.checked;
     setBusy(true, fetchOnly ? 'git fetch 所有 repository…' : '同步所有 repository…');

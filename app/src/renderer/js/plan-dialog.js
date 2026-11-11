@@ -1,5 +1,5 @@
 import { cleanError } from './api.js';
-import { $, el } from './dom.js';
+import { $, el, errorSetter } from './dom.js';
 import { loadRepos, repoTag } from './repos.js';
 
 /**
@@ -21,10 +21,7 @@ export function createPlanDialog() {
   let onSave = null; // (repos | null, migration, note) => Promise
   let busy = false;
 
-  function showError(msg) {
-    errorEl.textContent = msg;
-    errorEl.hidden = !msg;
-  }
+  const showError = errorSetter(errorEl);
 
   function repoRow(repo, branch) {
     const row = el('div', 'plan-repo');

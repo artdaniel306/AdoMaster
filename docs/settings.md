@@ -16,6 +16,8 @@ Common save rules (all dialogs):
 
 ## Dialogs
 
+Every settings dialog uses `renderer/js/form-dialog.js`: `bindFormDialog({ dialog, prefix, reset, load, validate, save, … })` wires open → load → enable 「儲存」, submit → validate → save → close, and blocks closing while saving; `textInput` / `secretInput` / `inputBox` / `fieldRow` build the fields. HTML ids follow `<prefix>-form / -ok / -cancel / -close / -error`. A new settings dialog only writes its fields, `load` and `save`.
+
 | Menu item | Edits | Renderer → service |
 |---|---|---|
 | 連線與機密設定… | `data/.env` | `env-settings-dialog.js` → `appConfig.loadEnvSettings` / `saveEnvSettings` |

@@ -1,5 +1,6 @@
-import { api, cleanError } from './api.js';
+import { api } from './api.js';
 import { $, el } from './dom.js';
+import { bindFormDialog, fieldRow, textInput as baseInput } from './form-dialog.js';
 import { runbookParamFields } from '../../shared/flow-rules.js';
 
 /**
@@ -30,47 +31,23 @@ export function initProdRestartSettings() {
   if (instance) return instance;
 
   const dialog = $('prod-restart-settings-dialog');
-  const form = $('prs-form');
   const fileEl = $('prs-file');
   const automationEl = $('prs-automation');
   const paramsEl = $('prs-params');
   const reposEl = $('prs-repos');
   const scheduleEl = $('prs-schedule');
-  const errorEl = $('prs-error');
-  const okBtn = $('prs-ok');
 
   let inputs = {}; // key → input（Automation + 排程）
   let paramRows = []; // [{ name, value }]（input）
   let repoRows = []; // [{ key, enabled: checkbox, values: { 欄位: 值 }, cells }]
   let columns = null; // 目前 Runbook 參數用到的 {欄位}
-  let busy = false;
-  let onSaved = null;
 
-  function showError(msg) {
-    errorEl.textContent = msg;
-    errorEl.hidden = !msg;
-  }
-
-  function textInput(value = '', placeholder = '') {
-    const input = el('input', 'es-input');
-    input.type = 'text';
-    input.value = value;
-    input.placeholder = placeholder;
-    input.spellcheck = false;
-    input.autocomplete = 'off';
-    input.addEventListener('input', () => showError(''));
-    return input;
-  }
+  const textInput = (value, placeholder = '') => baseInput(value, { placeholder });
 
   function field(f, value, placeholder = f.placeholder || '') {
     const input = textInput(value, placeholder);
     inputs[f.key] = input;
-    const wrap = el('label', 'rs-field');
-    if (f.title) wrap.title = f.title;
-    const label = el('span', 'rs-label', f.label);
-    if (f.required) label.append(el('span', 'es-required', ' *'));
-    label.append(el('span', 'es-key', f.key));
-    wrap.append(label, input);
+    const wrap = fieldRow(f.label, input, { required: f.required, keyText: f.key, title: f.title });
     return { wrap, input };
   }
 
@@ -86,7 +63,6 @@ export function initProdRestartSettings() {
     del.addEventListener('click', () => {
       paramRows = paramRows.filter((r) => r !== row);
       line.remove();
-      showError('');
       syncColumns();
     });
     paramRows.push(row);
@@ -129,10 +105,7 @@ export function initProdRestartSettings() {
     name.title = '可排程重啟';
     name.append(enabled, el('span', '', r.label));
     if (r.label !== r.key) name.append(el('span', 'es-key', r.key));
-    enabled.addEventListener('change', () => {
-      showError('');
-      renderCells(row);
-    });
+    enabled.addEventListener('change', () => renderCells(row));
     const line = el('div', 'prs-repo-row');
     line.append(name, row.cells);
     repoRows.push(row);
@@ -184,64 +157,38 @@ export function initProdRestartSettings() {
     );
   }
 
+  const { open } = bindFormDialog({
+    dialog,
+    prefix: 'prs',
+    reset() {
+      inputs = {};
+      paramRows = [];
+      repoRows = [];
+      columns = null;
+      fileEl.textContent = '';
+      fileEl.hidden = true;
+      automationEl.replaceChildren(el('span', 'muted', '讀取設定中…'));
+      paramsEl.replaceChildren();
+      reposEl.replaceChildren();
+      scheduleEl.replaceChildren();
+    },
+    load: async () => render(await api.loadProdRestartSettings()),
+    loadFailed: () => automationEl.replaceChildren(),
+    focus: () => inputs.automationAccount,
+    save() {
+      const settings = Object.fromEntries(Object.entries(inputs).map(([k, input]) => [k, input.value.trim()]));
+      const parameters = paramRows.map((r) => ({ name: r.name.value.trim(), value: r.value.value.trim() }));
+      // 只送目前欄位的值；其他既有欄位由 main 保留
+      const repos = repoRows.map((r) => ({
+        key: r.key,
+        enabled: r.enabled.checked,
+        values: Object.fromEntries(columns.map((f) => [f, String(r.values[f] ?? '').trim()])),
+      }));
+      return api.saveProdRestartSettings(settings, parameters, repos);
+    },
+  });
+
   $('prs-add-param').addEventListener('click', () => addParam().name.focus());
-  $('prs-cancel').addEventListener('click', () => dialog.close());
-  $('prs-close').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('cancel', (e) => {
-    if (busy) e.preventDefault();
-  });
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (busy || !inputs.runbook) return;
-    const settings = Object.fromEntries(Object.entries(inputs).map(([k, input]) => [k, input.value.trim()]));
-    const parameters = paramRows.map((r) => ({ name: r.name.value.trim(), value: r.value.value.trim() }));
-    // 只送目前欄位的值；其他既有欄位由 main 保留
-    const repos = repoRows.map((r) => ({
-      key: r.key,
-      enabled: r.enabled.checked,
-      values: Object.fromEntries(columns.map((f) => [f, String(r.values[f] ?? '').trim()])),
-    }));
-    busy = true;
-    okBtn.disabled = true;
-    try {
-      await api.saveProdRestartSettings(settings, parameters, repos);
-      dialog.close();
-      onSaved?.();
-    } catch (err) {
-      showError(`儲存失敗：${cleanError(err)}`);
-    } finally {
-      busy = false;
-      okBtn.disabled = false;
-    }
-  });
-
-  /** @param savedFn 儲存成功後呼叫（例如讓「正式環境排程重啟」dialog 重新讀取） */
-  async function open(savedFn = null) {
-    if (dialog.open) return;
-    onSaved = savedFn;
-    inputs = {};
-    paramRows = [];
-    repoRows = [];
-    columns = null;
-    showError('');
-    fileEl.textContent = '';
-    fileEl.hidden = true;
-    automationEl.replaceChildren(el('span', 'muted', '讀取設定中…'));
-    paramsEl.replaceChildren();
-    reposEl.replaceChildren();
-    scheduleEl.replaceChildren();
-    okBtn.disabled = true;
-    dialog.showModal();
-    try {
-      render(await api.loadProdRestartSettings());
-      okBtn.disabled = false;
-      inputs.automationAccount?.focus();
-    } catch (err) {
-      automationEl.replaceChildren();
-      showError(`讀取設定失敗：${cleanError(err)}`);
-    }
-  }
 
   api.onProdRestartSettingsMenu(() => open());
   instance = { open };

@@ -1,5 +1,5 @@
 import { api, cleanError } from './api.js';
-import { $, el } from './dom.js';
+import { $, el, errorSetter } from './dom.js';
 
 /** 支援的圖片格式（與 main/services/testRecord.js 一致） */
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp']);
@@ -34,10 +34,7 @@ export function createTestDialog() {
   let busy = false;
   let openSeq = 0; // 讀取圖片較慢時，避免舊的結果寫進新開啟的 dialog
 
-  function showError(msg) {
-    errorEl.textContent = msg;
-    errorEl.hidden = !msg;
-  }
+  const showError = errorSetter(errorEl);
 
   function setBusy(v) {
     busy = v;

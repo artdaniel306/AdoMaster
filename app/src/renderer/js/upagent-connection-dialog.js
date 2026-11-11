@@ -1,5 +1,5 @@
 import { api, cleanError } from './api.js';
-import { $, el } from './dom.js';
+import { $, el, errorSetter } from './dom.js';
 import { UPAGENT_CONNECTIONS } from '../../shared/flow-rules.js';
 import { initUpagentConnectionSettings } from './upagent-connection-settings-dialog.js';
 
@@ -41,10 +41,7 @@ export function createUpagentConnectionDialog() {
   let onChanged = null;
   let targets = []; // 上次讀到的 [{ key, label, hasCode }]
 
-  function showError(msg) {
-    errorEl.textContent = msg;
-    errorEl.hidden = !msg;
-  }
+  const showError = errorSetter(errorEl);
 
   function setBusy(v) {
     busy = v;

@@ -1,5 +1,5 @@
 import { cleanError } from './api.js';
-import { $, el } from './dom.js';
+import { $, el, errorSetter } from './dom.js';
 import { repoTag } from './repos.js';
 import { backMergeRows, backMergeProblems, hasBackMerges } from './back-merge.js';
 
@@ -46,10 +46,7 @@ export function createMergeDialog() {
   let busy = false;
   let done = false; // 已全部 merge，停在畫面上顯示反向 merge 回 feature branch 的結果
 
-  function showError(msg) {
-    errorEl.textContent = msg;
-    errorEl.hidden = !msg;
-  }
+  const showError = errorSetter(errorEl);
 
   function renderItems(items) {
     listEl.replaceChildren(...items.map(mergeItemRow));

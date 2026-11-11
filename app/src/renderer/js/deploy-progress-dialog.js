@@ -1,9 +1,9 @@
 import { api, cleanError } from './api.js';
-import { $, el } from './dom.js';
+import { $, el, notify } from './dom.js';
 import { flowDeployJobs } from './deploy-jobs.js';
+import { createLogView } from './log-view.js';
 import { RELEASE_STEPS, RUN_RESULT_TEXT } from '../../shared/flow-rules.js';
 
-const LOG_MAX_LINES = 3000;
 const STATUS_TEXT = { running: '⏳ 佈版中', succeeded: '✔ 完成', failed: '✖ 失敗', canceled: '■ 已停止' };
 const STEP_ICON = { pending: '○', running: '▶', done: '✔', skipped: '–', failed: '✖' };
 const time = (iso) => (iso ? new Date(iso).toLocaleString('zh-TW', { hour12: false }) : '');
@@ -25,7 +25,7 @@ export function createDeployProgressDialog({ openManual, badgeEl }) {
   const emptyEl = $('pg-empty');
   const clearBtn = $('pg-clear');
 
-  /** 手動佈版工作：id → { job, lines, card: { root, body, details, pre, summary } } */
+  /** 手動佈版工作：id → { job, card: { root, body, details, log, summary } } */
   const jobs = new Map();
 
   const nextReleaseStep = (job) => {
@@ -104,15 +104,7 @@ export function createDeployProgressDialog({ openManual, badgeEl }) {
     parts.push(actions);
     entry.card.body.replaceChildren(...parts);
     entry.card.root.className = `pg-job ${job.status}`;
-    entry.card.summary.textContent = `輸出（${entry.lines.length} 行）`;
-  }
-
-  function renderLog(entry) {
-    const { pre, details } = entry.card;
-    if (!details.open) return;
-    const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;
-    pre.textContent = entry.lines.join('\n');
-    if (atBottom) pre.scrollTop = pre.scrollHeight;
+    entry.card.summary.textContent = `輸出（${entry.card.log.length} 行）`;
   }
 
   function createCard(entry) {
@@ -122,14 +114,16 @@ export function createDeployProgressDialog({ openManual, badgeEl }) {
     const summary = el('summary', null, '輸出');
     const pre = el('pre', 'ur-log');
     details.append(summary, pre);
+    // 收合時只累積輸出，展開時才繪製
+    const log = createLogView(pre, { visible: () => details.open });
     details.addEventListener('toggle', () => {
       if (details.open) {
-        renderLog(entry);
-        pre.scrollTop = pre.scrollHeight;
+        log.render();
+        log.scrollToEnd();
       }
     });
     root.append(body, details);
-    entry.card = { root, body, details, pre, summary };
+    entry.card = { root, body, details, log, summary };
   }
 
   function renderJobs() {
@@ -172,20 +166,19 @@ export function createDeployProgressDialog({ openManual, badgeEl }) {
   function upsert(job, lines) {
     let entry = jobs.get(job.id);
     if (!entry) {
-      entry = { job, lines: lines || [] };
+      entry = { job };
       createCard(entry);
       jobs.set(job.id, entry);
     }
     entry.job = job;
-    if (lines) entry.lines = lines;
+    if (lines) entry.card.log.reset(lines);
     renderBody(entry);
-    renderLog(entry);
     return entry;
   }
 
   function notifyFinished(job) {
     const body = job.status === 'succeeded' ? '佈版完成' : job.status === 'canceled' ? '已停止' : `佈版失敗：${job.error}`;
-    if (!document.hasFocus() && 'Notification' in window) new Notification(`手動佈版 · ${job.title}`, { body });
+    notify(`手動佈版 · ${job.title}`, body);
     // 沒有其他視窗擋著時直接打開進度
     if (!dialog.open && !document.querySelector('dialog[open]')) open(job.id);
   }
@@ -205,10 +198,8 @@ export function createDeployProgressDialog({ openManual, badgeEl }) {
   api.onManualDeployLog(({ id, line }) => {
     const entry = jobs.get(id);
     if (!entry) return;
-    entry.lines.push(line);
-    if (entry.lines.length > LOG_MAX_LINES) entry.lines.splice(0, entry.lines.length - LOG_MAX_LINES);
-    entry.card.summary.textContent = `輸出（${entry.lines.length} 行）`;
-    renderLog(entry);
+    entry.card.log.append(line);
+    entry.card.summary.textContent = `輸出（${entry.card.log.length} 行）`;
   });
 
   // renderer 重新載入時，main 仍在執行的工作要同步回來

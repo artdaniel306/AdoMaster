@@ -1,5 +1,6 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
+import { bindFormDialog, fieldRow, textInput } from './form-dialog.js';
 
 /**
  * 選單「設定 → UpAgent 連線設定…」：在 App 內編輯 config.json 的 upagentConnection
@@ -14,27 +15,17 @@ export function initUpagentConnectionSettings() {
   if (instance) return instance;
 
   const dialog = $('upagent-conn-settings-dialog');
-  const form = $('ucs-form');
   const fileEl = $('ucs-file');
   const pathsEl = $('ucs-paths');
   const addBtn = $('ucs-add');
   const codesEl = $('ucs-codes');
-  const errorEl = $('ucs-error');
-  const okBtn = $('ucs-ok');
 
   let codeInputs = []; // [{ key, input }]
   let paths = []; // 設定檔路徑（可含 %VAR%）
-  let busy = false;
-  let onSaved = null;
-
-  function showError(msg) {
-    errorEl.textContent = msg;
-    errorEl.hidden = !msg;
-  }
 
   /** 開啟檔案選擇器；index = 要取代的那一列（省略 = 新增）。多選時第一個取代、其餘加在後面 */
   async function pick(index) {
-    if (busy) return;
+    if (isBusy()) return;
     showError('');
     try {
       const picked = await api.pickUpagentConfigFile(paths[index] ?? paths[0] ?? '');
@@ -56,11 +47,9 @@ export function initUpagentConnectionSettings() {
     }
     pathsEl.replaceChildren(
       ...paths.map((p, i) => {
-        const input = el('input', 'es-input');
-        input.type = 'text';
+        const input = textInput(p);
         input.readOnly = true;
         input.tabIndex = -1;
-        input.value = p;
         input.title = p;
         const choose = el('button', 'btn-ghost', '選擇…');
         choose.type = 'button';
@@ -81,18 +70,9 @@ export function initUpagentConnectionSettings() {
   }
 
   function codeRow(t) {
-    const input = el('input', 'es-input');
-    input.type = 'text';
-    input.value = t.code || '';
-    input.spellcheck = false;
-    input.autocomplete = 'off';
-    input.addEventListener('input', () => showError(''));
-    const wrap = el('label', 'rs-field');
-    const label = el('span', 'rs-label', t.label);
-    label.append(el('span', 'es-key', t.key));
-    wrap.append(label, input);
+    const input = textInput(t.code);
     codeInputs.push({ key: t.key, input });
-    return wrap;
+    return fieldRow(t.label, input, { keyText: t.key });
   }
 
   function render(s) {
@@ -105,57 +85,24 @@ export function initUpagentConnectionSettings() {
     codesEl.replaceChildren(...s.targets.map(codeRow));
   }
 
+  const { open, showError, isBusy } = bindFormDialog({
+    dialog,
+    prefix: 'ucs',
+    reset() {
+      codeInputs = [];
+      paths = [];
+      fileEl.textContent = '';
+      pathsEl.replaceChildren();
+      codesEl.replaceChildren(el('span', 'muted', '讀取設定中…'));
+    },
+    load: async () => render(await api.loadUpagentConnectionSettings()),
+    loadFailed: () => codesEl.replaceChildren(),
+    focus: () => codeInputs[0]?.input,
+    validate: () => (paths.length ? null : { message: '請至少選擇一個 UpAgent 設定檔', focus: addBtn }),
+    save: () => api.saveUpagentConnectionSettings([...paths], Object.fromEntries(codeInputs.map(({ key, input }) => [key, input.value.trim()]))),
+  });
+
   addBtn.addEventListener('click', () => pick());
-  $('ucs-cancel').addEventListener('click', () => dialog.close());
-  $('ucs-close').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('cancel', (e) => {
-    if (busy) e.preventDefault();
-  });
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (busy) return;
-    if (!paths.length) {
-      showError('請至少選擇一個 UpAgent 設定檔');
-      addBtn.focus();
-      return;
-    }
-    const codes = Object.fromEntries(codeInputs.map(({ key, input }) => [key, input.value.trim()]));
-    busy = true;
-    okBtn.disabled = true;
-    try {
-      await api.saveUpagentConnectionSettings([...paths], codes);
-      dialog.close();
-      onSaved?.();
-    } catch (err) {
-      showError(`儲存失敗：${cleanError(err)}`);
-    } finally {
-      busy = false;
-      okBtn.disabled = false;
-    }
-  });
-
-  /** @param savedFn 儲存成功後呼叫（例如讓「設定 UpAgent 連線」dialog 重新讀取） */
-  async function open(savedFn = null) {
-    if (dialog.open) return;
-    onSaved = savedFn;
-    codeInputs = [];
-    paths = [];
-    showError('');
-    fileEl.textContent = '';
-    pathsEl.replaceChildren();
-    codesEl.replaceChildren(el('span', 'muted', '讀取設定中…'));
-    okBtn.disabled = true;
-    dialog.showModal();
-    try {
-      render(await api.loadUpagentConnectionSettings());
-      okBtn.disabled = false;
-      codeInputs[0]?.input.focus();
-    } catch (err) {
-      codesEl.replaceChildren();
-      showError(`讀取設定失敗：${cleanError(err)}`);
-    }
-  }
 
   api.onUpagentConnectionSettingsMenu(() => open());
   instance = { open };

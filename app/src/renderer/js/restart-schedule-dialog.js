@@ -1,5 +1,5 @@
 import { api, cleanError } from './api.js';
-import { $, el } from './dom.js';
+import { $, el, errorSetter } from './dom.js';
 import { loadRepos, repoTag } from './repos.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 import { createRestartPicker, restartText } from './restart-picker.js';
@@ -33,10 +33,7 @@ export function createRestartScheduleDialog({ openSettings } = {}) {
   let items = [];
   let busy = false;
 
-  function showError(msg) {
-    errorEl.textContent = msg || '';
-    errorEl.hidden = !msg;
-  }
+  const showError = errorSetter(errorEl);
 
   function setBusy(b, text = '') {
     busy = b;

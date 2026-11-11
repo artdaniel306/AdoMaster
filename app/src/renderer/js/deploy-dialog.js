@@ -1,5 +1,5 @@
 import { api, cleanError } from './api.js';
-import { $, el } from './dom.js';
+import { $, el, notify } from './dom.js';
 import { repoTag } from './repos.js';
 import { backMergeRows, backMergeProblems, hasBackMerges } from './back-merge.js';
 import { mergeItemRow, willMerge } from './merge-dialog.js';
@@ -262,9 +262,7 @@ export function createDeployDialog() {
     }
     setPhase(j, 'done');
     if (!dialog.open) dialog.showModal();
-    if (!document.hasFocus() && 'Notification' in window) {
-      new Notification(`#${j.req.id} ${j.stage.label} ${j.checkLabel}`, { body: j.outcome.message });
-    }
+    notify(`#${j.req.id} ${j.stage.label} ${j.checkLabel}`, j.outcome.message);
   }
 
   /** push 觸發的 Run 成功的 repository，各執行一次佈版後動作（測試環境重啟 App Service；正式環境依選擇的時段在 Azure Automation 排程重啟，不立即重啟） */

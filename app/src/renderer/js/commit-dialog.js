@@ -1,5 +1,5 @@
 import { api, cleanError } from './api.js';
-import { $, el } from './dom.js';
+import { $, el, errorSetter } from './dom.js';
 import { repoTag, repoLabel } from './repos.js';
 import { createBranchGraph } from './branch-graph.js';
 import { COMMIT_RE, COMMIT_FORMAT_HINT } from '../../shared/flow-rules.js';
@@ -26,10 +26,7 @@ export function createCommitDialog() {
   let busy = false;
   let openSeq = 0; // dialog 重新開啟後，忽略上一次還沒回來的檢查結果
 
-  function showError(msg) {
-    errorEl.textContent = msg;
-    errorEl.hidden = !msg;
-  }
+  const showError = errorSetter(errorEl);
 
   function setResult(resultEl, cls, text) {
     resultEl.className = `cc-result ${cls}`;
