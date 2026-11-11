@@ -1,88 +1,317 @@
 # Requirement 流程 — 詳細規格
 
-Behavioral spec of the Requirement flow board (based on `docs/flow.pptx`). Read this before changing anything under the flow: `renderer/js/requirement-flow.js` + `flow-*.js` + the dialogs, `main/services/requirementFlow.js` / `flowState.js` / `gitCommit.js` / `pipelines.js` / `afterDeploy.js` / `localDeploy.js` / `testRecord.js` / `upagentRelease.js`, `shared/flow-rules.js`.
+Behavioral spec of the Requirement flow board (based on `docs/flow.pptx`).
+
+Read this before changing anything under the flow:
+- `renderer/js/requirement-flow.js` + `flow-*.js` + the dialogs
+- `main/services/requirementFlow.js` / `flowState.js` / `gitCommit.js` / `pipelines.js` / `afterDeploy.js` / `localDeploy.js` / `testRecord.js` / `upagentRelease.js`
+- `shared/flow-rules.js`
 
 ## Code layout
-- Renderer: `requirement-flow.js` builds the table and owns the shared checkbox behavior (`flowCheck`, jump-stage confirmation); `flow-stages.js` = stage list + pure calculations (`computeStage`, `expectedState`); `flow-cells.js` = cell contents (Plan, Confirm Commit, Test, state chip, default Task, Implement list); `flow-deploy.js` = deploy-stage SaaS/Local (merge check, pipeline deploy, UpAgent release). The sub-modules share state through a `ctx` object (`checks(id)` / `setChecks` / `update` / `refresh` / `flowCheck` / `checkbox`).
-- Main: `flowState.js` owns `data/requirement_flow_state.json` (`loadFlowState`, `updateRequirementState(id, mutate)` — all writes go through one serialized queue, `replaceFlowState` for import, legacy-key migration). `requirementFlow.js` = ADO calls + check/plan/commit validation + merge.
+- Renderer:
+  - `requirement-flow.js` builds the table and owns the shared checkbox behavior (`flowCheck`, jump-stage confirmation).
+  - `flow-stages.js` = stage list + pure calculations (`computeStage`, `expectedState`).
+  - `flow-cells.js` = cell contents (Plan, Confirm Commit, Test, state chip, default Task, Implement list).
+  - `flow-deploy.js` = deploy-stage SaaS/Local (merge check, pipeline deploy, UpAgent release).
+  - The sub-modules share state through a `ctx` object (`checks(id)` / `setChecks` / `update` / `refresh` / `flowCheck` / `checkbox`).
+- Main:
+  - `flowState.js` owns `data/requirement_flow_state.json` (`loadFlowState`, `updateRequirementState(id, mutate)` — all writes go through one serialized queue, `replaceFlowState` for import, legacy-key migration).
+  - `requirementFlow.js` = ADO calls + check/plan/commit validation + merge.
 - Rules needed by both main and renderer live in `shared/flow-rules.js`; renderer-only rules live in `flow-stages.js`.
 
 ## Stages
-- UI column titles are Chinese (需求 / 待處理 / 開發 / 規劃 / 測試環境佈版 / 測試與檢核 / 正式環境佈版 / 功能發表; set in `index.html` `<th>` and `STAGES` labels in `flow-stages.js`). Code uses English stage names (Pending / Implement / Test deploy …), except 規劃 which is `plan` everywhere (`plan-dialog.js`, `PLAN_*` keys, `flow:setPlan`). Cell texts SaaS / Local / Meeting / Record stay English.
-- Stages: Pending → Implement + Plan (規劃) (parallel; one "Implement" column split into top/bottom cells) → Test deploy (SaaS/Local) → Test → Prod deploy (SaaS/Local) → Release recap (meeting/record). The current stage cell is highlighted; past = green, future = dimmed.
-- Requirements are selected by **their own** iteration (`get_requirement_flow.py`); children (Task/Bug) come via parent-child relations even if they sit in another iteration. Tasks without a parent are anomalies — ignore them.
-- Pending = no non-Removed children. Implement is done when all children are Tested by Dev / Resolved / Closed (that cell turns green even while the stage is current). The stage advances only when Implement and Plan (規劃) are both done.
-- Steps other than Pending/Implement are checkboxes stored locally in `data/requirement_flow_state.json` (`{ "<reqId>": { "<checkKey>": true } }`, via `flow:loadState` / `flow:setCheck`). Nothing in these steps is written back to ADO.
+- UI column titles are Chinese (需求 / 待處理 / 開發 / 規劃 / 測試環境佈版 / 測試與檢核 / 正式環境佈版 / 功能發表; set in `index.html` `<th>` and `STAGES` labels in `flow-stages.js`).
+  - Code uses English stage names (Pending / Implement / Test deploy …), except 規劃 which is `plan` everywhere (`plan-dialog.js`, `PLAN_*` keys, `flow:setPlan`).
+  - Cell texts SaaS / Local / Meeting / Record stay English.
+- Stages: Pending → Implement + Plan (規劃) (parallel; one "Implement" column split into top/bottom cells) → Test deploy (SaaS/Local) → Test → Prod deploy (SaaS/Local) → Release recap (meeting/record).
+  - The current stage cell is highlighted; past = green, future = dimmed.
+- Requirements are selected by **their own** iteration (`get_requirement_flow.py`).
+  - Children (Task/Bug) come via parent-child relations even if they sit in another iteration.
+  - Tasks without a parent are anomalies — ignore them.
+- Pending = no non-Removed children.
+  - Implement is done when all children are Tested by Dev / Resolved / Closed (that cell turns green even while the stage is current).
+  - The stage advances only when Implement and Plan (規劃) are both done.
+- Steps other than Pending/Implement are checkboxes stored locally in `data/requirement_flow_state.json` (`{ "<reqId>": { "<checkKey>": true } }`, via `flow:loadState` / `flow:setCheck`).
+  - Nothing in these steps is written back to ADO.
 
 ## Writes to ADO
-Creating the default Task and updating the Requirement state are the **only** actions that write to ADO (the UpAgent release writes to GitHub / Azure Blob / PostgreSQL; pipelines are only read; deploys are triggered by the git push).
-- **Default Task**: while a Requirement is Pending, its Pending cell shows「安排預設 Task」: a dialog (`task-dialog.js`) asks for a Description, then `flow:createTask` runs `create_task.py` (`ado.work_items.create_child_task`) to create a Task with the **same title** as the Requirement, its Area/Iteration, and a parent link. The description is passed via a temp file (`--description-file`) and converted to HTML. The new Task is appended to `req.children` in the renderer (no refetch).
-- **State chip** (`stateChip` in `flow-cells.js`, `expectedState` in `flow-stages.js`): expected state is Closed when the whole flow is done, else Resolved when Implement is done, else Active when any non-Removed child is assigned, else none. When it differs from the current state (case-insensitive) the chip is highlighted (`state-mismatch`) and shows `current → expected`; clicking it runs `flow:updateState` → `update_state.py` (PATCH `System.State`; Reason left to ADO's default) and updates `req.state` in place.
+Creating the default Task and updating the Requirement state are the **only** actions that write to ADO
+(the UpAgent release writes to GitHub / Azure Blob / PostgreSQL; pipelines are only read; deploys are triggered by the git push).
+- **Default Task**: while a Requirement is Pending, its Pending cell shows「安排預設 Task」.
+  - A dialog (`task-dialog.js`) asks for a Description, then `flow:createTask` runs `create_task.py` (`ado.work_items.create_child_task`) to create a Task with the **same title** as the Requirement, its Area/Iteration, and a parent link.
+  - The description is passed via a temp file (`--description-file`) and converted to HTML.
+  - The new Task is appended to `req.children` in the renderer (no refetch).
+- **State chip** (`stateChip` in `flow-cells.js`, `expectedState` in `flow-stages.js`):
+  - Expected state is Closed when the whole flow is done, else Resolved when Implement is done, else Active when any non-Removed child is assigned, else none.
+  - When it differs from the current state (case-insensitive) the chip is highlighted (`state-mismatch`) and shows `current → expected`.
+  - Clicking it runs `flow:updateState` → `update_state.py` (PATCH `System.State`; Reason left to ADO's default) and updates `req.state` in place.
 
 ## Repos settings
-- All repo settings live in the `repos` section of `data/config.json`: `{ "repos": [{ key, label?, color?, path, branches[], testBranch, prodBranch, testPipeline?, prodPipeline?, testAppService?, testResourceGroup? }] }`, read on every use by `main/services/repoConfig.js` → `repos:config` (exposed as `path` / `branches` / `deployBranches[stage]` / `pipelines[stage]` / `appServices.testDeploy`; `fieldHint(key, field)` builds "where to set it" error messages). `key` is what the flow state stores (**renaming it orphans old records**).
-- Edited in-app via menu「設定 → Repository 設定…」(`menu:repoSettings` → `repo-settings-dialog.js`; `repos:loadSettings` / `repos:saveSettings` / `repos:pickFolder`): color via `<input type="color">`, local path via the native folder picker, branches one per line; save validates keys, keeps fields the dialog doesn't edit (matched by original key), writes through `updateConfig`, then the flow table repaints without refetching.
-- The renderer caches labels/colors in `renderer/js/repos.js` (`repoTag(key)` = colored name tag; color set as the `--repo-color` CSS variable via CSSOM since CSP forbids inline style attributes); the flow table shows each Requirement's plan repos as colored chips under its title.
+- All repo settings live in the `repos` section of `data/config.json`:
+  `{ "repos": [{ key, label?, color?, path, branches[], testBranch, prodBranch, testPipeline?, prodPipeline?, testAppService?, testResourceGroup? }] }`
+  - Read on every use by `main/services/repoConfig.js` → `repos:config` (exposed as `path` / `branches` / `deployBranches[stage]` / `pipelines[stage]` / `appServices.testDeploy`; `fieldHint(key, field)` builds "where to set it" error messages).
+  - `key` is what the flow state stores (**renaming it orphans old records**).
+- Edited in-app via menu「設定 → Repository 設定…」(`menu:repoSettings` → `repo-settings-dialog.js`; `repos:loadSettings` / `repos:saveSettings` / `repos:pickFolder`):
+  - color via `<input type="color">`, local path via the native folder picker, branches one per line;
+  - save validates keys, keeps fields the dialog doesn't edit (matched by original key), writes through `updateConfig`, then the flow table repaints without refetching.
+- The renderer caches labels/colors in `renderer/js/repos.js` (`repoTag(key)` = colored name tag; color set as the `--repo-color` CSS variable via CSSOM since CSP forbids inline style attributes).
+  - The flow table shows each Requirement's plan repos as colored chips under its title.
 
 ## Plan (規劃)
-- Not a plain toggle: clicking it opens `plan-dialog.js` where the manager picks which repos need work and a feature branch for each (choices from each repo's `branches`, re-read every time). Also a「需要 migration」checkbox and a free-text 註解 (shown as a 💬 tooltip next to the「規劃」heading).
+- Not a plain toggle: clicking it opens `plan-dialog.js` where the manager picks which repos need work and a feature branch for each (choices from each repo's `branches`, re-read every time).
+  - Also a「需要 migration」checkbox and a free-text 註解 (shown as a 💬 tooltip next to the「規劃」heading).
 - Saved via `flow:setPlan` as `plan: true` + `planRepos: { repo: branch }` (+ `planMigration: true`, + `planNote` when non-empty); `flow:setCheck` refuses the `plan` key.
-- Choosing no repo is allowed (e.g. only DB data changes): `planRepos: {}` → Confirm Commit counts as done automatically (`commitsConfirmed`) and both deploy stages' SaaS/Local are omitted (`noRepoChange`; `computeStage` skips them and the cell shows「不需佈版」). Same for a forced Plan (`plan: true` without `planRepos`).
+- Choosing no repo is allowed (e.g. only DB data changes): `planRepos: {}`
+  - → Confirm Commit counts as done automatically (`commitsConfirmed`)
+  - and both deploy stages' SaaS/Local are omitted (`noRepoChange`; `computeStage` skips them and the cell shows「不需佈版」).
+  - Same for a forced Plan (`plan: true` without `planRepos`).
 - State files from before the rename used `understand*` keys; `flowState.js` migrates them on read.
 
 ## Confirm Commit & branch graph
-- Test deploy / Prod deploy each start with **Confirm Commit** (`commit-dialog.js`): for every Plan repo, the manager enters the dev-tested commit (abbreviated hash OK) and can press「檢查」(`repos:checkCommit` → `gitCommit.js`). The check runs `git` in the repo's local `path`, runs `git fetch --all` once if the commit is missing or not on the plan feature branch, and warns (does not block) when it isn't on that branch.
-- Saved via `flow:setCommits` as `"<stage>.commits": { repo: commit }`, re-verifying every commit first; clearing it also clears that stage's SaaS/Local. `flow:setCheck` refuses `*.commits` keys and refuses SaaS/Local until commits cover all plan repos. Prod deploy's dialog prefills from Test deploy's commits.
-- Each row has a「分支圖」panel (`branch-graph.js`, expanded by default when the input is empty) → `repos:branchGraph` → `gitCommit.branchGraph`: `git log --graph --color=always --boundary` over the plan feature branch and its **developer branches** (`<feature>_<developer>`, e.g. `peach_hotfix_max`; remote refs preferred, a name belonging to a longer configured feature branch is excluded), excluding commits already in `origin/<prodBranch>` unless「包含已進…」is checked (max 300 commits). ANSI lane colors parsed with `anser` into `ansi-*` classes. Commits not reachable from the feature branch are marked「未進 <feature>」. Draws local data first, then `git fetch --all` and redraws. Clicking a commit fills the input (10 chars) and runs「檢查」.
+- Test deploy / Prod deploy each start with **Confirm Commit** (`commit-dialog.js`):
+  - for every Plan repo, the manager enters the dev-tested commit (abbreviated hash OK) and can press「檢查」(`repos:checkCommit` → `gitCommit.js`).
+  - The check runs `git` in the repo's local `path`, runs `git fetch --all` once if the commit is missing or not on the plan feature branch, and warns (does not block) when it isn't on that branch.
+- Saved via `flow:setCommits` as `"<stage>.commits": { repo: commit }`, re-verifying every commit first; clearing it also clears that stage's SaaS/Local.
+  - `flow:setCheck` refuses `*.commits` keys and refuses SaaS/Local until commits cover all plan repos.
+  - Prod deploy's dialog prefills from Test deploy's commits.
+- Each row has a「分支圖」panel (`branch-graph.js`, expanded by default when the input is empty) → `repos:branchGraph` → `gitCommit.branchGraph`:
+  - `git log --graph --color=always --boundary` over the plan feature branch and its **developer branches** (`<feature>_<developer>`, e.g. `peach_hotfix_max`; remote refs preferred, a name belonging to a longer configured feature branch is excluded),
+    excluding commits already in `origin/<prodBranch>` unless「包含已進…」is checked (max 300 commits).
+  - ANSI lane colors parsed with `anser` into `ansi-*` classes.
+  - Commits not reachable from the feature branch are marked「未進 <feature>」.
+  - Draws local data first, then `git fetch --all` and redraws.
+  - Clicking a commit fills the input (10 chars) and runs「檢查」.
 
 ## Deploy stages (SaaS / Local)
-- Checking SaaS/Local requires every confirmed commit to already be in that repo's environment branch (`testBranch` / `prodBranch`, checked as `origin/<branch>` via `git merge-base --is-ancestor`, so merge commit or fast-forward both count). The renderer calls `flow:mergeStatus` (git fetch) first; if anything is missing, `merge-dialog.js` asks「要現在 merge 嗎」and `flow:mergeDeploy` merges. Every merge creates a merge commit (`--no-ff` semantics) **without touching the local working tree**: `git merge-tree --write-tree` (git 2.38+) → `git commit-tree -p origin/<target> -p <source>` → `git push origin <merge>:refs/heads/<target>` (no `--force`). Conflicting merges are refused (resolve by hand). `flow:setCheck` re-verifies merge status (without fetching) before saving.
+- Checking SaaS/Local requires every confirmed commit to already be in that repo's environment branch (`testBranch` / `prodBranch`, checked as `origin/<branch>` via `git merge-base --is-ancestor`, so merge commit or fast-forward both count).
+  - The renderer calls `flow:mergeStatus` (git fetch) first; if anything is missing, `merge-dialog.js` asks「要現在 merge 嗎」and `flow:mergeDeploy` merges.
+  - Every merge creates a merge commit (`--no-ff` semantics) **without touching the local working tree**:
+    `git merge-tree --write-tree` (git 2.38+) → `git commit-tree -p origin/<target> -p <source>` → `git push origin <merge>:refs/heads/<target>` (no `--force`).
+  - Conflicting merges are refused (resolve by hand).
+  - `flow:setCheck` re-verifies merge status (without fetching) before saving.
+
+### Merge through the feature branch
 - **Always through the feature branch** (`gitCommit.checkDeployMerge` / `mergeViaFeature`); a developer-branch commit is never merged straight into an env branch:
   1. Confirm Commit not in `origin/<plan feature branch>` → merge it into the feature branch first (message `Merge <sha> into <feature>` + `Requirement #<id>`); already in it → skip.
-  2. Merge into the env branch the feature-branch commit that contains it: the merge commit from step 1, or — when it was already there — `featureEntry`, the oldest commit on the feature branch's first-parent chain that contains it (the commit itself if it sits on that chain), so later feature-branch commits are not dragged along. Message `Merge <feature> (<sha>) into <env>`.
-  - The status trial-merges both steps (step 1's merge commit is created as an unpushed object to trial step 2) and lists `extra` = non-merge commits the source brings into the env branch that aren't in the Confirm Commit (⚠ in the message, full list in the tooltip; `mergeItemRow` in `merge-dialog.js`, shared with `deploy-dialog.js`).
-  - **upagent** (needs UpAgent release): the source is the version tag. `deployMergeStatus` asks `upagentRelease.releaseVersionFor` (own `upagentRelease.version`, else a covering published version — read-only, no adoption written). With a version → `source: 'v<version>'` (fetched with `--tags`; merged = the tag commit is in the env branch; refused if the tag doesn't contain the Confirm Commit). Without one → `deferred: true`: only step 1's conflict is checked, `allMerged` ignores it, `mergeDeploy` skips it, and the UpAgent release does both merges (see § UpAgent 發佈); `flow:setCheck` refuses with「請先完成 UpAgent 發佈」until then.
-- **Merge back to feature branches (Prod deploy only)**: after `flow:mergeDeploy` merges a repo into `prodBranch`, `gitCommit.mergeBackToFeatures` merges `origin/<prodBranch>` back into **every** feature branch in that repo's `branches` (env branches excluded; developer branches `<feature>_<dev>` not included) so they stay based on production — same mechanics: always a merge commit even when fast-forward is possible (message `Merge <prod> (<sha>) into <feature>` + `Requirement #<id>`), no working tree, no `--force`. Only repos actually merged by this call; already-containing branches are skipped, missing remote branches are skipped, conflicting ones are left for manual handling. **Per-branch kept paths**: a repo's optional `backMergeKeepPaths` (`{ "peach_101": ["tenant_db/migrations"] }`, no UI — edit `config.json`) lists paths that must stay as the feature branch had them (peach_101 has its own tenant DB migrations): the merged tree has those paths replaced by the feature branch's version (`restorePaths`, via a temporary `GIT_INDEX_FILE` — the clone's index is untouched), conflicts only inside them are resolved that way too, and the message gets `Keep <branch> version of: <paths>`. Since the merge commit has prod as a parent, those prod migration changes are never offered to that branch again. Failures never fail the prod deploy (it's already pushed); results come back as `backMerges: { repo: [{ branch, state: merged|upToDate|missing|conflict|failed, message, mergeCommit? }] }` and are shown by `merge-dialog.js` (stays open with「完成」) and `deploy-dialog.js` (Merge section) via `back-merge.js`.
-- **SaaS auto-deploy**: pushing an environment branch triggers an ADO Pipeline, configured per repo/stage as `testPipeline` / `prodPipeline` (name, optionally `Folder\name`; unset = no auto-deploy). Checking SaaS runs `flow:mergeStatus` + `flow:pipelineRuns` (`pipelines.js` → `get_pipeline_runs.py` → `ado/pipelines.py`; `active` = notStarted/inProgress/cancelling/postponed). No pipeline → same as Local. All merged and no active run → check directly. Otherwise `deploy-dialog.js`: confirm (if anything to merge) → poll every 15 s until no active run → `flow:mergeDeploy` (returns `mergeCommits`) → poll for the run whose `sourceVersion` equals the merge commit (gives up after 10 min) until it completes → **after-deploy** for each repo whose push-triggered run succeeded (`flow:afterDeploy` → `afterDeploy.js`):
+  2. Merge into the env branch the feature-branch commit that contains it:
+     the merge commit from step 1, or — when it was already there — `featureEntry`, the oldest commit on the feature branch's first-parent chain that contains it (the commit itself if it sits on that chain),
+     so later feature-branch commits are not dragged along.
+     Message `Merge <feature> (<sha>) into <env>`.
+  - The status trial-merges both steps (step 1's merge commit is created as an unpushed object to trial step 2)
+    and lists `extra` = non-merge commits the source brings into the env branch that aren't in the Confirm Commit
+    (⚠ in the message, full list in the tooltip; `mergeItemRow` in `merge-dialog.js`, shared with `deploy-dialog.js`).
+  - **upagent** (needs UpAgent release): the source is the version tag.
+    - `deployMergeStatus` asks `upagentRelease.releaseVersionFor` (own `upagentRelease.version`, else a covering published version — read-only, no adoption written).
+    - With a version → `source: 'v<version>'` (fetched with `--tags`; merged = the tag commit is in the env branch; refused if the tag doesn't contain the Confirm Commit).
+    - Without one → `deferred: true`: only step 1's conflict is checked, `allMerged` ignores it, `mergeDeploy` skips it, and the UpAgent release does both merges (see § UpAgent 發佈);
+      `flow:setCheck` refuses with「請先完成 UpAgent 發佈」until then.
+
+### Merge back to feature branches (Prod deploy only)
+- **Merge back to feature branches (Prod deploy only)**: after `flow:mergeDeploy` merges a repo into `prodBranch`, `gitCommit.mergeBackToFeatures` merges `origin/<prodBranch>` back into **every** feature branch in that repo's `branches`
+  (env branches excluded; developer branches `<feature>_<dev>` not included) so they stay based on production.
+  - Same mechanics: always a merge commit even when fast-forward is possible (message `Merge <prod> (<sha>) into <feature>` + `Requirement #<id>`), no working tree, no `--force`.
+  - Only repos actually merged by this call; already-containing branches are skipped, missing remote branches are skipped, conflicting ones are left for manual handling.
+  - **Per-branch kept paths**: a repo's optional `backMergeKeepPaths` (`{ "peach_101": ["tenant_db/migrations"] }`, no UI — edit `config.json`) lists paths that must stay as the feature branch had them (peach_101 has its own tenant DB migrations):
+    - the merged tree has those paths replaced by the feature branch's version (`restorePaths`, via a temporary `GIT_INDEX_FILE` — the clone's index is untouched),
+    - conflicts only inside them are resolved that way too,
+    - and the message gets `Keep <branch> version of: <paths>`.
+    - Since the merge commit has prod as a parent, those prod migration changes are never offered to that branch again.
+  - Failures never fail the prod deploy (it's already pushed).
+  - Results come back as `backMerges: { repo: [{ branch, state: merged|upToDate|missing|conflict|failed, message, mergeCommit? }] }`
+    and are shown by `merge-dialog.js` (stays open with「完成」) and `deploy-dialog.js` (Merge section) via `back-merge.js`.
+
+### SaaS auto-deploy
+- **SaaS auto-deploy**: pushing an environment branch triggers an ADO Pipeline, configured per repo/stage as `testPipeline` / `prodPipeline` (name, optionally `Folder\name`; unset = no auto-deploy).
+  - Checking SaaS runs `flow:mergeStatus` + `flow:pipelineRuns` (`pipelines.js` → `get_pipeline_runs.py` → `ado/pipelines.py`; `active` = notStarted/inProgress/cancelling/postponed).
+  - No pipeline → same as Local.
+  - All merged and no active run → check directly.
+  - Otherwise `deploy-dialog.js`:
+    confirm (if anything to merge)
+    → poll every 15 s until no active run
+    → `flow:mergeDeploy` (returns `mergeCommits`)
+    → poll for the run whose `sourceVersion` equals the merge commit (gives up after 10 min) until it completes
+    → **after-deploy** for each repo whose push-triggered run succeeded (`flow:afterDeploy` → `afterDeploy.js`):
   - Test deploy restarts the repo's `testAppService` (+ optional `testResourceGroup`, auto-looked-up when empty) via `shell/Restart-AppService.ps1`; no App Service configured = nothing.
-  - Prod deploy **never restarts immediately** (customers are live; there is deliberately no `prodAppService` field). The deploy dialog's confirm phase shows a restart picker (`restart-picker.js`: date + slot from `RESTART_SLOTS` in `shared/flow-rules.js` — 午休 12:30 / 下班 18:30 / 深夜 23:30 — default「不排程重啟」) for the repos that will be merged and have a Pipeline; the choice is passed as `restart: { date, slot }` through `flow:afterDeploy` to `shell/After-ProdDeploy.ps1 -Repo -Commit [-RestartDate -RestartTime -Note "Requirement #<id>"]`, which calls `Restart-Schedule.ps1 -Action Create`. See § 正式環境排程重啟.
-  - After-deploy only runs for runs the app triggered; a failure makes the outcome unsuccessful (「仍然勾起」offered) → notify. All runs succeeded → SaaS is checked automatically.
-  - Waiting can continue in the background (dialog closed, status line under SaaS reopens it); only one deploy job at a time; state lives in the renderer only (lost on reload). Local does not wait for the pipeline, even though its merge also triggers it.
-- **Local deploy** (on-prem Docker hosts): checking Local (normal path) runs merge check → **Local deploy** → UpAgent release → check. `localDeploy:status` (`localDeploy.js`) lists the Plan repos that have `localDeploy.repos.<repo>.<test|prod>` in `data/config.json` (none → Local is merge only; if Plan repos other than `upagent` lack the setting, a confirm dialog says so instead of checking silently; unconfigured repos are also listed in the deploy dialog). `local-deploy-dialog.js` lets the manager pick repos (default: not yet deployed in this stage **with the current Confirm Commit** — the record's `forCommit` must equal it, so re-confirming a different commit makes it deploy again; merge status / SaaS deploy never affect this; unchecking all = skip and check directly) → `localDeploy:run` runs `shell/Deploy-Local.ps1 -Repo -Environment -Branch -ExpectedCommit -ConfigPath` **per repo, sequentially** (stops at the first failure):
-  - Steps (`::step::` markers): **Docker** (start Docker Desktop if the engine doesn't answer; `localDeploy.dockerDesktop` optional) → **Source** (in the dedicated deploy clone `projectDir`: `git fetch` the env branch, verify the Confirm Commit is in it, `git checkout --detach origin/<env>`; uncommitted on-prem tweaks there are kept, a conflict makes git refuse, never forced) → **Env** (optional `envFile`: copy that environment's env file to `<projectDir>\<envTarget>` (default `.env`), so test / prod builds each get their own — crmapp's Dockerfile bakes `.env` into the image; crmappui's picks `deploy/${ENV_R1}` via `buildArgs`, so its `envTarget` is `deploy/env-art-test` / `deploy/env-art-prod` (`/` or `\` both work)) → **PreBuild** (optional `preBuild` via `cmd /c`, e.g. `armor.bat aarch64`) → **Build** (`docker buildx build --platform … --build-arg … -t <appName>:<env>-<sha10>[-<envFile sha256 8>] --output type=docker,dest=…` into `data/local_deploy/<repo>/<appName>_<tag>.tar`; written as `.partial` then renamed; newest 3 tars per repo kept) → **Push** (`docker load` → `docker tag` to `<pushRegistry>/…` → `docker push`) → **Deploy** (`ssh -o BatchMode=yes <remoteHost>`: pull → `docker rm -f` → `docker run -d … --restart unless-stopped`; needs key-based ssh).
-  - The tag contains the commit, so when Push / Deploy fails, a retry reuses the existing tar and skips PreBuild / Build; the dialog's「重新 build」(`-Rebuild`) forces a fresh build (e.g. after changing the deploy clone's local tweaks or `buildArgs`). `data/local_deploy/` is rebuildable, so it is not in 匯出本地資料.
-  - Settings: `localDeploy.repos.<repo>` common fields (`projectDir`, `appName`, `platform`, `preBuild`, `network`, `hostPort`, `appPort`, `runEnv`, `buildArgs`) overridden by its `test` / `prod` object (`pushRegistry`, `pullRegistry`, `remoteHost`, `envFile`, `envTarget`, …). `envFile` relative paths resolve against `data/local_deploy_env/` (secrets; included in 匯出本地資料); a missing file is reported as the target's error. `envTarget` must be a relative path inside `projectDir` (no `..`). A hash of the env file + `envTarget` is part of the tag, so editing either triggers a fresh build instead of reusing the tar. `projectDir` must differ from the repo's dev clone `path` (that working tree is never touched).
-  - Success per repo is saved as `<stage>.localDeploy: { repo: { forCommit, commit, image, tar, remoteHost, deployedAt } }` (refused by `flow:setCheck`; summary shown under Local). stdout + stderr are streamed (`localDeploy:log`); can run in the background like UpAgent release; cancel = `taskkill /T`; one at a time. Forced checks skip it.
+  - Prod deploy **never restarts immediately** (customers are live; there is deliberately no `prodAppService` field).
+    - The deploy dialog's confirm phase shows a restart picker (`restart-picker.js`: date + slot from `RESTART_SLOTS` in `shared/flow-rules.js` — 午休 12:30 / 下班 18:30 / 深夜 23:30 — default「不排程重啟」) for the repos that will be merged and have a Pipeline.
+    - The choice is passed as `restart: { date, slot }` through `flow:afterDeploy` to `shell/After-ProdDeploy.ps1 -Repo -Commit [-RestartDate -RestartTime -Note "Requirement #<id>"]`, which calls `Restart-Schedule.ps1 -Action Create`.
+    - See § 正式環境排程重啟.
+  - After-deploy only runs for runs the app triggered; a failure makes the outcome unsuccessful (「仍然勾起」offered) → notify.
+    All runs succeeded → SaaS is checked automatically.
+  - Waiting can continue in the background (dialog closed, status line under SaaS reopens it); only one deploy job at a time; state lives in the renderer only (lost on reload).
+    Local does not wait for the pipeline, even though its merge also triggers it.
+
+### Local deploy
+- **Local deploy** (on-prem Docker hosts): checking Local (normal path) runs merge check → **Local deploy** → UpAgent release → check.
+  - `localDeploy:status` (`localDeploy.js`) lists the Plan repos that have `localDeploy.repos.<repo>.<test|prod>` in `data/config.json`
+    (none → Local is merge only; if Plan repos other than `upagent` lack the setting, a confirm dialog says so instead of checking silently; unconfigured repos are also listed in the deploy dialog).
+  - `local-deploy-dialog.js` lets the manager pick repos
+    (default: not yet deployed in this stage **with the current Confirm Commit** — the record's `forCommit` must equal it, so re-confirming a different commit makes it deploy again; merge status / SaaS deploy never affect this; unchecking all = skip and check directly)
+    → `localDeploy:run` runs `shell/Deploy-Local.ps1 -Repo -Environment -Branch -ExpectedCommit -ConfigPath` **per repo, sequentially** (stops at the first failure):
+  - Steps (`::step::` markers):
+    - **Docker** (start Docker Desktop if the engine doesn't answer; `localDeploy.dockerDesktop` optional)
+    - → **Source** (in the dedicated deploy clone `projectDir`: `git fetch` the env branch, verify the Confirm Commit is in it, `git checkout --detach origin/<env>`; uncommitted on-prem tweaks there are kept, a conflict makes git refuse, never forced)
+    - → **Env** (optional `envFile`: copy that environment's env file to `<projectDir>\<envTarget>` (default `.env`), so test / prod builds each get their own —
+      crmapp's Dockerfile bakes `.env` into the image; crmappui's picks `deploy/${ENV_R1}` via `buildArgs`, so its `envTarget` is `deploy/env-art-test` / `deploy/env-art-prod` (`/` or `\` both work))
+    - → **PreBuild** (optional `preBuild` via `cmd /c`, e.g. `armor.bat aarch64`)
+    - → **Build** (`docker buildx build --platform … --build-arg … -t <appName>:<env>-<sha10>[-<envFile sha256 8>] --output type=docker,dest=…` into `data/local_deploy/<repo>/<appName>_<tag>.tar`;
+      written as `.partial` then renamed; newest 3 tars per repo kept)
+    - → **Push** (`docker load` → `docker tag` to `<pushRegistry>/…` → `docker push`)
+    - → **Deploy** (`ssh -o BatchMode=yes <remoteHost>`: pull → `docker rm -f` → `docker run -d … --restart unless-stopped`; needs key-based ssh).
+  - The tag contains the commit, so when Push / Deploy fails, a retry reuses the existing tar and skips PreBuild / Build.
+    - The dialog's「重新 build」(`-Rebuild`) forces a fresh build (e.g. after changing the deploy clone's local tweaks or `buildArgs`).
+    - `data/local_deploy/` is rebuildable, so it is not in 匯出本地資料.
+  - Settings: `localDeploy.repos.<repo>` common fields (`projectDir`, `appName`, `platform`, `preBuild`, `network`, `hostPort`, `appPort`, `runEnv`, `buildArgs`)
+    overridden by its `test` / `prod` object (`pushRegistry`, `pullRegistry`, `remoteHost`, `envFile`, `envTarget`, …).
+    - `envFile` relative paths resolve against `data/local_deploy_env/` (secrets; included in 匯出本地資料); a missing file is reported as the target's error.
+    - `envTarget` must be a relative path inside `projectDir` (no `..`).
+    - A hash of the env file + `envTarget` is part of the tag, so editing either triggers a fresh build instead of reusing the tar.
+    - `projectDir` must differ from the repo's dev clone `path` (that working tree is never touched).
+  - Success per repo is saved as `<stage>.localDeploy: { repo: { forCommit, commit, image, tar, remoteHost, deployedAt } }` (refused by `flow:setCheck`; summary shown under Local).
+    - stdout + stderr are streamed (`localDeploy:log`); can run in the background like UpAgent release; cancel = `taskkill /T`; one at a time.
+    - Forced checks skip it.
 
 ## Checkbox behavior
-- Flow checkboxes (`flowCheck`) react only to clicks on the checkbox itself (the text is a `<span>`, not a `<label>`). In the current (orange) stage a click runs its normal logic (dialogs, merge check…). In any other stage it first asks via `confirm-dialog.js`, then only flips the check with `flow:setCheck` `force: true` — no dialogs or merge checks.
-- Forced Plan sets just `plan: true` (unchecking clears all plan keys); forced Confirm Commit sets `<stage>.commitsForced` (counts as confirmed; merge check skipped when commits don't cover the repos; unchecking clears the stage's keys; saving real commits removes the flag).
+- Flow checkboxes (`flowCheck`) react only to clicks on the checkbox itself (the text is a `<span>`, not a `<label>`).
+  - In the current (orange) stage a click runs its normal logic (dialogs, merge check…).
+  - In any other stage it first asks via `confirm-dialog.js`, then only flips the check with `flow:setCheck` `force: true` — no dialogs or merge checks.
+- Forced Plan sets just `plan: true` (unchecking clears all plan keys).
+- Forced Confirm Commit sets `<stage>.commitsForced` (counts as confirmed; merge check skipped when commits don't cover the repos; unchecking clears the stage's keys; saving real commits removes the flag).
 
 ## Test record (測試 / 檢核)
-- Checking 測試 / 檢核完成 (`test`) in the current stage opens `test-dialog.js`: one free-text field (suggested aspects are documented in `docs/user-guide.md`, not in the dialog: time, place, people, channel Teams/SharePoint/Email, device, connection, data, verification method) plus images via Ctrl+V paste, drag-drop or file picker (png/jpeg/gif/webp/bmp, ≤10 MB each, ≤30).
-- Saved via `flow:setTestRecord` (`testRecord.js`) as `testRecord: { note, images: [filename], updatedAt }` (+ `test: true` when confirming); images live in `data/test_records/<reqId>/`, unreferenced ones are deleted after the state is saved. `flow:testImages` returns the bytes; the renderer shows `blob:` URLs (CSP `img-src 'self' blob:`). Unchecking keeps the record; the「📝 測試 / 檢核記錄」link edits it without changing the check. `flow:setCheck` refuses the `testRecord` key.
-- **設定 UpAgent 連線**: when Plan includes `upagent` (`needsUpagentRelease`), the 測試 / 檢核 cell also shows「🔌 設定 UpAgent 連線」+ the current connection. `upagent-connection-dialog.js` offers the 4 targets `UPAGENT_CONNECTIONS` (Local Test / Local Prod / SaaS Test / SaaS Prod, keys `local_test` …, in `shared/flow-rules.js`) → `upagentConnection:switch` (`main/services/upagentConnection.js`) deletes UpAgent's config file(s) `upagentConnection.configFile` (string or array in `data/config.json`; `%VAR%` / leading `~` expanded, must be absolute; missing file = skipped; `unlink` only, never a folder) and returns `upagentConnection.activationCodes.<key>`, shown in the dialog with a copy button (UpAgent asks for the code after its config is gone and connects to that code's environment). A target without a code can't be chosen (nothing is deleted). The current connection is machine-wide, so it lives in renderer `localStorage` (`upagentConnection`), not in the flow state; nothing is written to ADO. The paths and codes are edited in-app via 「設定 → UpAgent 連線設定…」 or the dialog's 「編輯設定…」 (`upagent-connection-settings-dialog.js` → `loadConnectionSettings` / `saveConnectionSettings`; paths are chosen with a file picker only — existing files only — and user folders are folded back to `%APPDATA%` etc.; one path is saved as a string, several as an array; an empty code removes that key; other fields in the section are kept).
+- Checking 測試 / 檢核完成 (`test`) in the current stage opens `test-dialog.js`:
+  - one free-text field (suggested aspects are documented in `docs/user-guide.md`, not in the dialog: time, place, people, channel Teams/SharePoint/Email, device, connection, data, verification method)
+  - plus images via Ctrl+V paste, drag-drop or file picker (png/jpeg/gif/webp/bmp, ≤10 MB each, ≤30).
+- Saved via `flow:setTestRecord` (`testRecord.js`) as `testRecord: { note, images: [filename], updatedAt }` (+ `test: true` when confirming).
+  - Images live in `data/test_records/<reqId>/`, unreferenced ones are deleted after the state is saved.
+  - `flow:testImages` returns the bytes; the renderer shows `blob:` URLs (CSP `img-src 'self' blob:`).
+  - Unchecking keeps the record; the「📝 測試 / 檢核記錄」link edits it without changing the check.
+  - `flow:setCheck` refuses the `testRecord` key.
+- **設定 UpAgent 連線**: when Plan includes `upagent` (`needsUpagentRelease`), the 測試 / 檢核 cell also shows「🔌 設定 UpAgent 連線」+ the current connection.
+  - `upagent-connection-dialog.js` offers the 4 targets `UPAGENT_CONNECTIONS` (Local Test / Local Prod / SaaS Test / SaaS Prod, keys `local_test` …, in `shared/flow-rules.js`)
+    → `upagentConnection:switch` (`main/services/upagentConnection.js`) deletes UpAgent's config file(s) `upagentConnection.configFile`
+    (string or array in `data/config.json`; `%VAR%` / leading `~` expanded, must be absolute; missing file = skipped; `unlink` only, never a folder)
+    and returns `upagentConnection.activationCodes.<key>`, shown in the dialog with a copy button
+    (UpAgent asks for the code after its config is gone and connects to that code's environment).
+  - A target without a code can't be chosen (nothing is deleted).
+  - The current connection is machine-wide, so it lives in renderer `localStorage` (`upagentConnection`), not in the flow state; nothing is written to ADO.
+  - The paths and codes are edited in-app via 「設定 → UpAgent 連線設定…」 or the dialog's 「編輯設定…」 (`upagent-connection-settings-dialog.js` → `loadConnectionSettings` / `saveConnectionSettings`):
+    - paths are chosen with a file picker only — existing files only — and user folders are folded back to `%APPDATA%` etc.;
+    - one path is saved as a string, several as an array;
+    - an empty code removes that key;
+    - other fields in the section are kept.
 - 匯出 / 匯入本地資料 includes `data/test_records/` (import only accepts `data/test_records/<digits>/<TEST_IMAGE_RE name>`).
 
 ## UpAgent 發佈
-Scripts: `shell/Release-UpAgent.ps1` + child scripts `1-Get-BlobArtifacts.ps1` / `2-Update-LatestYml.ps1` / `3-Publish-BlobArtifacts.ps1` (copied from crmapp_AI's `.manage/scripts` and adapted — this repo keeps its own copy and never calls the other project).
-- Trigger: when Plan includes the repo key `upagent` (`needsUpagentRelease` / `upagentReleasePlan` in `shared/flow-rules.js`), checking a deploy stage's SaaS or Local (normal path, after the merge check / SaaS pipeline deploy) first runs `ensureReleased` (`flow-deploy.js`) → `upagent-release-dialog.js` → `upagentRelease:status` / `:run` / `:cancel` (`upagentRelease.js`).
-- Branch order (flow, `runRelease` → `execRelease({ before, after })`, both inside the one-at-a-time lock): **before** Bump, `mergeIntoFeature` merges the Confirm Commit into the feature branch (`mergeNoFf`, skipped when already in it); **after** the script succeeds, `mergeReleaseIntoEnv` merges `v<version>` into the stage's env branch (`mergeViaFeature` with `source`; skipped when already there; prod also `mergeBackToFeatures`, results logged). A failure there throws (`已發佈 …，但 … merge 進 … 失敗`) but the release progress is kept; the next check's deploy merge picks it up (version now known). Manual deploy (`runManualRelease`) is unchanged.
-- Steps: **Bump** (on the Plan's upagent feature branch `-Branch`: checkout + pull, refuse if the stage's Confirm Commit `-ExpectedCommit` isn't in it and warn about extra commits, npm version minor/patch, push branch + tag, switch back) → **WaitAction** (GitHub Actions; after a failure here the dialog offers「重跑 GitHub Action」= rerun the **whole** workflow run via `POST actions/runs/<id>/rerun` (`-RerunAction`, only with `-StartFrom WaitAction`; skipped if still running or succeeded; waits for `run_attempt` to increase; token needs Actions write) → **Download** → **Sign** (HSM: plug it in first; signtool shows the PIN window) → **UpdateYml** → **Publish** (Azure Blob) → **CleanStaging** → **Database** (INSERT into `public.public_db_upagentrelease` of the DB for the stage's env **and** the checked target — 4 connections `upagentRelease.db.<test|prod>_<saas|local>`, passwords `UPAGENT_DB_<TEST|PROD>_<SAAS|LOCAL>_PASSWORD` in `data/.env`; script gets `-Environment test|prod -Target saas|local`, target from `releaseTargetOf`).
-- Bump…CleanStaging run **once per version**; progress saved per Requirement as `upagentRelease: { version, bump, remark, completed, publishedAt, db: { test_saas, test_local, prod_saas, prod_local } }` (refused by `flow:setCheck`) from stdout markers (`::version::` / `::step::` / `::done::` / `::error::`), so a failure resumes from the next step (`-StartFrom … -Version …`) and later checks only run `-StartFrom Database` for a DB whose `db[<env>_<target>]` is unset. `flow:setCheck` refuses SaaS/Local while a release is still needed; forced checks skip it.
-- **Versions are shared across Requirements**: several Requirements on the same upagent feature branch must not each bump. Before planning, `releaseStatus` / `runRelease` call `adoptPublishedRelease`: if this Requirement has no `upagentRelease.version` yet and the stage's Confirm Commit (upagent) is contained in a published version's tag (`git tag --list v* --contains <commit>`; published = some Requirement's own, non-adopted record with `completed` ≥ Publish), the highest such version is copied into its record as `{ version, bump, remark, completed, publishedAt, db: <union of db over all records of that version>, adoptedFrom: <source id> }` — so it skips Bump and only runs Database for DBs not yet written (or nothing). `releaseStatus` then also returns `checks` so the renderer syncs. A finished **Database** step is written to **every** record of the same version (`markDbWritten`, via `flowState.updateFlowState`), so one version is never inserted into the same DB twice. No Confirm Commit (forced) / git failure → falls back to the normal Bump path. Summary shows「沿用 #id」.
-- Non-interactive (no `Read-Host`; `-NonInteractive`, no timeout, stdout streamed via `runPowerShellLines(..., { onLine, onMarker, signal })`, cancel = `taskkill /T`). Settings: `upagentRelease` in `data/config.json` (`-ConfigPath`) + `GITHUB_TOKEN` / DB passwords in `data/.env` (`-EnvPath`); the dialog's `configExists` only checks the section exists. The upagent clone path comes from `repos` (also used by `2-Update-LatestYml.ps1 -UpagentDir` to find `app-builder.exe`); artifacts go to `data/upagent_release/<version>/`; executed SQL is appended to `data/upagent_release.sql`. Only one release at a time; renderer job state is lost on reload (main keeps running).
+Scripts: `shell/Release-UpAgent.ps1` + child scripts `1-Get-BlobArtifacts.ps1` / `2-Update-LatestYml.ps1` / `3-Publish-BlobArtifacts.ps1`
+(copied from crmapp_AI's `.manage/scripts` and adapted — this repo keeps its own copy and never calls the other project).
+- Trigger: when Plan includes the repo key `upagent` (`needsUpagentRelease` / `upagentReleasePlan` in `shared/flow-rules.js`),
+  checking a deploy stage's SaaS or Local (normal path, after the merge check / SaaS pipeline deploy) first runs `ensureReleased` (`flow-deploy.js`)
+  → `upagent-release-dialog.js` → `upagentRelease:status` / `:run` / `:cancel` (`upagentRelease.js`).
+- Branch order (flow, `runRelease` → `execRelease({ before, after })`, both inside the one-at-a-time lock):
+  - **before** Bump, `mergeIntoFeature` merges the Confirm Commit into the feature branch (`mergeNoFf`, skipped when already in it);
+  - **after** the script succeeds, `mergeReleaseIntoEnv` merges `v<version>` into the stage's env branch (`mergeViaFeature` with `source`; skipped when already there; prod also `mergeBackToFeatures`, results logged).
+  - A failure there throws (`已發佈 …，但 … merge 進 … 失敗`) but the release progress is kept; the next check's deploy merge picks it up (version now known).
+  - Manual deploy (`runManualRelease`) runs the same `Release-UpAgent.ps1` through `execRelease`, but without the before / after feature-branch merges.
+    It writes no flow state, except that a finished Database step marks that DB as written in every flow record of the same version (`markDbWritten({ version })`).
+- Steps:
+  - **Bump** (on the Plan's upagent feature branch `-Branch`: checkout + pull, refuse if the stage's Confirm Commit `-ExpectedCommit` isn't in it and warn about extra commits, npm version minor/patch, push branch + tag, switch back)
+  - → **WaitAction** (GitHub Actions; after a failure here the dialog offers「重跑 GitHub Action」= rerun the **whole** workflow run via `POST actions/runs/<id>/rerun`
+    (`-RerunAction`, only with `-StartFrom WaitAction`; skipped if still running or succeeded; waits for `run_attempt` to increase; token needs Actions write)
+  - → **Download**
+  - → **Sign** (HSM: plug it in first; signtool shows the PIN window)
+  - → **UpdateYml**
+  - → **Publish** (Azure Blob)
+  - → **CleanStaging**
+  - → **Database** (INSERT into `public.public_db_upagentrelease` of the DB for the stage's env **and** the checked target —
+    4 connections `upagentRelease.db.<test|prod>_<saas|local>`, passwords `UPAGENT_DB_<TEST|PROD>_<SAAS|LOCAL>_PASSWORD` in `data/.env`;
+    script gets `-Environment test|prod -Target saas|local`, target from `releaseTargetOf`).
+- Bump…CleanStaging run **once per version**.
+  - Progress saved per Requirement as `upagentRelease: { version, bump, remark, completed, publishedAt, db: { test_saas, test_local, prod_saas, prod_local } }` (refused by `flow:setCheck`)
+    from stdout markers (`::version::` / `::step::` / `::done::` / `::error::`),
+  - so a failure resumes from the next step (`-StartFrom … -Version …`) and later checks only run `-StartFrom Database` for a DB whose `db[<env>_<target>]` is unset.
+  - `flow:setCheck` refuses SaaS/Local while a release is still needed; forced checks skip it.
+- **Versions are shared across Requirements**: several Requirements on the same upagent feature branch must not each bump.
+  - Before planning, `releaseStatus` / `runRelease` call `adoptPublishedRelease`:
+    if this Requirement has no `upagentRelease.version` yet and the stage's Confirm Commit (upagent) is contained in a published version's tag
+    (`git tag --list v* --contains <commit>`; published = some Requirement's own, non-adopted record with `completed` ≥ Publish),
+    the highest such version is copied into its record as `{ version, bump, remark, completed, publishedAt, db: <union of db over all records of that version>, adoptedFrom: <source id> }`
+    — so it skips Bump and only runs Database for DBs not yet written (or nothing).
+  - `releaseStatus` then also returns `checks` so the renderer syncs.
+  - A finished **Database** step is written to **every** record of the same version (`markDbWritten`, via `flowState.updateFlowState`), so one version is never inserted into the same DB twice.
+  - No Confirm Commit (forced) / git failure → falls back to the normal Bump path.
+  - Summary shows「沿用 #id」.
+- Non-interactive (no `Read-Host`; `-NonInteractive`, no timeout, stdout streamed via `runPowerShellLines(..., { onLine, onMarker, signal })`, cancel = `taskkill /T`).
+  - Settings: `upagentRelease` in `data/config.json` (`-ConfigPath`) + `GITHUB_TOKEN` / DB passwords in `data/.env` (`-EnvPath`); the dialog's `configExists` only checks the section exists.
+  - The upagent clone path comes from `repos` (also used by `2-Update-LatestYml.ps1 -UpagentDir` to find `app-builder.exe`).
+  - Artifacts go to `data/upagent_release/<version>/`; executed SQL is appended to `data/upagent_release.sql`.
+  - Only one release at a time; renderer job state is lost on reload (main keeps running).
 
 ## 手動佈版 / 佈版進度
 Menu「佈版」(also the 🛠 / 🚀 buttons in the content header) — deploy without a Requirement, reusing the same actions as checking SaaS / Local.
-- **手動佈版** (`manual-deploy-dialog.js` → `manualDeploy:preview` / `:start`, `main/services/manualDeploy.js`): pick SaaS / Local, test / prod, a repo from `repos`, and a commit. 「檢查」 runs `preview` (git fetch + merge check, Pipeline runs, `localDeploy` settings) and lists the steps / warnings; errors (merge conflict, bad Local settings, missing `upagentRelease`) block start; prod asks for confirmation. Steps, in the flow's order: SaaS with a Pipeline → wait for active runs → merge (`mergeNoFf`, message `手動佈版（AdoMaster）`; prod also `mergeBackToFeatures`) → watch the run triggered by the merge commit → `afterDeployRepo` (test restarts `testAppService`; prod `After-ProdDeploy.ps1`, never restarts immediately; for prod SaaS the dialog has the same restart picker → `params.restart`, preview errors if `prodRestart` / the repo isn't configured, note `手動佈版`). SaaS without a Pipeline / Local without `localDeploy` = merge only. Local → `runManualLocalDeploy` (`Deploy-Local.ps1 -ExpectedCommit`, optional `-Rebuild`). upagent → `runManualRelease`:「完整發佈」(bump on a branch from the upagent repo's `branches`) or「接續 / 只寫入資料庫」(version + start step; commit optional, empty = no merge). A commit already in the env branch → no push, so no new Pipeline run.
-- **客戶環境** (env `customer`): a third environment that only **builds an image tar to hand to a customer** — no merge, no push, no ssh. Customers come from `customerDeploy.<saas|local>.<key>` in `config.json` (`{ label, repos: { <repo>: { …localDeploy fields, envFile, envTarget } } }`, listed by `manualDeploy:customers`); the dialog shows a 客戶 select for the chosen target and pre-fills the commit with `origin/<prodBranch>` HEAD (`manualDeploy:prodHead` → `gitCommit.remoteBranchHead`; only overwrites an empty / previously auto-filled value). Preview requires the commit to be **in `prodBranch`** (error otherwise), upagent is refused. Settings = `localDeploy.repos.<repo>` outer fields (not `test` / `prod`) overridden by the customer's repo object; `envFile` / `envTarget` come **only** from the customer object. Env: `envFile` → copied to `envTarget`; SaaS without `envFile` → `envTarget` (default `.env`) is **removed** for the build so the image uses the customer's own variables (crmapp); Local requires `envFile` (files under `data/local_deploy_env/`, flat names so export includes them). The deploy clone's original `envTarget` is restored after the build. `localDeploy.runCustomerBuild` → `Deploy-Local.ps1 -Environment customer -Customer <key> -CustomerTarget <saas|local> -ExpectedCommit` (checks out that exact commit, not the branch tip) → `data/customer_build/<target>/<key>/<repo>/<appName>_<key>-<commit10>-<envhash>.tar` (latest 3 kept; reused unless 「重新 build」). Shares the Local one-at-a-time lock. The finished job has「開啟資料夾」(`manualDeploy:showOutput`, path taken from the job in main).
-- Manual deploys **write nothing to the flow state** — except that a finished UpAgent Database step marks every flow record of that version as written (`markVersionDbWritten`), so the flow won't insert it again. They share the one-at-a-time locks of Local deploy / UpAgent release with the flow (`running.id = null`, shown as「手動佈版」).
-- Jobs run in **main** (survive a renderer reload, lost when the app quits; last 20 finished kept) and broadcast `manualDeploy:update` (snapshot; `removed: true` when dropped) / `manualDeploy:log`. Stop = abort (merge / after-deploy finish their current step first). Retry starts a new job with the same params; for upagent with a known version it resumes after the last completed step (「重跑 GitHub Action 後重試」when the next step is WaitAction).
-- **佈版進度** (`deploy-progress-dialog.js`): manual jobs (steps, Pipeline run link, log, stop / retry / remove) plus background jobs started from the flow table — `flow-deploy.js` registers `deploy-dialog` / `local-deploy-dialog` / `upagent-release-dialog` (`summary()` + `show()`) in `deploy-jobs.js`;「開啟」reopens that dialog. The header button shows the number of running jobs. When a manual job ends: system notification if unfocused, and the dialog opens if no other dialog is open.
+
+### 手動佈版
+- **手動佈版** (`manual-deploy-dialog.js` → `manualDeploy:preview` / `:start`, `main/services/manualDeploy.js`): pick SaaS / Local, test / prod, a repo from `repos`, and a commit.
+  - 「檢查」 runs `preview` (git fetch + merge check, Pipeline runs, `localDeploy` settings) and lists the steps / warnings.
+  - Errors (merge conflict, bad Local settings, missing `upagentRelease`) block start; prod asks for confirmation.
+  - Steps, in the flow's order:
+    - SaaS with a Pipeline → wait for active runs
+    - → merge (`mergeNoFf`, message `手動佈版（AdoMaster）`; prod also `mergeBackToFeatures`)
+    - → watch the run triggered by the merge commit
+    - → `afterDeployRepo` (test restarts `testAppService`; prod `After-ProdDeploy.ps1`, never restarts immediately;
+      for prod SaaS the dialog has the same restart picker → `params.restart`, preview errors if `prodRestart` / the repo isn't configured, note `手動佈版`).
+  - SaaS without a Pipeline / Local without `localDeploy` = merge only.
+  - Local → `runManualLocalDeploy` (`Deploy-Local.ps1 -ExpectedCommit`, optional `-Rebuild`).
+  - upagent → `runManualRelease`:「完整發佈」(bump on a branch from the upagent repo's `branches`) or「接續 / 只寫入資料庫」(version + start step; commit optional, empty = no merge).
+  - A commit already in the env branch → no push, so no new Pipeline run.
+
+### 客戶環境
+- **客戶環境** (env `customer`): a third environment that only **builds an image tar to hand to a customer** — no merge, no push, no ssh.
+  - Customers come from `customerDeploy.<saas|local>.<key>` in `config.json` (`{ label, repos: { <repo>: { …localDeploy fields, envFile, envTarget } } }`, listed by `manualDeploy:customers`).
+  - The dialog shows a 客戶 select for the chosen target and pre-fills the commit with `origin/<prodBranch>` HEAD
+    (`manualDeploy:prodHead` → `gitCommit.remoteBranchHead`; only overwrites an empty / previously auto-filled value).
+  - Preview requires the commit to be **in `prodBranch`** (error otherwise), upagent is refused.
+  - Settings = `localDeploy.repos.<repo>` outer fields (not `test` / `prod`) overridden by the customer's repo object; `envFile` / `envTarget` come **only** from the customer object.
+  - Env:
+    - `envFile` → copied to `envTarget`;
+    - SaaS without `envFile` → `envTarget` (default `.env`) is **removed** for the build so the image uses the customer's own variables (crmapp);
+    - Local requires `envFile` (files under `data/local_deploy_env/`, flat names so export includes them).
+    - The deploy clone's original `envTarget` is restored after the build.
+  - `localDeploy.runCustomerBuild` → `Deploy-Local.ps1 -Environment customer -Customer <key> -CustomerTarget <saas|local> -ExpectedCommit` (checks out that exact commit, not the branch tip)
+    → `data/customer_build/<target>/<key>/<repo>/<appName>_<key>-<commit10>-<envhash>.tar` (latest 3 kept; reused unless 「重新 build」).
+  - Shares the Local one-at-a-time lock.
+  - The finished job has「開啟資料夾」(`manualDeploy:showOutput`, path taken from the job in main).
+
+### Jobs & 佈版進度
+- Manual deploys **write nothing to the flow state** — except that a finished UpAgent Database step marks every flow record of that version as written (`markDbWritten({ version })`), so the flow won't insert it again.
+  - They share the one-at-a-time locks of Local deploy / UpAgent release with the flow (`running.id = null`, shown as「手動佈版」).
+- Jobs run in **main** (survive a renderer reload, lost when the app quits; last 20 finished kept) and broadcast `manualDeploy:update` (snapshot; `removed: true` when dropped) / `manualDeploy:log`.
+  - Stop = abort (merge / after-deploy finish their current step first).
+  - Retry starts a new job with the same params; for upagent with a known version it resumes after the last completed step (「重跑 GitHub Action 後重試」when the next step is WaitAction).
+- **佈版進度** (`deploy-progress-dialog.js`): manual jobs (steps, Pipeline run link, log, stop / retry / remove) plus background jobs started from the flow table
+  — `flow-deploy.js` registers `deploy-dialog` / `local-deploy-dialog` / `upagent-release-dialog` (`summary()` + `show()`) in `deploy-jobs.js`;「開啟」reopens that dialog.
+  - The header button shows the number of running jobs.
+  - When a manual job ends: system notification if unfocused, and the dialog opens if no other dialog is open.
 
 ## 正式環境排程重啟
-- Prod App Services are restarted only by **Azure Automation**: a one-time Schedule linked to an existing Runbook (Job Schedule) with per-repo parameters — approach from `feature/azure-automation-schedule-az-cli.md`. `shell/Restart-Schedule.ps1 -Action List|Create|Delete` does it; `az` only provides the token (`az account get-access-token`), the ARM REST calls use `Invoke-RestMethod` (api-version 2023-11-01) because `az.cmd` mangles JSON bodies and `&` in `nextLink` on Windows.
-- Settings: `prodRestart` in `data/config.json` (`subscription?`, `resourceGroup`, `automationAccount`, `runbook`, `runbookParameters` with `{field}` → `repos.<repo>.<field>` / `{repo}`, `runOn?`, `timeZone` = Asia/Taipei, `utcOffset` = +08:00, `schedulePrefix` = adomaster-restart, `repos: { <repo>: { appService, resourceGroup } }`); edited in-app via 「設定 → 正式環境排程重啟設定…」 or the restart dialog's 「設定…」 (`prod-restart-settings-dialog.js` → `prodRestart:loadSettings` / `:saveSettings`; the repo list = `repos` + extra keys in `prodRestart.repos`; empty optional field = key removed; per-repo checkbox = in `prodRestart.repos` (unchecked = removed); the per-repo columns are the `{field}` placeholders in `runbookParameters` (`runbookParamFields`), each required for every checked repo; fields the dialog doesn't edit are kept). `main/services/prodRestart.js` (`restartOptions` reads it without calling Azure; `normalizeRestart` validates `{ date, slot }`).
-- **No duplicates / record**: Schedule name = `<prefix>-<repo>-<yyyyMMdd>-<HHmm>`; Create returns `state: exists` when that schedule is already linked (`linked` = schedule existed without a Job Schedule, link added; `created`). Automation itself is the record — the Schedule description holds the Requirement / commit / user@machine / time; nothing is written to the flow state. Create refuses times < 6 min ahead (Azure needs ≥ 5); a failed link deletes the schedule it just created. Delete only accepts names with the prefix and removes linked Job Schedules first.
-- Entry points: prod SaaS after-deploy (flow deploy dialog / manual deploy, created only after the triggered Run succeeds — a slot that has passed by then fails the after-deploy) and menu「佈版 → 正式環境排程重啟…」(`restart-schedule-dialog.js`; `prodRestart:options` / `:list` / `:create` / `:delete`): list (pending; 「含已執行」 shows expired), create for several repos at once, delete. The picker lists the repos' pending schedules and flags a same-time duplicate.
+- Prod App Services are restarted only by **Azure Automation**: a one-time Schedule linked to an existing Runbook (Job Schedule) with per-repo parameters — approach from `feature/azure-automation-schedule-az-cli.md`.
+  - `shell/Restart-Schedule.ps1 -Action List|Create|Delete` does it.
+  - `az` only provides the token (`az account get-access-token`), the ARM REST calls use `Invoke-RestMethod` (api-version 2023-11-01) because `az.cmd` mangles JSON bodies and `&` in `nextLink` on Windows.
+- Settings: `prodRestart` in `data/config.json`:
+  `subscription?`, `resourceGroup`, `automationAccount`, `runbook`, `runbookParameters` with `{field}` → `repos.<repo>.<field>` / `{repo}`, `runOn?`, `timeZone` = Asia/Taipei, `utcOffset` = +08:00, `schedulePrefix` = adomaster-restart, `repos: { <repo>: { appService, resourceGroup } }`.
+  - Edited in-app via 「設定 → 正式環境排程重啟設定…」 or the restart dialog's 「設定…」 (`prod-restart-settings-dialog.js` → `prodRestart:loadSettings` / `:saveSettings`):
+    - the repo list = `repos` + extra keys in `prodRestart.repos`;
+    - empty optional field = key removed;
+    - per-repo checkbox = in `prodRestart.repos` (unchecked = removed);
+    - the per-repo columns are the `{field}` placeholders in `runbookParameters` (`runbookParamFields`), each required for every checked repo;
+    - fields the dialog doesn't edit are kept.
+  - `main/services/prodRestart.js` (`restartOptions` reads it without calling Azure; `normalizeRestart` validates `{ date, slot }`).
+- **No duplicates / record**: Schedule name = `<prefix>-<repo>-<yyyyMMdd>-<HHmm>`.
+  - Create returns `state: exists` when that schedule is already linked (`linked` = schedule existed without a Job Schedule, link added; `created`).
+  - Automation itself is the record — the Schedule description holds the Requirement / commit / user@machine / time; nothing is written to the flow state.
+  - Create refuses times < 6 min ahead (Azure needs ≥ 5); a failed link deletes the schedule it just created.
+  - Delete only accepts names with the prefix and removes linked Job Schedules first.
+- Entry points:
+  - prod SaaS after-deploy (flow deploy dialog / manual deploy, created only after the triggered Run succeeds — a slot that has passed by then fails the after-deploy)
+  - and menu「佈版 → 正式環境排程重啟…」(`restart-schedule-dialog.js`; `prodRestart:options` / `:list` / `:create` / `:delete`): list (pending; 「含已執行」 shows expired), create for several repos at once, delete.
+  - The picker lists the repos' pending schedules and flags a same-time duplicate.

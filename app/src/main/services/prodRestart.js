@@ -1,5 +1,5 @@
 const { runPowerShellJson } = require('../powershell');
-const { readConfig, updateConfig, CONFIG_LABEL } = require('./appConfig');
+const { readConfig, readSection, updateSection, str, isObj, assertSingleLine, CONFIG_LABEL } = require('./appConfig');
 const { RESTART_DATE_RE, restartSlot, runbookParamFields } = require('../../shared/flow-rules.js');
 
 /**
@@ -21,7 +21,7 @@ const NOTE_MAX = 200;
 
 /** 讀取 prodRestart 設定摘要（renderer 顯示 / 檢查用，不呼叫 Azure） */
 async function restartOptions() {
-  const cfg = (await readConfig())?.prodRestart;
+  const cfg = await readSection(SECTION);
   const missing = ['resourceGroup', 'automationAccount', 'runbook', 'runbookParameters'].filter((k) => !cfg?.[k]);
   const repos = Object.entries(cfg?.repos || {})
     .filter(([, r]) => r && typeof r === 'object')
@@ -119,8 +119,6 @@ const DEFAULT_PARAMETERS = [
   { name: 'ResourceGroupName', value: '{resourceGroup}' },
   { name: 'AppServiceName', value: '{appService}' },
 ];
-const str = (v) => (typeof v === 'string' ? v.trim() : v == null ? '' : String(v).trim());
-const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /**
  * 讀取設定畫面的內容。repository 清單 = config.json repos（依順序）+ prodRestart.repos 中其他的 key。
@@ -161,7 +159,7 @@ async function saveSettings({ settings, parameters, repos } = {}) {
   const values = {};
   for (const f of FIELDS) {
     const v = str(settings?.[f.key]);
-    if (/[\r\n]/.test(v)) throw new Error(`${FIELD_LABEL[f.key]} 不能包含換行`);
+    assertSingleLine(v, FIELD_LABEL[f.key]);
     if (!v && f.required) throw new Error(`請填入 ${FIELD_LABEL[f.key]}`);
     if (v && f.re && !f.re.test(v)) throw new Error(`${FIELD_LABEL[f.key]} 格式錯誤（${f.hint}）`);
     values[f.key] = v;
@@ -175,7 +173,7 @@ async function saveSettings({ settings, parameters, repos } = {}) {
     if (!/^[A-Za-z_]\w*$/.test(name)) throw new Error(`Runbook 參數名稱「${name}」格式錯誤（英數字與 _，不能以數字開頭）`);
     if (Object.keys(params).some((k) => k.toLowerCase() === name.toLowerCase())) throw new Error(`Runbook 參數「${name}」重複`);
     if (!value) throw new Error(`請填入 Runbook 參數「${name}」的值`);
-    if (/[\r\n]/.test(value)) throw new Error(`Runbook 參數「${name}」不能包含換行`);
+    assertSingleLine(value, `Runbook 參數「${name}」`);
     params[name] = value;
   }
   if (!Object.keys(params).length) throw new Error('請至少設定一個 Runbook 參數');
@@ -189,14 +187,13 @@ async function saveSettings({ settings, parameters, repos } = {}) {
     for (const [f, v] of Object.entries(isObj(r.values) ? r.values : {})) {
       if (!/^\w+$/.test(f)) continue;
       const s = str(v);
-      if (/[\r\n]/.test(s)) throw new Error(`${key} 的 ${f} 不能包含換行`);
+      assertSingleLine(s, `${key} 的 ${f}`);
       values[f] = s;
     }
     input.set(key, { enabled: !!r.enabled, values });
   }
 
-  await updateConfig((cfg) => {
-    const prev = isObj(cfg[SECTION]) ? cfg[SECTION] : {};
+  await updateSection(SECTION, (prev) => {
     const prevRepos = isObj(prev.repos) ? prev.repos : {};
     const next = { ...prev };
     for (const f of FIELDS) {
@@ -220,7 +217,7 @@ async function saveSettings({ settings, parameters, repos } = {}) {
       nextRepos[key] = r;
     }
     next.repos = nextRepos;
-    cfg[SECTION] = next;
+    return next;
   });
   return loadSettings();
 }

@@ -8,7 +8,7 @@ Run by `app/src/main/powershell.js`: `runPowerShellJson(script, args)` / `runPow
 - Failure → message to stderr + `exit 1`; the app shows stderr as the error message.
 - Save every `.ps1` as **UTF-8 with BOM** (Windows PowerShell 5.1 needs it for Chinese) and set `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`.
 - Non-interactive: no `Read-Host` / confirmation prompts.
-- Shared helpers live in `Common.ps1` (`Get-DataRoot`, `Write-Result`, `Exit-WithError` (`::error::` + stderr + exit 1), `Invoke-Az`, `Read-DotEnv`); dot-source it after `param()` with `. (Join-Path $PSScriptRoot 'Common.ps1')` and never redefine those functions in a script. `1-` / `2-` / `3-*.ps1` are copied from another project and kept as-is (they don't load it).
+- Shared helpers live in `Common.ps1` (`Get-DataRoot`, `Write-Result`, `Exit-WithError` (`::error::` + stderr + exit 1), `Invoke-Az` (stderr captured into the exception) / `Invoke-AzCli` (az output shown live), `Read-DotEnv`, `Get-FileHashBase64`, `Format-Size`, `Resolve-ManifestFile`); every script dot-sources it after `param()` with `. (Join-Path $PSScriptRoot 'Common.ps1')` and never redefines those functions. Only same-named helpers that behave differently stay local (`Invoke-Native`, `Get-Setting`).
 - Settings: read `data/config.json` with `ConvertFrom-Json` and secrets from `data/.env` (`Read-DotEnv` in `Common.ps1` — same rules as Python: a same-named env var wins). Never add a new config file.
 - To wire a new script: a service in `main/services/` calls `runPowerShellJson` → channel in `ipc.js` → method in `preload/index.js`.
 

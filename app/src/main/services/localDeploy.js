@@ -1,15 +1,14 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { CONFIG_FILE, LOCAL_DEPLOY_ENV_DIR } = require('../paths');
-const { CONFIG_LABEL, readConfig } = require('./appConfig');
+const { CONFIG_LABEL, readConfig, str, isObj } = require('./appConfig');
 const { runPowerShellLines } = require('../powershell');
 const { createExclusiveRunner } = require('../exclusiveRunner');
 const { loadRepoConfig, findRepo } = require('./repoConfig');
 const { loadFlowState, updateRequirementState } = require('./flowState');
 const {
   COMMIT_STAGES,
-  PLAN_KEY,
-  PLAN_REPOS_KEY,
+  planRepoKeys,
   commitsKey,
   localDeployKey,
   DEPLOY_ENV,
@@ -40,14 +39,15 @@ const SECTION = 'localDeploy';
 /** 客戶環境（手動佈版選「客戶環境」）：customerDeploy.<saas|local>.<客戶 key> */
 const CUSTOMER_SECTION = 'customerDeploy';
 const CUSTOMER_TARGETS = ['saas', 'local'];
-const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** 顯示用：目前佔用 Local 佈版的是哪個流程 */
 const ownerLabel = (r) => `${r.id ? `#${r.id}` : '手動佈版'} ${r.repo}`;
 /** 一次只能一個 Local 佈版（流程、手動佈版、客戶環境共用）；current = { id, stage, repo, controller }（手動佈版的 id 為 null） */
 const runner = createExclusiveRunner((r) => `已有 Local 佈版進行中：${ownerLabel(r)}`);
 
-const str = (v) => (v == null ? '' : String(v).trim());
+/** Local 佈版會組進遠端 ssh 指令的欄位與允許的字元（與 Deploy-Local.ps1 相同規則） */
+const REMOTE_SAFE_FIELDS = ['appName', 'pullRegistry', 'network', 'hostPort', 'appPort'];
+const REMOTE_SAFE_RE = /^[A-Za-z0-9_.:/-]*$/;
 /** envTarget 只能是 projectDir 內的相對路徑（與 Deploy-Local.ps1 相同規則） */
 const validEnvTarget = (t) => /^[A-Za-z0-9_.\\/-]+$/.test(t) && !path.isAbsolute(t) && !t.split(/[\\/]/).includes('..');
 /** test / prod → 佈版階段 */
@@ -86,6 +86,10 @@ function buildTarget(section, config, repo, stage, env) {
     error = `找不到 localDeploy.repos.${repo}.${env} 的 envFile：${path.resolve(LOCAL_DEPLOY_ENV_DIR, str(s.envFile))}`;
   } else if (str(s.envFile) && str(s.envTarget) && !validEnvTarget(str(s.envTarget))) {
     error = `localDeploy.repos.${repo}.${env} 的 envTarget 必須是部署用資料夾內的相對路徑：${str(s.envTarget)}`;
+  } else {
+    // 會組進遠端 shell 指令的值，只允許安全字元（與 Deploy-Local.ps1 相同規則）
+    const unsafe = REMOTE_SAFE_FIELDS.find((f) => !REMOTE_SAFE_RE.test(str(s[f])));
+    if (unsafe) error = `localDeploy.repos.${repo} 的 ${unsafe} 含有不允許的字元：${str(s[unsafe])}`;
   }
   return {
     repo,
@@ -109,7 +113,7 @@ async function deployTargets(id, stage) {
   if (!Number.isInteger(id) || !COMMIT_STAGES.includes(stage)) throw new Error('參數錯誤');
   const env = DEPLOY_ENV[stage];
   const checks = (await loadFlowState())[id] || {};
-  const planRepos = checks[PLAN_KEY] ? Object.keys(checks[PLAN_REPOS_KEY] || {}) : [];
+  const planRepos = planRepoKeys(checks);
   const section = (await readConfig())?.[SECTION];
   // unconfigured：規劃中沒有設定此環境 Local 佈版的 repository（upagent 走 UpAgent 發佈，不列入）
   const unconfigured = [];

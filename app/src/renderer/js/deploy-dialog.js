@@ -267,7 +267,7 @@ export function createDeployDialog() {
     }
   }
 
-  /** push 觸發的 Run 成功的 repository，各執行一次佈版後動作（測試環境重啟 App Service；正式環境為預留 shell） */
+  /** push 觸發的 Run 成功的 repository，各執行一次佈版後動作（測試環境重啟 App Service；正式環境依選擇的時段在 Azure Automation 排程重啟，不立即重啟） */
   async function runAfterDeploy(j) {
     const done = j.targets.filter((t) => t.run?.result === 'succeeded');
     if (!done.length) return;

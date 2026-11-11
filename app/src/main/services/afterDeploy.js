@@ -2,7 +2,7 @@ const { runPowerShellJson } = require('../powershell');
 const { loadRepoConfig } = require('./repoConfig');
 const { loadFlowState } = require('./flowState');
 const { normalizeRestart, restartArgs } = require('./prodRestart');
-const { PLAN_KEY, PLAN_REPOS_KEY, COMMIT_STAGES } = require('../../shared/flow-rules.js');
+const { planRepoKeys, COMMIT_STAGES } = require('../../shared/flow-rules.js');
 
 /**
  * 佈版後動作：勾 SaaS 的自動佈版流程中，push 觸發的 Pipeline Run 成功後，對該 repository 各執行一次。
@@ -21,7 +21,7 @@ const RESTART_TIMEOUT = 10 * 60_000;
 async function runAfterDeploy({ id, stage, repo, commit, restart } = {}) {
   if (!Number.isInteger(id) || !COMMIT_STAGES.includes(stage) || typeof repo !== 'string') throw new Error('參數錯誤');
   const checks = (await loadFlowState())[id] || {};
-  const planRepos = checks[PLAN_KEY] ? Object.keys(checks[PLAN_REPOS_KEY] || {}) : [];
+  const planRepos = planRepoKeys(checks);
   if (!planRepos.includes(repo)) throw new Error(`#${id} 的規劃沒有選 ${repo}`);
   return afterDeployRepo({ stage, repo, commit, restart, note: `Requirement #${id}` });
 }

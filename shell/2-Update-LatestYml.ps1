@@ -3,7 +3,7 @@
     UpAgent 發佈流程【子腳本 2／3】：依「簽署後」的安裝檔重算 latest.yml 的 sha512 / size，並重建 .blockmap。
 
 .DESCRIPTION
-    由 Release-UpAgent.ps1 的 UpdateYml 步驟呼叫（複製自 crmapp_AI\.manage\scripts，路徑已改為 AdoMaster 專案內）。
+    由 Release-UpAgent.ps1 的 UpdateYml 步驟呼叫。
 
     為什麼一定要重算：
       electron-builder 是在「簽署前」產生 latest.yml 的，裡面的 sha512 與 size 對應的是未簽署的執行檔。
@@ -86,43 +86,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot 'Common.ps1')
+
 # ---------------------------------------------------------------------------
 # 共用函式
 # ---------------------------------------------------------------------------
-
-function Get-Sha512Base64 {
-    param([Parameter(Mandatory = $true)][string]$Path)
-    $hasher = [System.Security.Cryptography.SHA512]::Create()
-    $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
-    try {
-        return [Convert]::ToBase64String($hasher.ComputeHash($stream))
-    } finally {
-        $stream.Dispose()
-        $hasher.Dispose()
-    }
-}
-
-function Format-Size {
-    param([long]$Bytes)
-    if ($Bytes -ge 1GB) { return "{0:N2} GB" -f ($Bytes / 1GB) }
-    if ($Bytes -ge 1MB) { return "{0:N2} MB" -f ($Bytes / 1MB) }
-    if ($Bytes -ge 1KB) { return "{0:N2} KB" -f ($Bytes / 1KB) }
-    return "$Bytes B"
-}
-
-function Resolve-ManifestFile {
-    <# manifest 內的 url 可能是原樣檔名，也可能是 URL 編碼過的（空白變 %20），兩種都試 #>
-    param([string]$Url, [string]$Folder)
-    $name = $Url.Trim().Trim("'", '"')
-    $candidates = @($name)
-    $decoded = [System.Uri]::UnescapeDataString($name)
-    if ($decoded -ne $name) { $candidates += $decoded }
-    foreach ($c in $candidates) {
-        $p = Join-Path $Folder $c
-        if (Test-Path -LiteralPath $p -PathType Leaf) { return (Get-Item -LiteralPath $p) }
-    }
-    return $null
-}
 
 function Resolve-AppBuilder {
     param([string]$Explicit, [string]$UpagentDir)
@@ -157,8 +125,7 @@ function Format-ShaPreview {
 # 參數整理
 # ---------------------------------------------------------------------------
 
-# shell\ 的上一層 = AdoMaster 專案根目錄
-$dataRoot = if ($env:ADOMASTER_DATA_DIR) { $env:ADOMASTER_DATA_DIR } else { Join-Path (Split-Path -Parent $PSScriptRoot) 'data' }  # app 會以 ADOMASTER_DATA_DIR 指定 data 資料夾
+$dataRoot = Get-DataRoot
 
 if (-not $ReleasePath) {
     $releaseRoot = Join-Path $dataRoot "upagent_release"
@@ -231,7 +198,7 @@ function Get-ArtifactInfo {
     if ($artifactCache.ContainsKey($File.FullName)) { return $artifactCache[$File.FullName] }
 
     $info = [pscustomobject]@{
-        Sha512            = Get-Sha512Base64 -Path $File.FullName
+        Sha512            = Get-FileHashBase64 -Path $File.FullName
         Size              = $File.Length
         BlockMapPath      = "$($File.FullName).blockmap"
         BlockMapSize      = $null

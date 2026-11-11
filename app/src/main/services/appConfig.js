@@ -67,6 +67,34 @@ function updateConfig(mutate) {
   return run;
 }
 
+/* ---------- 各設定 service 共用的小工具 ---------- */
+
+/** 任意值 → 去頭尾空白的字串（null / undefined → ''） */
+const str = (v) => (v == null ? '' : String(v).trim());
+/** 是不是一般物件（不含 null、陣列） */
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+/** 設定值不能含換行（.env 一行一個值；JSON 中的換行也多半是貼錯） */
+function assertSingleLine(value, label) {
+  if (/[\r\n]/.test(String(value ?? ''))) throw new Error(`${label} 不能包含換行`);
+}
+
+/** 讀取 config.json 的某個 section；檔案不存在或 section 不是物件時回傳 null */
+async function readSection(name) {
+  const section = (await readConfig())?.[name];
+  return isObj(section) ? section : null;
+}
+
+/**
+ * 修改 config.json 的某個 section（其他 section 原樣保留；序列化 + 原子寫入）。
+ * mutate 收到 section 的淺複本（不存在時為 {}），直接修改或回傳新物件；丟錯時不寫檔。
+ */
+function updateSection(name, mutate) {
+  return updateConfig(async (cfg) => {
+    const section = { ...(isObj(cfg[name]) ? cfg[name] : {}) };
+    cfg[name] = (await mutate(section)) ?? section;
+  });
+}
+
 /** 整份覆蓋 config.json（匯入本地資料用）：先檢查格式，再排進 configQueue 寫入，不會和設定的存檔互相覆蓋 */
 function replaceConfigText(text) {
   const data = parseConfig(text);
@@ -184,7 +212,7 @@ async function saveEnvSettings({ values } = {}) {
   for (const key of ENV_FIELD_KEYS) {
     if (!(key in values)) continue;
     const v = values[key] == null ? '' : String(values[key]).trim();
-    if (/[\r\n]/.test(v)) throw new Error(`${key} 不能包含換行`);
+    assertSingleLine(v, key);
     clean[key] = v;
   }
   if (clean.AZDO_BASE_URL && !/^https?:\/\//i.test(clean.AZDO_BASE_URL)) {
@@ -334,6 +362,11 @@ module.exports = {
   parseConfig,
   readConfig,
   updateConfig,
+  readSection,
+  updateSection,
+  str,
+  isObj,
+  assertSingleLine,
   replaceConfigText,
   replaceEnvText,
   UPAGENT_DB_KEYS,

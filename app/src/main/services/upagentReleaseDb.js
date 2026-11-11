@@ -1,7 +1,8 @@
 const { dialog } = require('electron');
 const path = require('node:path');
 const {
-  CONFIG_LABEL, ENV_LABEL, UPAGENT_DB_KEYS, upagentDbPasswordKey, readConfig, updateConfig, readEnvFile, writeEnvKeys,
+  CONFIG_LABEL, ENV_LABEL, UPAGENT_DB_KEYS, upagentDbPasswordKey, readSection, updateSection, readEnvFile, writeEnvKeys,
+  str, isObj, assertSingleLine,
 } = require('./appConfig');
 const { RELEASE_DB_LABEL } = require('../../shared/flow-rules.js');
 
@@ -18,21 +19,18 @@ const SSL_MODES = ['disable', 'allow', 'prefer', 'require', 'verify-ca', 'verify
 const DEFAULTS = { psql: 'psql', port: 5432, sslmode: 'require' };
 const TEXT_FIELDS = ['psql', 'host', 'dbname', 'user'];
 
-const str = (v) => (v == null ? '' : String(v).trim());
-const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
-
 /**
  * @returns {{ file, envFile, exists, defaults, sslModes,
  *   dbs: [{ key, label, psql, host, port, dbname, user, sslmode, passwordKey, password, envOverride }] }}
  */
 async function loadReleaseDbSettings() {
-  const section = (await readConfig())?.[SECTION];
-  const db = isObj(section) && isObj(section.db) ? section.db : {};
+  const section = await readSection(SECTION);
+  const db = isObj(section?.db) ? section.db : {};
   const env = await readEnvFile();
   return {
     file: CONFIG_LABEL,
     envFile: ENV_LABEL,
-    exists: isObj(section),
+    exists: !!section,
     defaults: DEFAULTS,
     sslModes: SSL_MODES,
     dbs: UPAGENT_DB_KEYS.map((key) => {
@@ -56,9 +54,7 @@ async function loadReleaseDbSettings() {
 function cleanDb(key, input) {
   const label = RELEASE_DB_LABEL[key];
   const v = Object.fromEntries([...TEXT_FIELDS, 'port', 'sslmode', 'password'].map((f) => [f, str(input?.[f])]));
-  for (const [f, value] of Object.entries(v)) {
-    if (/[\r\n]/.test(value)) throw new Error(`${label} 的 ${f} 不能包含換行`);
-  }
+  for (const [f, value] of Object.entries(v)) assertSingleLine(value, `${label} 的 ${f}`);
   const conn = {};
   for (const f of TEXT_FIELDS) if (v[f]) conn[f] = v[f];
   if (v.port) {
@@ -81,8 +77,7 @@ function cleanDb(key, input) {
 async function saveReleaseDbSettings({ dbs } = {}) {
   if (!isObj(dbs)) throw new Error('dbs 必須是物件');
   const cleaned = Object.fromEntries(UPAGENT_DB_KEYS.filter((k) => k in dbs).map((k) => [k, cleanDb(k, dbs[k])]));
-  await updateConfig((cfg) => {
-    const section = isObj(cfg[SECTION]) ? cfg[SECTION] : {};
+  await updateSection(SECTION, (section) => {
     const db = isObj(section.db) ? { ...section.db } : {};
     for (const [key, { conn }] of Object.entries(cleaned)) {
       // 保留這個資料庫中不是由本 dialog 管理的欄位（手動加的）
@@ -90,7 +85,7 @@ async function saveReleaseDbSettings({ dbs } = {}) {
       const extra = Object.fromEntries(Object.entries(prev).filter(([f]) => ![...TEXT_FIELDS, 'port', 'sslmode'].includes(f)));
       db[key] = { ...extra, ...conn };
     }
-    cfg[SECTION] = { ...section, db };
+    section.db = db;
   });
   await writeEnvKeys(Object.fromEntries(Object.entries(cleaned).map(([key, { password }]) => [upagentDbPasswordKey(key), password])));
   return loadReleaseDbSettings();

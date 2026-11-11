@@ -6,7 +6,7 @@ import { loadRepos, repoTag } from './repos.js';
 import { STAGES, DONE, allDevDone, activeKids, computeStage, stageIndex } from './flow-stages.js';
 import { createFlowCells } from './flow-cells.js';
 import { createFlowDeploy } from './flow-deploy.js';
-import { PLAN_KEY, PLAN_REPOS_KEY, PLAN_NOTE_KEY, isCommitStage } from '../../shared/flow-rules.js';
+import { PLAN_KEY, PLAN_NOTE_KEY, planRepoKeys, isCommitStage } from '../../shared/flow-rules.js';
 
 /**
  * Requirement 流程看板（參考 docs/flow.pptx，規格見 docs/requirement-flow.md）：
@@ -197,7 +197,7 @@ export function createRequirementFlowView() {
     head.append(top, el('div', 'req-title', req.title));
     // 規劃 選的 repository：以代表色標示，一眼看出此需求動到哪些 repository
     const s = state[req.id] || {};
-    const repoKeys = s[PLAN_KEY] ? Object.keys(s[PLAN_REPOS_KEY] || {}) : [];
+    const repoKeys = planRepoKeys(s);
     if (repoKeys.length) {
       const tags = el('div', 'req-repos');
       tags.append(...repoKeys.map((k) => repoTag(k, 'repo-chip')));

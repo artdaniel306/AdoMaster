@@ -25,6 +25,8 @@ export const PLAN_REPOS_KEY = 'planRepos';
 export const PLAN_MIGRATION_KEY = 'planMigration';
 export const PLAN_NOTE_KEY = 'planNote';
 export const PLAN_KEYS = [PLAN_KEY, PLAN_REPOS_KEY, PLAN_MIGRATION_KEY, PLAN_NOTE_KEY];
+/** 規劃已確認時，規劃選的 repository key；未確認時為 [] */
+export const planRepoKeys = (checks) => (checks?.[PLAN_KEY] ? Object.keys(checks[PLAN_REPOS_KEY] || {}) : []);
 
 /** 測試完成的 checkbox 與測試場景記錄 */
 export const TEST_KEY = 'test';

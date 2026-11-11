@@ -3,7 +3,7 @@
     UpAgent 發佈流程【子腳本 3／3】：把「已簽署 + 已重算 latest.yml」的地端檔案上傳到 Azure Blob 正式發佈位置。
 
 .DESCRIPTION
-    由 Release-UpAgent.ps1 的 Publish 步驟呼叫（複製自 crmapp_AI\.manage\scripts，路徑已改為 AdoMaster 專案內）。
+    由 Release-UpAgent.ps1 的 Publish 步驟呼叫。
 
     上傳完成後「把 UpAgentRelease.folder_url 指向這個版本子資料夾」的
     伺服器，其使用者才會開始收到這個版本更新（見下方「發佈佈局」）；本腳本不會、也不需要去改任何
@@ -109,62 +109,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot 'Common.ps1')
+
 $ArtifactExtensions = @(".exe", ".blockmap", ".dmg", ".zip", ".AppImage", ".deb")
 $BackupDirName      = "_server-backup"
 
 # ---------------------------------------------------------------------------
 # 共用函式
 # ---------------------------------------------------------------------------
-
-function Invoke-AzCli {
-    <#
-      執行 az 並在退出碼非 0 時拋出例外。
-      刻意不重導 stderr：PowerShell 5.1 一旦重導原生指令的 stderr 就會把警告轉成 ErrorRecord，
-      在 $ErrorActionPreference = "Stop" 下會誤判為失敗，同時也會污染 JSON 輸出。
-    #>
-    param(
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
-        [string]$Context = "az 指令"
-    )
-    $stdout = & az @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Context 失敗（az 退出碼 $LASTEXITCODE），詳細錯誤請見上方輸出。"
-    }
-    return $stdout
-}
-
-function Get-Sha512Base64 {
-    param([Parameter(Mandatory = $true)][string]$Path)
-    $hasher = [System.Security.Cryptography.SHA512]::Create()
-    $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
-    try {
-        return [Convert]::ToBase64String($hasher.ComputeHash($stream))
-    } finally {
-        $stream.Dispose()
-        $hasher.Dispose()
-    }
-}
-
-function Format-Size {
-    param([long]$Bytes)
-    if ($Bytes -ge 1GB) { return "{0:N2} GB" -f ($Bytes / 1GB) }
-    if ($Bytes -ge 1MB) { return "{0:N2} MB" -f ($Bytes / 1MB) }
-    if ($Bytes -ge 1KB) { return "{0:N2} KB" -f ($Bytes / 1KB) }
-    return "$Bytes B"
-}
-
-function Resolve-ManifestFile {
-    param([string]$Url, [string]$Folder)
-    $name = $Url.Trim().Trim("'", '"')
-    $candidates = @($name)
-    $decoded = [System.Uri]::UnescapeDataString($name)
-    if ($decoded -ne $name) { $candidates += $decoded }
-    foreach ($c in $candidates) {
-        $p = Join-Path $Folder $c
-        if (Test-Path -LiteralPath $p -PathType Leaf) { return (Get-Item -LiteralPath $p) }
-    }
-    return $null
-}
 
 function Get-EmbeddedBlockMapSize {
     <#
@@ -242,8 +194,7 @@ function Read-UpdateManifest {
 # 參數整理與前置檢查
 # ---------------------------------------------------------------------------
 
-# shell\ 的上一層 = AdoMaster 專案根目錄
-$dataRoot = if ($env:ADOMASTER_DATA_DIR) { $env:ADOMASTER_DATA_DIR } else { Join-Path (Split-Path -Parent $PSScriptRoot) 'data' }  # app 會以 ADOMASTER_DATA_DIR 指定 data 資料夾
+$dataRoot = Get-DataRoot
 
 if (-not $SourcePath) {
     $releaseRoot = Join-Path $dataRoot "upagent_release"
@@ -344,7 +295,7 @@ $shaCache      = @{}
 function Get-CachedSha512 {
     param([System.IO.FileInfo]$File)
     if (-not $shaCache.ContainsKey($File.FullName)) {
-        $shaCache[$File.FullName] = Get-Sha512Base64 -Path $File.FullName
+        $shaCache[$File.FullName] = Get-FileHashBase64 -Path $File.FullName
     }
     return $shaCache[$File.FullName]
 }
@@ -566,7 +517,7 @@ try {
                     "--no-progress"
                 ) + $authArgs + @("--output", "none")) | Out-Null
 
-                $remoteSha = Get-Sha512Base64 -Path $tmp
+                $remoteSha = Get-FileHashBase64 -Path $tmp
                 if ($remoteSha -ne (Get-CachedSha512 -File $file)) {
                     throw "上傳後回讀的 sha512 與本機檔案不符"
                 }

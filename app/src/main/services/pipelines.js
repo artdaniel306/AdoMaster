@@ -1,7 +1,7 @@
 const { runScriptJson } = require('../python');
 const { loadRepoConfig, findRepo } = require('./repoConfig');
 const { loadFlowState } = require('./flowState');
-const { PLAN_KEY, PLAN_REPOS_KEY, COMMIT_STAGES } = require('../../shared/flow-rules.js');
+const { planRepoKeys, COMMIT_STAGES } = require('../../shared/flow-rules.js');
 
 /**
  * 佈版階段的自動佈版 Pipeline：環境 branch push 後由 Azure DevOps Pipeline 自動佈版。
@@ -18,7 +18,7 @@ const RUNS_TOP = 30;
 async function deployPipelineRuns({ id, stage } = {}) {
   if (!Number.isInteger(id) || !COMMIT_STAGES.includes(stage)) throw new Error('參數錯誤');
   const checks = (await loadFlowState())[id] || {};
-  const repos = checks[PLAN_KEY] ? Object.keys(checks[PLAN_REPOS_KEY] || {}) : [];
+  const repos = planRepoKeys(checks);
   const config = await loadRepoConfig();
   const targets = [];
   const unconfigured = [];

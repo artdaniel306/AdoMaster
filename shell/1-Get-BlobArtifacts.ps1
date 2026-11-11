@@ -3,7 +3,7 @@
     UpAgent 發佈流程【子腳本 1／3】：把 GitHub Action 建置後上傳到 Azure Blob 的安裝檔抓回地端。
 
 .DESCRIPTION
-    由 Release-UpAgent.ps1 的 Download 步驟呼叫（複製自 crmapp_AI\.manage\scripts，路徑已改為 AdoMaster 專案內）。
+    由 Release-UpAgent.ps1 的 Download 步驟呼叫。
     完整發佈流程見 Release-UpAgent.ps1：
 
       1. 對 UpAgent 更版並 push tag 上 GitHub，觸發 Release action
@@ -28,7 +28,7 @@
       5. 印出簽署對象與下一步指令
 
     執行位置：
-      預設下載目錄以腳本位置（shell\ 的上一層 = 專案根目錄）推算，不受工作目錄影響；
+      預設下載目錄為 data\upagent_release\（Get-DataRoot：app 以 ADOMASTER_DATA_DIR 指定，單獨執行時為專案根目錄的 data\），不受工作目錄影響；
       若自行指定 -DestinationRoot 相對路徑，則以「當前工作目錄」為基準。
 
 .PARAMETER StorageAccountName
@@ -112,60 +112,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# ---------------------------------------------------------------------------
-# 共用函式
-# ---------------------------------------------------------------------------
-
-function Invoke-AzCli {
-    <#
-      執行 az 並在退出碼非 0 時拋出例外。
-      刻意不重導 stderr：PowerShell 5.1 一旦重導原生指令的 stderr 就會把警告轉成 ErrorRecord，
-      在 $ErrorActionPreference = "Stop" 下會誤判為失敗，同時也會污染 JSON 輸出。
-    #>
-    param(
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
-        [string]$Context = "az 指令"
-    )
-    $stdout = & az @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Context 失敗（az 退出碼 $LASTEXITCODE），詳細錯誤請見上方輸出。"
-    }
-    return $stdout
-}
-
-function Get-FileHashBase64 {
-    param(
-        [Parameter(Mandatory = $true)][string]$Path,
-        [ValidateSet("MD5", "SHA512")][string]$Algorithm = "SHA512"
-    )
-    $hasher = if ($Algorithm -eq "MD5") {
-        [System.Security.Cryptography.MD5]::Create()
-    } else {
-        [System.Security.Cryptography.SHA512]::Create()
-    }
-    $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
-    try {
-        return [Convert]::ToBase64String($hasher.ComputeHash($stream))
-    } finally {
-        $stream.Dispose()
-        $hasher.Dispose()
-    }
-}
-
-function Format-Size {
-    param([long]$Bytes)
-    if ($Bytes -ge 1GB) { return "{0:N2} GB" -f ($Bytes / 1GB) }
-    if ($Bytes -ge 1MB) { return "{0:N2} MB" -f ($Bytes / 1MB) }
-    if ($Bytes -ge 1KB) { return "{0:N2} KB" -f ($Bytes / 1KB) }
-    return "$Bytes B"
-}
+. (Join-Path $PSScriptRoot 'Common.ps1')
 
 # ---------------------------------------------------------------------------
 # 參數整理與前置檢查
 # ---------------------------------------------------------------------------
 
-# shell\ 的上一層 = AdoMaster 專案根目錄
-$dataRoot = if ($env:ADOMASTER_DATA_DIR) { $env:ADOMASTER_DATA_DIR } else { Join-Path (Split-Path -Parent $PSScriptRoot) 'data' }  # app 會以 ADOMASTER_DATA_DIR 指定 data 資料夾
+$dataRoot = Get-DataRoot
 
 if (-not $DestinationRoot) {
     $DestinationRoot = Join-Path $dataRoot "upagent_release"

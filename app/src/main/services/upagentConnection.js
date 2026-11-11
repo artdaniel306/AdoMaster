@@ -2,7 +2,7 @@ const { dialog } = require('electron');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { readConfig, updateConfig, CONFIG_LABEL } = require('./appConfig');
+const { readSection, updateSection, isObj, str, assertSingleLine, CONFIG_LABEL } = require('./appConfig');
 const { UPAGENT_CONNECTIONS } = require('../../shared/flow-rules.js');
 
 /**
@@ -33,13 +33,16 @@ function expandPath(p) {
   return path.normalize(out);
 }
 
+/** configFile（字串或字串陣列）→ 去空白、非空的路徑陣列（尚未展開 %VAR%） */
+const configFiles = (section) => [].concat(section?.configFile ?? []).filter((p) => typeof p === 'string' && p.trim()).map((p) => p.trim());
+const activationCodes = (section) => (isObj(section?.activationCodes) ? section.activationCodes : {});
+
 async function loadSection() {
-  const section = (await readConfig())?.[SECTION];
-  if (!section || typeof section !== 'object') throw new Error(`尚未設定 UpAgent 連線：${hint('configFile / activationCodes')}`);
-  const raw = [].concat(section.configFile ?? []).filter((p) => typeof p === 'string' && p.trim());
+  const section = await readSection(SECTION);
+  if (!section) throw new Error(`尚未設定 UpAgent 連線：${hint('configFile / activationCodes')}`);
+  const raw = configFiles(section);
   if (!raw.length) throw new Error(`尚未設定 UpAgent 設定檔路徑：${hint('configFile')}`);
-  const codes = section.activationCodes && typeof section.activationCodes === 'object' ? section.activationCodes : {};
-  return { files: raw.map((p) => expandPath(p.trim())), codes };
+  return { files: raw.map(expandPath), codes: activationCodes(section) };
 }
 
 const codeOf = (codes, key) => (typeof codes[key] === 'string' ? codes[key].trim() : '');
@@ -85,14 +88,13 @@ const DEFAULT_CONFIG_FILE = '%APPDATA%\\upagent\\config.json';
  * @returns {{ file, exists, defaultConfigFile, configFile: string[], targets: [{ key, label, code }] }}
  */
 async function loadConnectionSettings() {
-  const section = (await readConfig())?.[SECTION];
-  const ok = section && typeof section === 'object';
-  const codes = ok && section.activationCodes && typeof section.activationCodes === 'object' ? section.activationCodes : {};
+  const section = await readSection(SECTION);
+  const codes = activationCodes(section);
   return {
     file: CONFIG_LABEL,
-    exists: !!ok,
+    exists: !!section,
     defaultConfigFile: DEFAULT_CONFIG_FILE,
-    configFile: ok ? [].concat(section.configFile ?? []).filter((p) => typeof p === 'string' && p.trim()).map((p) => p.trim()) : [],
+    configFile: configFiles(section),
     targets: UPAGENT_CONNECTIONS.map((t) => ({ ...t, code: codeOf(codes, t.key) })),
   };
 }
@@ -108,16 +110,15 @@ async function saveConnectionSettings({ configFile, codes } = {}) {
   files.forEach(expandPath); // 路徑格式 / 環境變數檢查，失敗時丟出錯誤、不寫檔
   const clean = {};
   for (const { key, label } of UPAGENT_CONNECTIONS) {
-    const v = String(codes?.[key] ?? '').trim();
-    if (/[\r\n]/.test(v)) throw new Error(`${label} 的 Activation Code 不能包含換行`);
+    const v = str(codes?.[key]);
+    assertSingleLine(v, `${label} 的 Activation Code`);
     if (v) clean[key] = v;
   }
-  await updateConfig((cfg) => {
-    const prev = cfg[SECTION] && typeof cfg[SECTION] === 'object' ? cfg[SECTION] : {};
-    const prevCodes = prev.activationCodes && typeof prev.activationCodes === 'object' ? prev.activationCodes : {};
+  await updateSection(SECTION, (section) => {
     // 保留不在 UPAGENT_CONNECTIONS 內的 code（手動加的）
-    const extra = Object.fromEntries(Object.entries(prevCodes).filter(([k]) => !UPAGENT_CONNECTIONS.some((t) => t.key === k)));
-    cfg[SECTION] = { ...prev, configFile: files.length === 1 ? files[0] : files, activationCodes: { ...extra, ...clean } };
+    const extra = Object.fromEntries(Object.entries(activationCodes(section)).filter(([k]) => !UPAGENT_CONNECTIONS.some((t) => t.key === k)));
+    section.configFile = files.length === 1 ? files[0] : files;
+    section.activationCodes = { ...extra, ...clean };
   });
   return loadConnectionSettings();
 }

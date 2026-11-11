@@ -79,17 +79,26 @@ async function findCoveringRelease(state, id, stage) {
   if (!commit) return null;
   const published = publishedVersions(state);
   if (!published.size) return null;
+  const versions = await versionTagsContaining(commit);
+  if (!versions) return null; // 本機找不到 commit 等：照原本的流程（從 Bump 開始，腳本會再檢查）
+  const version = versions.filter((v) => published.has(v)).pop();
+  return version ? { version, ...published.get(version) } : null;
+}
+
+/** 包含 commit 的版本 tag（v<x.y.z>）的版號，由舊到新排序；upagent 未設定路徑或 git 查不到時回傳 null */
+async function versionTagsContaining(commit) {
   const repo = await findRepo(UPAGENT_REPO);
   if (!repo?.path) return null;
-  let tags;
   try {
     const out = await git(repo.path, ['tag', '--list', 'v*', '--contains', commit]);
-    tags = new Set(out.split(/\r?\n/).map((t) => t.trim()));
+    return out
+      .split(/\r?\n/)
+      .map((t) => t.trim().slice(1))
+      .filter((v) => VERSION_RE.test(v))
+      .sort(compareVersion);
   } catch {
-    return null; // 本機找不到 commit 等：照原本的流程（從 Bump 開始，腳本會再檢查）
+    return null;
   }
-  const version = [...published.keys()].filter((v) => tags.has(`v${v}`)).sort(compareVersion).pop();
-  return version ? { version, ...published.get(version) } : null;
 }
 
 /**
@@ -125,10 +134,13 @@ async function releaseVersionFor(id, stage) {
   return (await findCoveringRelease(state, id, stage))?.version || '';
 }
 
-/** 某個資料庫寫入完成：記到這張 Requirement 及所有同版本的紀錄 */
-function markDbWritten(id, db, at) {
+/**
+ * 某個資料庫寫入完成：記到所有同版本的發佈紀錄，避免之後又寫入同一個資料庫。
+ * 流程：{ id }（這張 Requirement 及與它同版本的紀錄）；手動佈版：{ version }（沒有 Requirement）。
+ */
+function markDbWritten({ id = null, version = null }, db, at) {
   return updateFlowState((state) => {
-    const version = state[id]?.[UPAGENT_RELEASE_KEY]?.version;
+    version ??= state[id]?.[UPAGENT_RELEASE_KEY]?.version;
     for (const [rid, checks] of Object.entries(state)) {
       const rel = checks?.[UPAGENT_RELEASE_KEY];
       if (!rel || (String(rid) !== String(id) && (!version || rel.version !== version))) continue;
@@ -184,10 +196,7 @@ async function runRelease(send, { id, stage, target, bump, remark, rerunAction =
   remark = (remark ?? releaseOf(checks).remark ?? '').trim();
   if (remark.length > REMARK_MAX) throw new Error(`備註最多 ${REMARK_MAX} 字`);
 
-  const repo = await findRepo(UPAGENT_REPO);
-  if (!repo?.path) throw new Error(`尚未設定 upagent 的本機路徑，請在 ${fieldHint(UPAGENT_REPO, 'path')} 設定`);
-
-  const args = ['-Environment', plan.env, '-Target', plan.target, '-UpagentDir', repo.path, '-StartFrom', plan.startFrom, '-ConfigPath', CONFIG_FILE, '-EnvPath', ENV_FILE];
+  const args = [...(await baseScriptArgs(plan.env, plan.target)), '-StartFrom', plan.startFrom];
   const featureBranch = checks[PLAN_REPOS_KEY]?.[UPAGENT_REPO];
   const confirmCommit = checks[commitsKey(stage)]?.[UPAGENT_REPO];
   if (plan.startFrom === 'Bump') {
@@ -226,7 +235,7 @@ async function runRelease(send, { id, stage, target, bump, remark, rerunAction =
       });
     } else if (kind === 'done' && RELEASE_STEPS.includes(value)) {
       const now = new Date().toISOString();
-      if (value === 'Database') queue(() => markDbWritten(id, plan.db, now));
+      if (value === 'Database') queue(() => markDbWritten({ id }, plan.db, now));
       else
         save((rel) => {
           rel.completed = value;
@@ -317,16 +326,6 @@ async function execRelease({ owner, args, log, onStep, onMarker, signal, settle,
   });
 }
 
-/** 手動佈版的 Database 步驟完成：流程狀態中同版本的發佈紀錄也記下已寫入，避免之後流程又寫入同一個資料庫 */
-function markVersionDbWritten(version, db, at) {
-  return updateFlowState((state) => {
-    for (const checks of Object.values(state)) {
-      const rel = checks?.[UPAGENT_RELEASE_KEY];
-      if (rel?.version === version) checks[UPAGENT_RELEASE_KEY] = { ...rel, db: { ...rel.db, [db]: at } };
-    }
-  });
-}
-
 /** data/config.json 是否有 upagentRelease 區段（機密由腳本檢查） */
 async function releaseConfigExists() {
   return !!(await readConfig().catch(() => null))?.upagentRelease;
@@ -334,15 +333,14 @@ async function releaseConfigExists() {
 
 /** 包含 commit 的最新版本 tag（v<x.y.z>）的版號；沒有或查不到時回傳 ''（手動佈版提醒「已有版本」用） */
 async function versionContaining(commit) {
+  return (await versionTagsContaining(commit))?.pop() || '';
+}
+
+/** Release-UpAgent.ps1 的共用參數（環境、資料庫、upagent 路徑、設定檔）；upagent 未設定路徑時丟錯 */
+async function baseScriptArgs(env, target) {
   const repo = await findRepo(UPAGENT_REPO);
-  if (!repo?.path) return '';
-  try {
-    const out = await git(repo.path, ['tag', '--list', 'v*', '--contains', commit]);
-    const versions = out.split(/\r?\n/).map((t) => t.trim().slice(1)).filter((v) => VERSION_RE.test(v));
-    return versions.sort(compareVersion).pop() || '';
-  } catch {
-    return '';
-  }
+  if (!repo?.path) throw new Error(`尚未設定 upagent 的本機路徑，請在 ${fieldHint(UPAGENT_REPO, 'path')} 設定`);
+  return ['-Environment', env, '-Target', target, '-UpagentDir', repo.path, '-ConfigPath', CONFIG_FILE, '-EnvPath', ENV_FILE];
 }
 
 /**
@@ -355,10 +353,8 @@ async function versionContaining(commit) {
  */
 async function runManualRelease({ env, target, release, commit, log, onStep, onVersion, onDone, signal }) {
   if (!RELEASE_TARGETS.includes(target) || !Object.values(DEPLOY_ENV).includes(env)) throw new Error('參數錯誤');
-  const repo = await findRepo(UPAGENT_REPO);
-  if (!repo?.path) throw new Error(`尚未設定 upagent 的本機路徑，請在 ${fieldHint(UPAGENT_REPO, 'path')} 設定`);
   const db = releaseDbKey(env, target);
-  const args = ['-Environment', env, '-Target', target, '-UpagentDir', repo.path, '-ConfigPath', CONFIG_FILE, '-EnvPath', ENV_FILE];
+  const args = await baseScriptArgs(env, target);
   if (release.mode === 'new') {
     args.push('-StartFrom', 'Bump', '-Bump', release.bump, '-Branch', release.branch);
     if (commit) args.push('-ExpectedCommit', commit);
@@ -378,7 +374,7 @@ async function runManualRelease({ env, target, release, commit, log, onStep, onV
       onDone?.(value);
       if (value === 'Database' && version) {
         const at = new Date().toISOString();
-        saving = saving.then(() => markVersionDbWritten(version, db, at)).catch((err) => log(`⚠ 更新流程中同版本的資料庫紀錄失敗：${err.message}`));
+        saving = saving.then(() => markDbWritten({ version }, db, at)).catch((err) => log(`⚠ 更新流程中同版本的資料庫紀錄失敗：${err.message}`));
       }
     }
   };
