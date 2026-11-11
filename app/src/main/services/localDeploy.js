@@ -45,6 +45,8 @@ const CUSTOMER_TARGETS = ['saas', 'local'];
 const ownerLabel = (r) => `${r.id ? `#${r.id}` : '手動佈版'} ${r.repo}`;
 /** 一次只能一個 Local 佈版（流程、手動佈版、客戶環境共用）；current = { id, stage, repo, controller }（手動佈版的 id 為 null） */
 const runner = createExclusiveRunner((r) => `已有 Local 佈版進行中：${ownerLabel(r)}`);
+/** 手動佈版 / 客戶環境：已有 Local 佈版執行中時排隊（onWait(label) = 顯示正在等哪個工作） */
+const queueOptions = (onWait) => ({ wait: true, onWait: (r) => onWait?.(ownerLabel(r)) });
 
 /** Local 佈版會組進遠端 ssh 指令的欄位與允許的字元（與 Deploy-Local.ps1 相同規則） */
 const REMOTE_SAFE_FIELDS = ['appName', 'pullRegistry', 'network', 'hostPort', 'appPort'];
@@ -219,19 +221,23 @@ async function runLocalDeploy(send, { id, stage, repos, rebuild = false } = {}) 
 
 /**
  * 手動佈版（manualDeploy.js）：不經 Requirement，直接把某 repository 的環境 branch 佈版到 Local（不寫流程紀錄）。
- * 與流程共用同一個「一次一個 Local 佈版」的限制；signal abort = 停止。
+ * 與流程共用同一個「一次一個 Local 佈版」的限制（已有執行中時排隊）；signal abort = 停止（排隊中 = 離開隊伍）。
  * @returns {{ commit, image, tar, remoteHost }}
  */
-async function runManualLocalDeploy({ repo, env, commit, rebuild = false, log, onStep, signal }) {
-  runner.assertIdle();
+async function runManualLocalDeploy({ repo, env, commit, rebuild = false, log, onStep, onWait, signal }) {
   const t = await manualTarget(repo, env);
   if (!t) throw new Error(`${repo} 沒有設定 ${env} 環境的 Local 佈版（${CONFIG_LABEL} 的 localDeploy.repos.${repo}.${env}）`);
   if (t.error) throw new Error(t.error);
-  return runner.run({ id: null, stage: stageOfEnv(env), repo }, signal, async (runSignal) => {
-    const result = await runScript({ ...t, commit: commit || '' }, { env, rebuild, signal: runSignal, log, onStep });
-    log(`✔ ${t.label} 完成`);
-    return { commit: str(result?.commit), image: str(result?.image), tar: str(result?.tar), remoteHost: t.remoteHost };
-  });
+  return runner.run(
+    { id: null, stage: stageOfEnv(env), repo },
+    signal,
+    async (runSignal) => {
+      const result = await runScript({ ...t, commit: commit || '' }, { env, rebuild, signal: runSignal, log, onStep });
+      log(`✔ ${t.label} 完成`);
+      return { commit: str(result?.commit), image: str(result?.image), tar: str(result?.tar), remoteHost: t.remoteHost };
+    },
+    queueOptions(onWait),
+  );
 }
 
 /* ---------- 客戶環境（只 build image tar 交給客戶） ---------- */
@@ -301,11 +307,10 @@ async function customerTarget(repo, target, customer) {
 
 /**
  * 手動佈版的客戶環境：在部署用資料夾切到 commit（必須已在正式環境 branch）build image tar（data/customer_build/…），不 push、不 ssh。
- * 與 Local 佈版共用「一次一個」的限制。
+ * 與 Local 佈版共用「一次一個」的限制（已有執行中時排隊）。
  * @returns {{ commit, image, tar }}
  */
-async function runCustomerBuild({ repo, target, customer, commit, rebuild = false, log, onStep, signal }) {
-  runner.assertIdle();
+async function runCustomerBuild({ repo, target, customer, commit, rebuild = false, log, onStep, onWait, signal }) {
   const t = await customerTarget(repo, target, customer);
   if (!t) throw new Error(`${CONFIG_LABEL} 尚未設定 ${CUSTOMER_SECTION}.${target}.${customer}`);
   if (t.error) throw new Error(t.error);
@@ -321,7 +326,7 @@ async function runCustomerBuild({ repo, target, customer, commit, rebuild = fals
     );
     log(`✔ ${t.label} 完成`);
     return { commit: str(result?.commit), image: str(result?.image), tar: str(result?.tar) };
-  });
+  }, queueOptions(onWait));
 }
 
 /** 停止執行中的 Local 佈版 */

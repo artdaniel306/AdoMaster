@@ -279,12 +279,14 @@ Menu「佈版」(also the 🛠 / 🚀 buttons in the content header) — deploy 
     - The deploy clone's original `envTarget` is restored after the build.
   - `localDeploy.runCustomerBuild` → `Deploy-Local.ps1 -Environment customer -Customer <key> -CustomerTarget <saas|local> -ExpectedCommit` (checks out that exact commit, not the branch tip)
     → `data/customer_build/<target>/<key>/<repo>/<appName>_<key>-<commit10>-<envhash>.tar` (latest 3 kept; reused unless 「重新 build」).
-  - Shares the Local one-at-a-time lock.
+  - Shares the Local one-at-a-time lock (queues like a manual Local deploy).
   - The finished job has「開啟資料夾」(`manualDeploy:showOutput`, path taken from the job in main).
 
 ### Jobs & 佈版進度
 - Manual deploys **write nothing to the flow state** — except that a finished UpAgent Database step marks every flow record of that version as written (`markDbWritten({ version })`), so the flow won't insert it again.
   - They share the one-at-a-time locks of Local deploy / UpAgent release with the flow (`running.id = null`, shown as「手動佈版」).
+  - Manual jobs **queue** on those locks (`exclusiveRunner.run(..., { wait: true, onWait })`): FIFO, handed straight to the next waiter on release; the step shows「排隊中：等待 … 結束」; stop while queued = leave the queue.
+    The flow never queues — it still fails immediately while a job runs (a queued job is only waiting while another one holds the lock, so the flow can't jump ahead).
 - Jobs run in **main** (survive a renderer reload, lost when the app quits; last 20 finished kept) and broadcast `manualDeploy:update` (snapshot; `removed: true` when dropped) / `manualDeploy:log`.
   - Stop = abort (merge / after-deploy finish their current step first).
   - Retry starts a new job with the same params; for upagent with a known version it resumes after the last completed step (「重跑 GitHub Action 後重試」when the next step is WaitAction).

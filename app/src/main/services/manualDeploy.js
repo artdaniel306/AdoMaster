@@ -293,11 +293,19 @@ async function watchRun(job, mergeCommit, step) {
   if (job.run.result !== 'succeeded') throw new Error(`Pipeline Run ${runName(job.run)} ${runText(job.run)}`);
 }
 
+/** 已有同類工作（Local 佈版 / UpAgent 發佈）執行中：排隊等它結束 */
+function queued(job, step, label) {
+  step.detail = `排隊中：等待 ${label} 結束`;
+  appendLog(job, `… ${step.detail}`);
+  emit(job);
+}
+
 async function execute(job) {
   const p = job.params;
   const stage = stageOfEnv(p.env);
   const { signal } = job.controller;
   const log = (line) => appendLog(job, line);
+  const waiting = (step, label) => queued(job, step, label);
   let mergeCommit = null;
   try {
     await runStep(job, 'waitIdle', (step) => waitIdle(job, step));
@@ -332,6 +340,7 @@ async function execute(job) {
           step.detail = LOCAL_STEP_TEXT[s] || s || '';
           emit(job);
         },
+        onWait: (label) => waiting(step, label),
         signal,
       });
       step.detail = `${result.image || '完成'} → ${result.remoteHost}`;
@@ -348,6 +357,7 @@ async function execute(job) {
           step.detail = LOCAL_STEP_TEXT[s] || s || '';
           emit(job);
         },
+        onWait: (label) => waiting(step, label),
         signal,
       });
       job.output = result.tar || null;
@@ -371,6 +381,7 @@ async function execute(job) {
         onDone: (s) => {
           job.release.completed = s;
         },
+        onWait: (label) => waiting(step, label),
         signal,
       });
       step.detail = `UpAgent ${job.release.version} 已寫入${RELEASE_DB_LABEL[releaseDbKey(p.env, p.target)]} 資料庫`;

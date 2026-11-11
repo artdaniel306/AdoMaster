@@ -299,15 +299,16 @@ async function mergeReleaseIntoEnv({ stage, version, commit, featureBranch, reqI
 }
 
 /**
- * 執行 shell/Release-UpAgent.ps1（流程與手動佈版共用；一次只能一個）。
+ * 執行 shell/Release-UpAgent.ps1（流程與手動佈版共用；一次只能一個，手動佈版會排隊）。
  * stdout 的標記：::step:: → onStep、::error:: → 失敗時的錯誤訊息、::version:: / ::done:: → onMarker(kind, value)，其餘行 → log。
  * @param owner { id, stage, target }（手動佈版 id 為 null）
  * @param signal 外部的 AbortSignal（手動佈版的停止）；cancelRelease 也會停止
  * @param settle 結束前等待（例如進度寫入），等完才釋放「執行中」
  * @param before 執行腳本前（已佔用「執行中」）先做的事，例如把 Confirm Commit merge 進 feature branch
  * @param after  腳本成功後（仍佔用「執行中」）再做的事，例如把版本 tag merge 進環境 branch
+ * @param queue  runner.run 的排隊選項（手動佈版：{ wait: true, onWait }）；省略 = 執行中時直接丟錯
  */
-async function execRelease({ owner, args, log, onStep, onMarker, signal, settle, before, after }) {
+async function execRelease({ owner, args, log, onStep, onMarker, signal, settle, before, after, queue }) {
   return runner.run(owner, signal, async (runSignal) => {
     try {
       if (before) {
@@ -324,7 +325,7 @@ async function execRelease({ owner, args, log, onStep, onMarker, signal, settle,
     } finally {
       await settle?.(); // 進度寫入完成後才釋放「執行中」
     }
-  });
+  }, queue);
 }
 
 /** data/config.json 是否有 upagentRelease 區段（機密由腳本檢查） */
@@ -351,8 +352,9 @@ async function baseScriptArgs(env, target) {
  *                { mode: 'resume', version, startFrom, remark, rerunAction } = 已有版號，從 startFrom 接續（Database = 只寫入資料庫）
  * @param commit 'new' 時要求已在 branch 中的 commit（可省略）
  * @param onVersion (version) => void；onDone (step) => void（某步驟完成）
+ * @param onWait (label) => void：已有發佈執行中、開始排隊時呼叫（排隊中 signal abort = 離開隊伍）
  */
-async function runManualRelease({ env, target, release, commit, log, onStep, onVersion, onDone, signal }) {
+async function runManualRelease({ env, target, release, commit, log, onStep, onVersion, onDone, onWait, signal }) {
   if (!RELEASE_TARGETS.includes(target) || !Object.values(DEPLOY_ENV).includes(env)) throw new Error('參數錯誤');
   const db = releaseDbKey(env, target);
   const args = await baseScriptArgs(env, target);
@@ -381,7 +383,9 @@ async function runManualRelease({ env, target, release, commit, log, onStep, onV
   };
   const from = release.mode === 'new' ? `在 ${release.branch} npm version ${release.bump}` : `版號 ${release.version}，從 ${release.startFrom} 開始`;
   log(`▶ UpAgent 發佈（手動，${RELEASE_DB_LABEL[db]}）：${from}${release.rerunAction ? '（先重跑 GitHub Action）' : ''}`);
-  await execRelease({ owner: { id: null, stage: null, target }, args, log, onStep, onMarker, signal, settle: () => saving });
+  // 已有發佈執行中時排隊（onWait(label) = 顯示正在等哪個工作）
+  const queue = { wait: true, onWait: (r) => onWait?.(ownerLabel(r)) };
+  await execRelease({ owner: { id: null, stage: null, target }, args, log, onStep, onMarker, signal, settle: () => saving, queue });
   return { version };
 }
 
