@@ -77,4 +77,57 @@ async function runPowerShellJson(scriptName, args = [], options) {
   }
 }
 
-module.exports = { runPowerShell, runPowerShellJson };
+/** 腳本輸出的標記行：::<kind>::<value>（例：::step::Build、::error::訊息） */
+const MARKER_RE = /^::([a-z]+)::(.*)$/i;
+
+/** 把陸續收到的文字切成行交給 handle；flush() 送出最後一段沒有換行結尾的文字 */
+function lineSplitter(handle) {
+  let pending = '';
+  return {
+    push(text) {
+      pending += text;
+      const lines = pending.split(/\r?\n|\r/);
+      pending = lines.pop();
+      lines.forEach(handle);
+    },
+    flush() {
+      if (pending) handle(pending);
+      pending = '';
+    },
+  };
+}
+
+/**
+ * 同 runPowerShellJson，但把輸出切成行即時處理（長時間執行、要顯示進度的腳本用）：
+ *   - ::error::<訊息> → 失敗時以它取代錯誤訊息（比 stderr 精簡）
+ *   - 其他 ::<kind>::<value> → onMarker(kind, value)
+ *   - 一般行 → onLine(line)
+ * @param options.stderr true = stderr 也照同樣規則處理（docker / git 的進度輸出在 stderr）
+ * 其他 options 同 runPowerShell（timeout 預設 0 = 不限時）。
+ */
+async function runPowerShellLines(scriptName, args = [], { onLine, onMarker, stderr = false, timeout = 0, signal } = {}) {
+  let lastError = '';
+  const handle = (line) => {
+    const m = MARKER_RE.exec(line.trim());
+    if (!m) onLine?.(line);
+    else if (m[1] === 'error') lastError = m[2].trim();
+    else onMarker?.(m[1], m[2].trim());
+  };
+  const out = lineSplitter(handle);
+  const err = stderr ? lineSplitter(handle) : null;
+  const flush = () => {
+    out.flush();
+    err?.flush();
+  };
+  try {
+    const result = await runPowerShellJson(scriptName, args, { timeout, signal, onStdout: out.push, onStderr: err?.push });
+    flush();
+    return result;
+  } catch (e) {
+    flush(); // 最後一行（可能就是 ::error::）沒有換行結尾時也要處理到
+    if (!signal?.aborted && lastError) e.message = lastError;
+    throw e;
+  }
+}
+
+module.exports = { runPowerShellJson, runPowerShellLines };

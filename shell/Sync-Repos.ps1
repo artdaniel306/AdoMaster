@@ -41,11 +41,7 @@ param(
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-function Exit-WithError {
-    param([string]$Message)
-    [Console]::Error.WriteLine($Message)
-    exit 1
-}
+. (Join-Path $PSScriptRoot 'Common.ps1')
 
 function Invoke-Git {
     param([string]$Repo, [string[]]$GitArgs)
@@ -230,7 +226,4 @@ foreach ($t in $targets) {
 Write-Host ''
 Write-Host '完成'
 
-if ($Out) {
-    $json = ConvertTo-Json -InputObject ([ordered]@{ repos = $results.ToArray() }) -Depth 6
-    [System.IO.File]::WriteAllText($Out, $json, (New-Object System.Text.UTF8Encoding $false))
-}
+Write-Result ([ordered]@{ repos = $results.ToArray() }) -Depth 6

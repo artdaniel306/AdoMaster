@@ -1,7 +1,8 @@
 const { CONFIG_FILE, ENV_FILE } = require('../paths');
 const { readConfig } = require('./appConfig');
-const { runPowerShellJson } = require('../powershell');
-const { loadRepoConfig, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
+const { runPowerShellLines } = require('../powershell');
+const { createExclusiveRunner } = require('../exclusiveRunner');
+const { findRepo, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
 const { loadFlowState, updateRequirementState, updateFlowState } = require('./flowState');
 const { git, mergeNoFf, mergeViaFeature, mergeBackToFeatures } = require('./gitCommit');
 const {
@@ -13,7 +14,10 @@ const {
   RELEASE_STEPS,
   RELEASE_TARGETS,
   RELEASE_DB_LABEL,
-  RELEASE_ENV,
+  DEPLOY_ENV,
+  RELEASE_BUMPS,
+  RELEASE_VERSION_RE: VERSION_RE,
+  RELEASE_REMARK_MAX: REMARK_MAX,
   releaseDbKey,
   needsUpagentRelease,
   upagentReleasePlan,
@@ -32,16 +36,14 @@ const {
  * 一次只能執行一個發佈（整個 app 共用）。腳本的 stdout 即時以 'upagentRelease:log' 事件送給 renderer。
  */
 
-const REMARK_MAX = 500;
-const MARKER_RE = /^::(version|step|done|error)::(.*)$/;
-
-/** 目前執行中的發佈：{ id, stage, target, controller }（手動佈版的 id 為 null） */
-let running = null;
+/** 顯示用：目前佔用 UpAgent 發佈的是哪個流程 */
+const ownerLabel = (r) => (r.id ? `#${r.id}` : '手動佈版');
+/** 一次只能一個發佈（流程與手動佈版共用）；current = { id, stage, target, controller }（手動佈版的 id 為 null） */
+const runner = createExclusiveRunner((r) => `已有 UpAgent 發佈進行中：${ownerLabel(r)}`);
 
 const releaseOf = (checks) => checks[UPAGENT_RELEASE_KEY] || {};
 const validParams = (id, stage, target) => Number.isInteger(id) && COMMIT_STAGES.includes(stage) && RELEASE_TARGETS.includes(target);
 
-const VERSION_RE = /^\d+\.\d+\.\d+$/;
 /** 已上傳 Blob（completed 至少到 Publish）才算已發佈 */
 const isPublished = (rel) => VERSION_RE.test(rel?.version || '') && RELEASE_STEPS.indexOf(rel.completed) >= RELEASE_STEPS.indexOf('Publish');
 const compareVersion = (a, b) => {
@@ -72,12 +74,12 @@ function publishedVersions(state) {
  */
 async function findCoveringRelease(state, id, stage) {
   const checks = state[id] || {};
-  if (!RELEASE_ENV[stage] || !needsUpagentRelease(checks) || releaseOf(checks).version) return null;
+  if (!DEPLOY_ENV[stage] || !needsUpagentRelease(checks) || releaseOf(checks).version) return null;
   const commit = checks[commitsKey(stage)]?.[UPAGENT_REPO];
   if (!commit) return null;
   const published = publishedVersions(state);
   if (!published.size) return null;
-  const repo = (await loadRepoConfig()).repos.find((r) => r.key === UPAGENT_REPO);
+  const repo = await findRepo(UPAGENT_REPO);
   if (!repo?.path) return null;
   let tags;
   try {
@@ -151,6 +153,7 @@ function updateRelease(id, mutate) {
  */
 async function releaseStatus({ id, stage, target } = {}) {
   if (!validParams(id, stage, target)) throw new Error('參數錯誤');
+  const running = runner.current;
   const adopted = running ? null : await adoptPublishedRelease(id, stage);
   const checks = adopted || (await loadFlowState())[id] || {};
   return {
@@ -172,17 +175,16 @@ async function releaseStatus({ id, stage, target } = {}) {
 async function runRelease(send, { id, stage, target, bump, remark, rerunAction = false } = {}) {
   if (!validParams(id, stage, target)) throw new Error('參數錯誤');
   if (remark != null && typeof remark !== 'string') throw new Error('參數錯誤');
-  if (running) throw new Error(`已有 UpAgent 發佈進行中：${ownerLabel(running)}`);
+  runner.assertIdle();
 
   const checks = (await adoptPublishedRelease(id, stage)) || (await loadFlowState())[id] || {};
   const plan = upagentReleasePlan(checks, stage, target);
   if (!plan) return checks; // 例如沿用已發佈的版本後，此資料庫已寫入過
-  if (running) throw new Error(`已有 UpAgent 發佈進行中：${ownerLabel(running)}`);
-  if (plan.startFrom === 'Bump' && !['minor', 'patch'].includes(bump)) throw new Error('請選擇版號遞增方式（minor / patch）');
+  if (plan.startFrom === 'Bump' && !RELEASE_BUMPS.includes(bump)) throw new Error('請選擇版號遞增方式（minor / patch）');
   remark = (remark ?? releaseOf(checks).remark ?? '').trim();
   if (remark.length > REMARK_MAX) throw new Error(`備註最多 ${REMARK_MAX} 字`);
 
-  const repo = (await loadRepoConfig()).repos.find((r) => r.key === UPAGENT_REPO);
+  const repo = await findRepo(UPAGENT_REPO);
   if (!repo?.path) throw new Error(`尚未設定 upagent 的本機路徑，請在 ${fieldHint(UPAGENT_REPO, 'path')} 設定`);
 
   const args = ['-Environment', plan.env, '-Target', plan.target, '-UpagentDir', repo.path, '-StartFrom', plan.startFrom, '-ConfigPath', CONFIG_FILE, '-EnvPath', ENV_FILE];
@@ -211,7 +213,7 @@ async function runRelease(send, { id, stage, target, bump, remark, rerunAction =
   };
   const save = (mutate) => queue(() => updateRelease(id, mutate));
   function onMarker(kind, value) {
-    if (kind === 'version' && /^\d+\.\d+\.\d+$/.test(value)) {
+    if (kind === 'version' && VERSION_RE.test(value)) {
       version = value;
       save((rel) => {
         if (rel.version !== value) {
@@ -266,7 +268,7 @@ async function mergeIntoFeature({ commit, featureBranch, reqId, log }) {
  * 失敗時丟錯（發佈進度已存；下次勾選時佈版 merge 會再處理）。
  */
 async function mergeReleaseIntoEnv({ stage, version, commit, featureBranch, reqId, log }) {
-  const repo = (await loadRepoConfig()).repos.find((r) => r.key === UPAGENT_REPO);
+  const repo = await findRepo(UPAGENT_REPO);
   const envBranch = repo?.deployBranches?.[stage];
   if (!envBranch) throw new Error(`已發佈 ${version}，但尚未設定 upagent 的環境 branch（${fieldHint(UPAGENT_REPO, DEPLOY_BRANCH_FIELDS[stage])}），無法 merge`);
   const tag = `v${version}`;
@@ -286,9 +288,6 @@ async function mergeReleaseIntoEnv({ stage, version, commit, featureBranch, reqI
   }
 }
 
-/** 顯示用：目前佔用 UpAgent 發佈的是哪個流程 */
-const ownerLabel = (r) => (r.id ? `#${r.id}` : '手動佈版');
-
 /**
  * 執行 shell/Release-UpAgent.ps1（流程與手動佈版共用；一次只能一個）。
  * stdout 的標記：::step:: → onStep、::error:: → 失敗時的錯誤訊息、::version:: / ::done:: → onMarker(kind, value)，其餘行 → log。
@@ -299,47 +298,23 @@ const ownerLabel = (r) => (r.id ? `#${r.id}` : '手動佈版');
  * @param after  腳本成功後（仍佔用「執行中」）再做的事，例如把版本 tag merge 進環境 branch
  */
 async function execRelease({ owner, args, log, onStep, onMarker, signal, settle, before, after }) {
-  if (running) throw new Error(`已有 UpAgent 發佈進行中：${ownerLabel(running)}`);
-  if (signal?.aborted) throw new Error('已停止');
-  const controller = new AbortController();
-  const abort = () => controller.abort();
-  signal?.addEventListener('abort', abort);
-  running = { ...owner, controller };
-  let lastError = '';
-  let pending = '';
-  const onStdout = (text) => {
-    pending += text;
-    const lines = pending.split(/\r?\n/);
-    pending = lines.pop();
-    for (const line of lines) {
-      const m = MARKER_RE.exec(line.trim());
-      if (!m) log(line);
-      else if (m[1] === 'step') onStep?.(m[2].trim());
-      else if (m[1] === 'error') lastError = m[2].trim();
-      else onMarker?.(m[1], m[2].trim());
-    }
-  };
-  try {
-    if (before) {
-      onStep?.('Bump');
-      await before();
-      if (controller.signal.aborted) throw new Error('已停止');
-    }
-    await runPowerShellJson('Release-UpAgent.ps1', args, { timeout: 0, onStdout, signal: controller.signal });
-    if (pending) onStdout('\n');
-    await after?.();
-  } catch (err) {
-    if (!controller.signal.aborted && lastError) err.message = lastError;
-    throw err;
-  } finally {
-    if (pending) onStdout('\n');
-    signal?.removeEventListener('abort', abort);
+  return runner.run(owner, signal, async (runSignal) => {
     try {
-      await settle?.();
+      if (before) {
+        onStep?.('Bump');
+        await before();
+        if (runSignal.aborted) throw new Error('已停止');
+      }
+      await runPowerShellLines('Release-UpAgent.ps1', args, {
+        onLine: log,
+        onMarker: (kind, value) => (kind === 'step' ? onStep?.(value) : onMarker?.(kind, value)),
+        signal: runSignal,
+      });
+      await after?.();
     } finally {
-      running = null;
+      await settle?.(); // 進度寫入完成後才釋放「執行中」
     }
-  }
+  });
 }
 
 /** 手動佈版的 Database 步驟完成：流程狀態中同版本的發佈紀錄也記下已寫入，避免之後流程又寫入同一個資料庫 */
@@ -359,7 +334,7 @@ async function releaseConfigExists() {
 
 /** 包含 commit 的最新版本 tag（v<x.y.z>）的版號；沒有或查不到時回傳 ''（手動佈版提醒「已有版本」用） */
 async function versionContaining(commit) {
-  const repo = (await loadRepoConfig()).repos.find((r) => r.key === UPAGENT_REPO);
+  const repo = await findRepo(UPAGENT_REPO);
   if (!repo?.path) return '';
   try {
     const out = await git(repo.path, ['tag', '--list', 'v*', '--contains', commit]);
@@ -379,8 +354,8 @@ async function versionContaining(commit) {
  * @param onVersion (version) => void；onDone (step) => void（某步驟完成）
  */
 async function runManualRelease({ env, target, release, commit, log, onStep, onVersion, onDone, signal }) {
-  if (!RELEASE_TARGETS.includes(target) || !Object.values(RELEASE_ENV).includes(env)) throw new Error('參數錯誤');
-  const repo = (await loadRepoConfig()).repos.find((r) => r.key === UPAGENT_REPO);
+  if (!RELEASE_TARGETS.includes(target) || !Object.values(DEPLOY_ENV).includes(env)) throw new Error('參數錯誤');
+  const repo = await findRepo(UPAGENT_REPO);
   if (!repo?.path) throw new Error(`尚未設定 upagent 的本機路徑，請在 ${fieldHint(UPAGENT_REPO, 'path')} 設定`);
   const db = releaseDbKey(env, target);
   const args = ['-Environment', env, '-Target', target, '-UpagentDir', repo.path, '-ConfigPath', CONFIG_FILE, '-EnvPath', ENV_FILE];
@@ -415,8 +390,7 @@ async function runManualRelease({ env, target, release, commit, log, onStep, onV
 
 /** 停止執行中的發佈（進度停在最後完成的步驟，下次從下一步接續） */
 function cancelRelease() {
-  running?.controller.abort();
-  return !!running;
+  return runner.cancel();
 }
 
 module.exports = { releaseStatus, runRelease, cancelRelease, runManualRelease, releaseConfigExists, versionContaining, releaseVersionFor };

@@ -43,28 +43,7 @@ param(
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-function Invoke-Az {
-    <#
-      執行 az 並在退出碼非 0 時拋出例外（含 az 的錯誤輸出）；回傳 stdout（字串陣列）。
-    #>
-    param(
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
-        [string]$Context = "az 指令"
-    )
-    $errFile = [System.IO.Path]::GetTempFileName()
-    try {
-        $stdout = & az @Arguments 2> $errFile
-        if ($LASTEXITCODE -ne 0) {
-            $detail = (Get-Content -Raw -Encoding UTF8 $errFile)
-            $detail = if ($detail) { "：$($detail.Trim())" } else { "" }
-            throw "$Context 失敗（az 退出碼 $LASTEXITCODE）$detail"
-        }
-        return $stdout
-    }
-    finally {
-        Remove-Item $errFile -ErrorAction SilentlyContinue
-    }
-}
+. (Join-Path $PSScriptRoot 'Common.ps1')
 
 function Get-HttpStatus {
     <#
@@ -83,13 +62,6 @@ function Get-HttpStatus {
         }
         return $null
     }
-}
-
-function Write-Result {
-    param($Result)
-    if (-not $Out) { return }
-    $json = $Result | ConvertTo-Json -Depth 10
-    [System.IO.File]::WriteAllText($Out, $json, (New-Object System.Text.UTF8Encoding $false))
 }
 
 try {

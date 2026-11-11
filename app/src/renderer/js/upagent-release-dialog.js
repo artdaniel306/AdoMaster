@@ -1,21 +1,10 @@
 import { api, cleanError } from './api.js';
 import { $ } from './dom.js';
-import { RELEASE_STEPS, RELEASE_DB_LABEL } from '../../shared/flow-rules.js';
+import { RELEASE_STEPS, RELEASE_STEP_TEXT as STEP_TEXT, RELEASE_DB_LABEL, releaseStepLabel as stepLabel } from '../../shared/flow-rules.js';
 
 /** 保留在畫面上的輸出行數上限 */
 const LOG_MAX_LINES = 3000;
 
-const STEP_TEXT = {
-  Bump: '更版並 push tag',
-  WaitAction: '等待 GitHub Action',
-  Download: '下載 staging 檔案',
-  Sign: '簽署 Windows 安裝檔',
-  UpdateYml: '重算 latest.yml',
-  Publish: '上傳 Blob',
-  CleanStaging: '清空 staging',
-  Database: '寫入資料庫',
-};
-const stepLabel = (step) => `${RELEASE_STEPS.indexOf(step) + 1}/${RELEASE_STEPS.length} ${STEP_TEXT[step] || step}`;
 const willRun = (plan, step) => RELEASE_STEPS.indexOf(step) >= RELEASE_STEPS.indexOf(plan.startFrom);
 
 /**

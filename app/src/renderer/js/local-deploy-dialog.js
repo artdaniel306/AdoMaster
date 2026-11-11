@@ -1,20 +1,11 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
 import { repoTag } from './repos.js';
+import { LOCAL_STEP_TEXT as STEP_TEXT, ENV_LABEL } from '../../shared/flow-rules.js';
 
 /** 保留在畫面上的輸出行數上限 */
 const LOG_MAX_LINES = 3000;
 
-const STEP_TEXT = {
-  Docker: '確認 Docker',
-  Source: '切到環境 branch',
-  Env: '套用環境 .env',
-  PreBuild: '前置指令',
-  Build: 'Build image tar',
-  Push: 'docker load + push',
-  Deploy: 'ssh 更新 container',
-};
-const ENV_LABEL = { test: '測試環境', prod: '正式環境' };
 const time = (iso) => new Date(iso).toLocaleString('zh-TW', { hour12: false });
 
 /**

@@ -81,7 +81,7 @@ export function initRepoSettings({ onSaved } = {}) {
 
     const key = input(repo.key, 'key（必填，英數字與 _ . -）', 'rs-key');
     const label = input(repo.label, '顯示名稱（預設 = key）');
-    const keyWarn = el('p', 'rs-warn', `⚠ 改 key 會讓既有流程紀錄中的「${origKey}」對不上`);
+    const keyWarn = el('p', 'rs-warn', `⚠ 改 key 會讓既有流程紀錄中的「${origKey}」對不上（Local 佈版、排程重啟、客戶環境的設定會一併改名）`);
     keyWarn.hidden = true;
     key.addEventListener('input', () => {
       keyWarn.hidden = !origKey || key.value.trim() === origKey;

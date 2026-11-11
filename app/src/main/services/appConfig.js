@@ -67,6 +67,12 @@ function updateConfig(mutate) {
   return run;
 }
 
+/** 整份覆蓋 config.json（匯入本地資料用）：先檢查格式，再排進 configQueue 寫入，不會和設定的存檔互相覆蓋 */
+function replaceConfigText(text) {
+  const data = parseConfig(text);
+  return updateConfig(() => data);
+}
+
 /** .env 的值含空白、# 或引號時加上引號（Python / Node / PowerShell 的讀取方式都會去掉成對的引號） */
 function envValue(v) {
   if (!/[\s#'"]/.test(v)) return v;
@@ -100,6 +106,11 @@ function withEnvLock(fn) {
   const run = envQueue.then(fn);
   envQueue = run.catch(() => {});
   return run;
+}
+
+/** 整份覆蓋 data/.env（匯入本地資料用）；排進 envQueue，不會和設定的存檔互相覆蓋 */
+function replaceEnvText(text) {
+  return withEnvLock(() => writeFileAtomic(ENV_FILE, text));
 }
 
 /**
@@ -323,6 +334,8 @@ module.exports = {
   parseConfig,
   readConfig,
   updateConfig,
+  replaceConfigText,
+  replaceEnvText,
   UPAGENT_DB_KEYS,
   upagentDbPasswordKey,
   loadEnvSettings,

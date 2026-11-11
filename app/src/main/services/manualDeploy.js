@@ -1,5 +1,5 @@
 const { BrowserWindow, shell } = require('electron');
-const { loadRepoConfig, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
+const { requireRepo, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
 const { checkMerged, mergeNoFf, mergeBackToFeatures, remoteBranchHead } = require('./gitCommit');
 const { repoPipelineRuns } = require('./pipelines');
 const { afterDeployRepo } = require('./afterDeploy');
@@ -12,9 +12,24 @@ const {
   COMMIT_FORMAT_HINT,
   UPAGENT_REPO,
   RELEASE_STEPS,
+  RELEASE_STEP_TEXT,
+  RELEASE_BUMPS,
+  RELEASE_VERSION_RE,
+  RELEASE_REMARK_MAX,
   RELEASE_DB_LABEL,
   releaseDbKey,
+  releaseStepLabel,
   restartSlot,
+  ENV_LABEL,
+  TARGET_LABEL,
+  CUSTOMER_KEY_RE,
+  LOCAL_STEP_TEXT,
+  PIPELINE_POLL_MS: POLL_MS,
+  PIPELINE_FIRST_POLL_MS: FIRST_POLL_MS,
+  PIPELINE_FIND_RUN_TIMEOUT_MS: FIND_RUN_TIMEOUT_MS,
+  runText,
+  sameCommit,
+  stageOfEnv,
 } = require('../../shared/flow-rules.js');
 
 /**
@@ -34,51 +49,14 @@ const {
  * Local 佈版 / UpAgent 發佈與流程共用「一次一個」的限制。
  */
 
-const ENV_STAGE = { test: 'testDeploy', prod: 'prodDeploy' };
-const ENV_LABEL = { test: '測試環境', prod: '正式環境', customer: '客戶環境' };
-const TARGET_LABEL = { saas: 'SaaS', local: 'Local' };
-const BUMPS = ['patch', 'minor'];
 /** 「接續」可以選的起點（Bump 需要用「完整發佈」） */
 const RESUME_STEPS = RELEASE_STEPS.slice(1);
-const VERSION_RE = /^\d+\.\d+\.\d+$/;
-const REMARK_MAX = 500;
-
-/** 查詢 Pipeline Run 的間隔 / push 後第一次查詢前的等待 / push 後找不到觸發的 Run 就放棄 */
-const POLL_MS = 15_000;
-const FIRST_POLL_MS = 5_000;
-const FIND_RUN_TIMEOUT_MS = 10 * 60_000;
 const LOG_MAX_LINES = 3000;
 /** 保留的已結束工作數 */
 const KEEP_FINISHED = 20;
 
-const RUN_STATUS_TEXT = { notStarted: '排隊中', inProgress: '進行中', cancelling: '取消中', postponed: '停等中' };
-const RUN_RESULT_TEXT = { succeeded: '成功', partiallySucceeded: '部分成功', failed: '失敗', canceled: '已取消' };
-const LOCAL_STEP_TEXT = {
-  Docker: '確認 Docker',
-  Source: '切到環境 branch',
-  Env: '套用環境 .env',
-  PreBuild: '前置指令',
-  Build: 'Build image tar',
-  Push: 'docker load + push',
-  Deploy: 'ssh 更新 container',
-};
-const CUSTOMER_KEY_RE = /^[A-Za-z0-9_.-]+$/;
-const RELEASE_STEP_TEXT = {
-  Bump: '更版並 push tag',
-  WaitAction: '等待 GitHub Action',
-  Download: '下載 staging 檔案',
-  Sign: '簽署 Windows 安裝檔',
-  UpdateYml: '重算 latest.yml',
-  Publish: '上傳 Blob',
-  CleanStaging: '清空 staging',
-  Database: '寫入資料庫',
-};
-
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
-const sameCommit = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 const runName = (run) => `#${run.buildNumber || run.id}`;
-const runText = (run) => (run.active ? RUN_STATUS_TEXT[run.status] || run.status : RUN_RESULT_TEXT[run.result] || run.result || '已結束');
-const releaseStepLabel = (step) => `${RELEASE_STEPS.indexOf(step) + 1}/${RELEASE_STEPS.length} ${RELEASE_STEP_TEXT[step] || step}`;
 
 /** 所有工作（新到舊加入）：id → job */
 const jobs = new Map();
@@ -116,14 +94,14 @@ function normalizeParams(p = {}) {
   if (repo === UPAGENT_REPO) {
     const u = p.release || {};
     const remark = str(u.remark);
-    if (remark.length > REMARK_MAX) throw new Error(`備註最多 ${REMARK_MAX} 字`);
+    if (remark.length > RELEASE_REMARK_MAX) throw new Error(`備註最多 ${RELEASE_REMARK_MAX} 字`);
     if (u.mode === 'resume') {
       const version = str(u.version);
-      if (!VERSION_RE.test(version)) throw new Error('版號格式錯誤（例：1.2.3）');
+      if (!RELEASE_VERSION_RE.test(version)) throw new Error('版號格式錯誤（例：1.2.3）');
       if (!RESUME_STEPS.includes(u.startFrom)) throw new Error('請選擇從哪個步驟開始');
       out.release = { mode: 'resume', version, startFrom: u.startFrom, remark, rerunAction: u.rerunAction === true && u.startFrom === 'WaitAction' };
     } else {
-      if (!BUMPS.includes(u.bump)) throw new Error('請選擇版號遞增方式（minor / patch）');
+      if (!RELEASE_BUMPS.includes(u.bump)) throw new Error('請選擇版號遞增方式（minor / patch）');
       const branch = str(u.branch);
       if (!branch) throw new Error('請選擇要更版的 upagent feature branch');
       out.release = { mode: 'new', bump: u.bump, branch, remark };
@@ -144,9 +122,8 @@ function normalizeParams(p = {}) {
 async function preview(raw) {
   const p = normalizeParams(raw);
   if (p.env === 'customer') return previewCustomer(p);
-  const stage = ENV_STAGE[p.env];
-  const r = (await loadRepoConfig()).repos.find((x) => x.key === p.repo);
-  if (!r) throw new Error(`未知的 repository：${p.repo}`);
+  const stage = stageOfEnv(p.env);
+  const r = await requireRepo(p.repo);
   if (p.release?.mode === 'new' && !r.branches.includes(p.release.branch)) {
     throw new Error(`${p.release.branch} 不在 upagent 的 branches 設定中（${fieldHint(p.repo, 'branches')}）`);
   }
@@ -177,6 +154,9 @@ async function preview(raw) {
       errors.push(`${CONFIG_LABEL} 尚未設定 upagentRelease（參考 templates/config_example.json；密碼與 GitHub token 在「設定 → 連線與機密設定…」）`);
     }
     if (p.release.mode === 'new' && p.commit) {
+      // Release-UpAgent.ps1 會拒絕不在更版 branch 中的 commit；先擋下，避免已 merge / push 進環境 branch 才發現不能發佈
+      const inBranch = await checkMerged({ repo: p.repo, commit: p.commit, envBranch: p.release.branch, fetch: false });
+      if (!inBranch.merged) errors.push(`commit ${inBranch.full.slice(0, 10)} 不在 ${p.release.branch}：UpAgent 會在 ${p.release.branch} 更版，請先把 commit merge 進 ${p.release.branch}。`);
       const v = await upagentRelease.versionContaining(p.commit);
       if (v) warnings.push(`commit 已包含在版本 tag v${v} 中；若該版本已上傳 Blob，通常只需改用「接續 / 只寫入資料庫」（版號 ${v}，從「寫入資料庫」開始），不用再更版。`);
     }
@@ -205,8 +185,7 @@ async function preview(raw) {
 
 /** 客戶環境的檢查：commit 必須已在正式環境 branch（git fetch 後確認），只有一個 build 步驟 */
 async function previewCustomer(p) {
-  const r = (await loadRepoConfig()).repos.find((x) => x.key === p.repo);
-  if (!r) throw new Error(`未知的 repository：${p.repo}`);
+  const r = await requireRepo(p.repo);
   const t = await localDeploy.customerTarget(p.repo, p.target, p.customer);
   if (!t) throw new Error(`${CONFIG_LABEL} 尚未設定 customerDeploy.${p.target}.${p.customer}`);
   const errors = [];
@@ -316,7 +295,7 @@ async function runStep(job, key, fn) {
 /** 查一次 Pipeline 的 Run；失敗時記在 log，回傳 null（之後會再重試） */
 async function pollRuns(job) {
   try {
-    const r = await repoPipelineRuns(job.params.repo, ENV_STAGE[job.params.env]);
+    const r = await repoPipelineRuns(job.params.repo, stageOfEnv(job.params.env));
     job.pollError = '';
     return r?.runs || [];
   } catch (err) {
@@ -402,7 +381,7 @@ async function watchRun(job, mergeCommit, step) {
 
 async function execute(job) {
   const p = job.params;
-  const stage = ENV_STAGE[p.env];
+  const stage = stageOfEnv(p.env);
   const { signal } = job.controller;
   const log = (line) => appendLog(job, line);
   let mergeCommit = null;
@@ -595,8 +574,7 @@ function showOutput({ id } = {}) {
 
 /** 客戶環境的預設 commit：正式環境 branch 在 remote 的最新 commit */
 async function prodHead({ repo } = {}) {
-  const r = (await loadRepoConfig()).repos.find((x) => x.key === repo);
-  if (!r) throw new Error(`未知的 repository：${repo}`);
+  const r = await requireRepo(repo);
   const branch = r.deployBranches.prodDeploy;
   if (!branch) throw new Error(`尚未設定 ${repo} 的正式環境 branch，請在 ${fieldHint(repo, DEPLOY_BRANCH_FIELDS.prodDeploy)} 設定`);
   return remoteBranchHead({ repo, branch });
@@ -607,4 +585,4 @@ function list() {
   return [...jobs.values()].map((j) => snapshot(j, true));
 }
 
-module.exports = { preview, start, cancel, retry, dismiss, list, showOutput, prodHead, customers: localDeploy.listCustomers, RESUME_STEPS };
+module.exports = { preview, start, cancel, retry, dismiss, list, showOutput, prodHead, customers: localDeploy.listCustomers };

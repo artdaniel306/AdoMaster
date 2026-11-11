@@ -30,10 +30,12 @@ function migrateLegacyKeys(state) {
   return state;
 }
 
+const stripBom = (text) => text.replace(/^﻿/, '');
+
 /** 讀出整份流程狀態（檔案不存在時回傳 {}） */
 async function loadFlowState() {
   try {
-    return migrateLegacyKeys(JSON.parse(await fs.readFile(FLOW_STATE_FILE, 'utf-8')));
+    return migrateLegacyKeys(JSON.parse(stripBom(await fs.readFile(FLOW_STATE_FILE, 'utf-8'))));
   } catch (err) {
     if (err.code === 'ENOENT') return {};
     throw err;
@@ -74,8 +76,9 @@ function updateFlowState(mutate) {
 
 /** 整份覆蓋流程狀態檔（匯入本地資料用）；同樣排進 writeQueue，不會和勾選的寫入互相覆蓋。 */
 function replaceFlowState(text) {
-  JSON.parse(text); // 不是合法 JSON 就直接丟錯，不寫入
-  const task = writeQueue.then(() => writeFileAtomic(FLOW_STATE_FILE, text));
+  const clean = stripBom(text);
+  JSON.parse(clean); // 不是合法 JSON 就直接丟錯，不寫入
+  const task = writeQueue.then(() => writeFileAtomic(FLOW_STATE_FILE, clean));
   writeQueue = task.catch(() => {});
   return task;
 }

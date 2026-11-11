@@ -1,5 +1,5 @@
 const { runScriptJson } = require('../python');
-const { loadRepoConfig } = require('./repoConfig');
+const { loadRepoConfig, findRepo } = require('./repoConfig');
 const { loadFlowState } = require('./flowState');
 const { PLAN_KEY, PLAN_REPOS_KEY, COMMIT_STAGES } = require('../../shared/flow-rules.js');
 
@@ -47,7 +47,7 @@ async function fetchRuns(repo, name) {
  */
 async function repoPipelineRuns(repo, stage) {
   if (typeof repo !== 'string' || !COMMIT_STAGES.includes(stage)) throw new Error('參數錯誤');
-  const name = (await loadRepoConfig()).repos.find((r) => r.key === repo)?.pipelines[stage];
+  const name = (await findRepo(repo))?.pipelines[stage];
   return name ? fetchRuns(repo, name) : null;
 }
 

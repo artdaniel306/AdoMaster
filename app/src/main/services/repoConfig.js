@@ -54,6 +54,18 @@ async function loadRepoConfig() {
   return { repos: normalizeRepos(await readRepoFile()) };
 }
 
+/** 依 key 找 repository（整理後的結構）；沒有時回傳 null */
+async function findRepo(key) {
+  return (await loadRepoConfig()).repos.find((r) => r.key === key) || null;
+}
+
+/** 同 findRepo，但找不到時丟錯 */
+async function requireRepo(key) {
+  const r = await findRepo(key);
+  if (!r) throw new Error(`未知的 repository：${key}`);
+  return r;
+}
+
 /** 檢查 key（格式、重複）並整理成 App 使用的結構 */
 function normalizeRepos(repos) {
   const seen = new Set();
@@ -130,8 +142,38 @@ async function saveRepoSettings({ repos } = {}) {
     });
     normalizeRepos(out); // key 格式 / 重複檢查，失敗時丟出錯誤、不寫檔
     c.repos = out;
+    const renames = repos
+      .map((r) => [str(r?.origKey), str(r?.key)])
+      .filter(([from, to]) => from && to && from !== to && byKey.has(from));
+    renameRepoKeys(c, renames);
   });
   return { repos: normalizeRepos(cfg.repos) };
+}
+
+/**
+ * 其他 section 中以 repo key 為索引的設定：改 repos[].key 時一併改名，避免設定悄悄失效。
+ * 新增「以 repo key 為索引」的 section 時也要加到這裡。
+ */
+function repoKeyedMaps(c) {
+  const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+  const maps = [c.localDeploy?.repos, c.prodRestart?.repos];
+  for (const target of Object.values(isObj(c.customerDeploy) ? c.customerDeploy : {})) {
+    for (const customer of Object.values(isObj(target) ? target : {})) maps.push(isObj(customer) ? customer.repos : null);
+  }
+  return maps.filter(isObj);
+}
+
+/** 依 renames（[[舊 key, 新 key]]）改名；先全部取出再放回（a↔b 互換也正確），新 key 已有設定時保留原狀不覆蓋 */
+function renameRepoKeys(c, renames) {
+  if (!renames.length) return;
+  for (const map of repoKeyedMaps(c)) {
+    const moving = renames.filter(([from]) => from in map).map(([from, to]) => [from, to, map[from]]);
+    for (const [from] of moving) delete map[from];
+    for (const [from, to, value] of moving) {
+      if (to in map) map[from] = value;
+      else map[to] = value;
+    }
+  }
 }
 
 /** 讓使用者選擇本機 clone 的資料夾；取消時回傳 null */
@@ -144,4 +186,4 @@ async function pickRepoFolder(win, defaultPath) {
   return canceled || !filePaths?.length ? null : filePaths[0];
 }
 
-module.exports = { loadRepoConfig, loadRepoSettings, saveRepoSettings, pickRepoFolder, fieldHint, DEPLOY_BRANCH_FIELDS };
+module.exports = { loadRepoConfig, findRepo, requireRepo, loadRepoSettings, saveRepoSettings, pickRepoFolder, fieldHint, DEPLOY_BRANCH_FIELDS };

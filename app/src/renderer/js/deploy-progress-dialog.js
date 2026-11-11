@@ -1,12 +1,11 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
 import { flowDeployJobs } from './deploy-jobs.js';
-import { RELEASE_STEPS } from '../../shared/flow-rules.js';
+import { RELEASE_STEPS, RUN_RESULT_TEXT } from '../../shared/flow-rules.js';
 
 const LOG_MAX_LINES = 3000;
 const STATUS_TEXT = { running: '⏳ 佈版中', succeeded: '✔ 完成', failed: '✖ 失敗', canceled: '■ 已停止' };
 const STEP_ICON = { pending: '○', running: '▶', done: '✔', skipped: '–', failed: '✖' };
-const RUN_RESULT_TEXT = { succeeded: '成功', partiallySucceeded: '部分成功', failed: '失敗', canceled: '已取消' };
 const time = (iso) => (iso ? new Date(iso).toLocaleString('zh-TW', { hour12: false }) : '');
 
 /**

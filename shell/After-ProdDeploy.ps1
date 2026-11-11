@@ -34,11 +34,7 @@ param(
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-function Write-Result {
-    param($Result)
-    if (-not $Out) { return }
-    [System.IO.File]::WriteAllText($Out, (ConvertTo-Json -InputObject $Result -Depth 10), (New-Object System.Text.UTF8Encoding $false))
-}
+. (Join-Path $PSScriptRoot 'Common.ps1')
 
 try {
     if (-not $RestartDate) {

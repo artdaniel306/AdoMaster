@@ -22,7 +22,7 @@ const {
   upagentReleasePlan,
   releaseTargetOf,
   UPAGENT_REPO,
-  RELEASE_ENV,
+  DEPLOY_ENV,
 } = require('../../shared/flow-rules.js');
 
 const NOTE_MAX = 2000;
@@ -95,7 +95,7 @@ async function deployMergeStatus({ id, stage, fetch = true } = {}) {
   });
   const items = await Promise.all(
     targets.map(async (t) => {
-      if (t.repo === UPAGENT_REPO && RELEASE_ENV[stage]) {
+      if (t.repo === UPAGENT_REPO && DEPLOY_ENV[stage]) {
         const version = await releaseVersionFor(id, stage);
         return checkDeployMerge({ ...t, fetch, ...(version ? { source: `v${version}` } : { deferred: true }) });
       }

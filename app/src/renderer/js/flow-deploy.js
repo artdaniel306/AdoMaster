@@ -12,7 +12,7 @@ import {
   noRepoChange,
   upagentReleasePlan,
   UPAGENT_RELEASE_KEY,
-  RELEASE_ENV,
+  DEPLOY_ENV,
   RELEASE_TARGETS,
   releaseDbKey,
   releaseTargetOf,
@@ -211,7 +211,7 @@ export function createFlowDeploy(ctx) {
 
   /** 已發佈的 UpAgent 版本與此環境 SaaS / Local 資料庫是否已寫入 */
   function releaseSummary(release, stage) {
-    const env = RELEASE_ENV[stage.key];
+    const env = DEPLOY_ENV[stage.key];
     const time = (iso) => new Date(iso).toLocaleString('zh-TW', { hour12: false });
     const published = !!release.publishedAt;
     const label = { saas: 'SaaS', local: 'Local' };

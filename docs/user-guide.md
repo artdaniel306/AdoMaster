@@ -218,7 +218,7 @@ push 環境 branch 會觸發 ADO Pipeline 自動佈版（在 Repository 設定�
 
 編輯 `data/config.json` 的 `repos`。可上移 / 下移 / 刪除 repository，並設定代表色。
 
-> **key** 是流程紀錄使用的識別名稱，已有紀錄的 repository **請勿修改 key**，否則舊紀錄會對不上。
+> **key** 是流程紀錄使用的識別名稱，已有紀錄的 repository **請勿修改 key**，否則舊紀錄會對不上（Local 佈版、排程重啟、客戶環境的設定會自動一併改名，但 Requirement 流程紀錄不會）。
 
 | 欄位 | 說明 |
 |---|---|

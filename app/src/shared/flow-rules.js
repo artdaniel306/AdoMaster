@@ -40,8 +40,37 @@ export const commitsForcedKey = (stage) => `${stage}.commitsForced`;
 
 /** Local 佈版紀錄（勾 Local 時執行 shell/Deploy-Local.ps1；只能由 main/services/localDeploy.js 寫入） */
 export const localDeployKey = (stage) => `${stage}.localDeploy`;
-/** 佈版階段 → config.json 的 localDeploy.repos.<repo>.<test|prod> */
+/** 佈版階段 → 環境（test / prod；config.json 的 localDeploy.repos.<repo>.<test|prod>、UpAgent 資料庫代號…） */
 export const DEPLOY_ENV = { testDeploy: 'test', prodDeploy: 'prod' };
+/** 環境 → 佈版階段（不是 test / prod 時回傳 null） */
+export const stageOfEnv = (env) => Object.keys(DEPLOY_ENV).find((k) => DEPLOY_ENV[k] === env) || null;
+/** 環境 / 平台的顯示名稱（customer = 手動佈版的客戶環境） */
+export const ENV_LABEL = { test: '測試環境', prod: '正式環境', customer: '客戶環境' };
+export const TARGET_LABEL = { saas: 'SaaS', local: 'Local' };
+/** customerDeploy 的客戶 key */
+export const CUSTOMER_KEY_RE = /^[A-Za-z0-9_.-]+$/;
+
+/** Local 佈版的步驟名稱（key = shell/Deploy-Local.ps1 輸出的 ::step:: 標記） */
+export const LOCAL_STEP_TEXT = {
+  Docker: '確認 Docker',
+  Source: '切到環境 branch',
+  Env: '套用環境 .env',
+  PreBuild: '前置指令',
+  Build: 'Build image tar',
+  Push: 'docker load + push',
+  Deploy: 'ssh 更新 container',
+};
+
+/** Pipeline Run：查詢間隔 / push 後第一次查詢前的等待（CI trigger 通常幾秒內就會建立 Run）/ push 後找不到觸發的 Run 就放棄 */
+export const PIPELINE_POLL_MS = 15_000;
+export const PIPELINE_FIRST_POLL_MS = 5_000;
+export const PIPELINE_FIND_RUN_TIMEOUT_MS = 10 * 60_000;
+export const RUN_STATUS_TEXT = { notStarted: '排隊中', inProgress: '進行中', cancelling: '取消中', postponed: '停等中' };
+export const RUN_RESULT_TEXT = { succeeded: '成功', partiallySucceeded: '部分成功', failed: '失敗', canceled: '已取消' };
+/** Pipeline Run 的狀態文字（進行中顯示 status，結束後顯示 result） */
+export const runText = (run) => (run.active ? RUN_STATUS_TEXT[run.status] || run.status : RUN_RESULT_TEXT[run.result] || run.result || '已結束');
+/** 兩個 commit hash 是否相同（不分大小寫） */
+export const sameCommit = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 
 /** commit 縮寫：4～40 個十六進位字元（也避免被 git 當成選項）；比對前先轉小寫 */
 export const COMMIT_RE = /^[0-9a-f]{4,40}$/;
@@ -76,8 +105,23 @@ export function commitsConfirmed(checks, stage) {
  */
 export const UPAGENT_REPO = 'upagent';
 export const UPAGENT_RELEASE_KEY = 'upagentRelease';
+/** 發佈步驟（key = shell/Release-UpAgent.ps1 的 -StartFrom 與輸出的 ::step:: 標記） */
 export const RELEASE_STEPS = ['Bump', 'WaitAction', 'Download', 'Sign', 'UpdateYml', 'Publish', 'CleanStaging', 'Database'];
-export const RELEASE_ENV = { testDeploy: 'test', prodDeploy: 'prod' };
+export const RELEASE_STEP_TEXT = {
+  Bump: '更版並 push tag',
+  WaitAction: '等待 GitHub Action',
+  Download: '下載 staging 檔案',
+  Sign: '簽署 Windows 安裝檔',
+  UpdateYml: '重算 latest.yml',
+  Publish: '上傳 Blob',
+  CleanStaging: '清空 staging',
+  Database: '寫入資料庫',
+};
+/** 例：'3/8 簽署 Windows 安裝檔' */
+export const releaseStepLabel = (step) => `${RELEASE_STEPS.indexOf(step) + 1}/${RELEASE_STEPS.length} ${RELEASE_STEP_TEXT[step] || step}`;
+export const RELEASE_BUMPS = ['patch', 'minor'];
+export const RELEASE_VERSION_RE = /^\d+\.\d+\.\d+$/;
+export const RELEASE_REMARK_MAX = 500;
 /** SaaS / Local 各有自己的資料庫：checkbox key 的後綴（<stage>.saas / <stage>.local） */
 export const RELEASE_TARGETS = ['saas', 'local'];
 /** 資料庫代號（upagentRelease.db 的 key；對應設定檔區段 [upagent_db_<代號>]） */
@@ -120,7 +164,7 @@ export function needsUpagentRelease(checks) {
  * 回傳的物件另含 env（test / prod）、target、db（資料庫代號，例如 test_saas）。
  */
 export function upagentReleasePlan(checks, stage, target) {
-  const env = RELEASE_ENV[stage];
+  const env = DEPLOY_ENV[stage];
   if (!env || !RELEASE_TARGETS.includes(target) || !needsUpagentRelease(checks)) return null;
   const db = releaseDbKey(env, target);
   const rel = checks[UPAGENT_RELEASE_KEY] || {};

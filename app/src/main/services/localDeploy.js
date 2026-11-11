@@ -2,8 +2,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { CONFIG_FILE, LOCAL_DEPLOY_ENV_DIR } = require('../paths');
 const { CONFIG_LABEL, readConfig } = require('./appConfig');
-const { runPowerShellJson } = require('../powershell');
-const { loadRepoConfig } = require('./repoConfig');
+const { runPowerShellLines } = require('../powershell');
+const { createExclusiveRunner } = require('../exclusiveRunner');
+const { loadRepoConfig, findRepo } = require('./repoConfig');
 const { loadFlowState, updateRequirementState } = require('./flowState');
 const {
   COMMIT_STAGES,
@@ -13,6 +14,8 @@ const {
   localDeployKey,
   DEPLOY_ENV,
   UPAGENT_REPO,
+  CUSTOMER_KEY_RE,
+  stageOfEnv: envStage,
 } = require('../../shared/flow-rules.js');
 
 /**
@@ -33,23 +36,23 @@ const {
  * 一次只能執行一個佈版（整個 app 共用）。腳本的 stdout / stderr 即時以 'localDeploy:log' 事件送給 renderer。
  */
 
-const MARKER_RE = /^::(step|error)::(.*)$/;
 const SECTION = 'localDeploy';
 /** 客戶環境（手動佈版選「客戶環境」）：customerDeploy.<saas|local>.<客戶 key> */
 const CUSTOMER_SECTION = 'customerDeploy';
 const CUSTOMER_TARGETS = ['saas', 'local'];
-const CUSTOMER_KEY_RE = /^[A-Za-z0-9_.-]+$/;
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
-/** 目前執行中的佈版：{ id, stage, repo, controller }（手動佈版的 id 為 null） */
-let running = null;
+/** 顯示用：目前佔用 Local 佈版的是哪個流程 */
+const ownerLabel = (r) => `${r.id ? `#${r.id}` : '手動佈版'} ${r.repo}`;
+/** 一次只能一個 Local 佈版（流程、手動佈版、客戶環境共用）；current = { id, stage, repo, controller }（手動佈版的 id 為 null） */
+const runner = createExclusiveRunner((r) => `已有 Local 佈版進行中：${ownerLabel(r)}`);
 
 const str = (v) => (v == null ? '' : String(v).trim());
 /** envTarget 只能是 projectDir 內的相對路徑（與 Deploy-Local.ps1 相同規則） */
 const validEnvTarget = (t) => /^[A-Za-z0-9_.\\/-]+$/.test(t) && !path.isAbsolute(t) && !t.split(/[\\/]/).includes('..');
 /** test / prod → 佈版階段 */
 const stageOfEnv = (env) => {
-  const stage = Object.keys(DEPLOY_ENV).find((k) => DEPLOY_ENV[k] === env);
+  const stage = envStage(env);
   if (!stage) throw new Error('參數錯誤');
   return stage;
 };
@@ -139,7 +142,8 @@ async function manualTarget(repo, env) {
 /** 勾 Local 前查詢要佈版哪些 repository */
 async function localDeployStatus({ id, stage } = {}) {
   const { env, targets, unconfigured } = await deployTargets(id, stage);
-  return { env, targets, unconfigured, running: running && { id: running.id, stage: running.stage, repo: running.repo, label: ownerLabel(running) } };
+  const r = runner.current;
+  return { env, targets, unconfigured, running: r && { id: r.id, stage: r.stage, repo: r.repo, label: ownerLabel(r) } };
 }
 
 /**
@@ -148,39 +152,22 @@ async function localDeployStatus({ id, stage } = {}) {
  * @param log (line) => void；onStep (step) => void
  */
 async function runScript(t, { env, rebuild, signal, log, onStep }) {
-  let lastError = '';
-  const pending = { out: '', err: '' };
-  const onText = (which) => (text) => {
-    pending[which] += text;
-    const lines = pending[which].split(/\r?\n|\r/);
-    pending[which] = lines.pop();
-    for (const line of lines) {
-      const m = MARKER_RE.exec(line.trim());
-      if (!m) log(line);
-      else if (m[1] === 'step') onStep(m[2].trim());
-      else lastError = m[2].trim();
-    }
-  };
-  const onStdout = onText('out');
-  const onStderr = onText('err');
   const args = ['-Repo', t.repo, '-Environment', env, '-Branch', t.envBranch, '-ConfigPath', CONFIG_FILE, ...(t.extraArgs || [])];
   if (t.commit) args.push('-ExpectedCommit', t.commit);
   if (rebuild === true) args.push('-Rebuild');
   log(t.startLine || `▶ ${t.label}：Local 佈版到 ${t.remoteHost}（${t.envBranch}）`);
   try {
-    return await runPowerShellJson('Deploy-Local.ps1', args, { timeout: 0, onStdout, onStderr, signal });
+    return await runPowerShellLines('Deploy-Local.ps1', args, {
+      stderr: true, // docker / git 的進度輸出在 stderr
+      onLine: log,
+      onMarker: (kind, value) => kind === 'step' && onStep(value),
+      signal,
+    });
   } catch (err) {
-    if (!signal.aborted && lastError) err.message = lastError;
     err.message = `${t.label}：${err.message}`;
     throw err;
-  } finally {
-    if (pending.out) onStdout('\n');
-    if (pending.err) onStderr('\n');
   }
 }
-
-/** 顯示用：目前佔用 Local 佈版的是哪個流程 */
-const ownerLabel = (r) => `${r.id ? `#${r.id}` : '手動佈版'} ${r.repo}`;
 
 /**
  * 依序對 repos 執行 Local 佈版（image 先 build 成 data/local_deploy/<repo>/*.tar 再 push；
@@ -190,7 +177,7 @@ const ownerLabel = (r) => `${r.id ? `#${r.id}` : '手動佈版'} ${r.repo}`;
  */
 async function runLocalDeploy(send, { id, stage, repos, rebuild = false } = {}) {
   if (!Array.isArray(repos) || !repos.length || !repos.every((r) => typeof r === 'string')) throw new Error('參數錯誤');
-  if (running) throw new Error(`已有 Local 佈版進行中：${ownerLabel(running)}`);
+  runner.assertIdle();
   const { env, targets } = await deployTargets(id, stage);
   const selected = repos.map((repo) => {
     const t = targets.find((x) => x.repo === repo);
@@ -198,17 +185,14 @@ async function runLocalDeploy(send, { id, stage, repos, rebuild = false } = {}) 
     if (t.error) throw new Error(t.error);
     return t;
   });
-  if (running) throw new Error(`已有 Local 佈版進行中：${ownerLabel(running)}`);
 
-  const controller = new AbortController();
-  running = { id, stage, repo: selected[0].repo, controller };
   const log = (line) => send('localDeploy:log', { id, stage, line });
-  try {
+  await runner.run({ id, stage, repo: selected[0].repo }, null, async (signal, current) => {
     for (const t of selected) {
-      running.repo = t.repo;
+      current.repo = t.repo;
       send('localDeploy:step', { id, stage, repo: t.repo, step: null });
       const onStep = (step) => send('localDeploy:step', { id, stage, repo: t.repo, step });
-      const result = await runScript(t, { env, rebuild, signal: controller.signal, log, onStep });
+      const result = await runScript(t, { env, rebuild, signal, log, onStep });
       await updateRequirementState(id, (checks) => {
         const key = localDeployKey(stage);
         checks[key] = {
@@ -218,9 +202,7 @@ async function runLocalDeploy(send, { id, stage, repos, rebuild = false } = {}) 
       });
       log(`✔ ${t.label} 完成`);
     }
-  } finally {
-    running = null;
-  }
+  });
   return (await loadFlowState())[id] || {};
 }
 
@@ -230,24 +212,15 @@ async function runLocalDeploy(send, { id, stage, repos, rebuild = false } = {}) 
  * @returns {{ commit, image, tar, remoteHost }}
  */
 async function runManualLocalDeploy({ repo, env, commit, rebuild = false, log, onStep, signal }) {
-  if (running) throw new Error(`已有 Local 佈版進行中：${ownerLabel(running)}`);
+  runner.assertIdle();
   const t = await manualTarget(repo, env);
   if (!t) throw new Error(`${repo} 沒有設定 ${env} 環境的 Local 佈版（${CONFIG_LABEL} 的 localDeploy.repos.${repo}.${env}）`);
   if (t.error) throw new Error(t.error);
-  if (running) throw new Error(`已有 Local 佈版進行中：${ownerLabel(running)}`);
-  if (signal?.aborted) throw new Error('已停止');
-  const controller = new AbortController();
-  const abort = () => controller.abort();
-  signal?.addEventListener('abort', abort);
-  running = { id: null, stage: stageOfEnv(env), repo, controller };
-  try {
-    const result = await runScript({ ...t, commit: commit || '' }, { env, rebuild, signal: controller.signal, log, onStep });
+  return runner.run({ id: null, stage: stageOfEnv(env), repo }, signal, async (runSignal) => {
+    const result = await runScript({ ...t, commit: commit || '' }, { env, rebuild, signal: runSignal, log, onStep });
     log(`✔ ${t.label} 完成`);
     return { commit: str(result?.commit), image: str(result?.image), tar: str(result?.tar), remoteHost: t.remoteHost };
-  } finally {
-    signal?.removeEventListener('abort', abort);
-    running = null;
-  }
+  });
 }
 
 /* ---------- 客戶環境（只 build image tar 交給客戶） ---------- */
@@ -283,7 +256,7 @@ async function customerTarget(repo, target, customer) {
   const base = config?.[SECTION]?.repos?.[repo];
   const { test, prod, ...common } = isObj(base) ? base : {};
   const s = { ...common, ...(own || {}) };
-  const r = (await loadRepoConfig()).repos.find((x) => x.key === repo);
+  const r = await findRepo(repo);
   const prodBranch = r?.deployBranches.prodDeploy || '';
   const projectDir = str(s.projectDir);
   const envFile = str(own?.envFile);
@@ -321,17 +294,11 @@ async function customerTarget(repo, target, customer) {
  * @returns {{ commit, image, tar }}
  */
 async function runCustomerBuild({ repo, target, customer, commit, rebuild = false, log, onStep, signal }) {
-  if (running) throw new Error(`已有 Local 佈版進行中：${ownerLabel(running)}`);
+  runner.assertIdle();
   const t = await customerTarget(repo, target, customer);
   if (!t) throw new Error(`${CONFIG_LABEL} 尚未設定 ${CUSTOMER_SECTION}.${target}.${customer}`);
   if (t.error) throw new Error(t.error);
-  if (running) throw new Error(`已有 Local 佈版進行中：${ownerLabel(running)}`);
-  if (signal?.aborted) throw new Error('已停止');
-  const controller = new AbortController();
-  const abort = () => controller.abort();
-  signal?.addEventListener('abort', abort);
-  running = { id: null, stage: 'customer', repo, controller };
-  try {
+  return runner.run({ id: null, stage: 'customer', repo }, signal, async (runSignal) => {
     const result = await runScript(
       {
         ...t,
@@ -339,20 +306,16 @@ async function runCustomerBuild({ repo, target, customer, commit, rebuild = fals
         extraArgs: ['-Customer', customer, '-CustomerTarget', target],
         startLine: `▶ ${t.label}：打包客戶環境 ${t.customerLabel}（${commit.slice(0, 10)}）`,
       },
-      { env: 'customer', rebuild, signal: controller.signal, log, onStep },
+      { env: 'customer', rebuild, signal: runSignal, log, onStep },
     );
     log(`✔ ${t.label} 完成`);
     return { commit: str(result?.commit), image: str(result?.image), tar: str(result?.tar) };
-  } finally {
-    signal?.removeEventListener('abort', abort);
-    running = null;
-  }
+  });
 }
 
 /** 停止執行中的 Local 佈版 */
 function cancelLocalDeploy() {
-  running?.controller.abort();
-  return !!running;
+  return runner.cancel();
 }
 
 module.exports = {

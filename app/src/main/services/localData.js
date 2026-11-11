@@ -2,11 +2,11 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const AdmZip = require('adm-zip');
 const { app, dialog } = require('electron');
-const { ROOT_DIR, DATA_DIR, FLOW_STATE_FILE, TEST_RECORDS_DIR, LOCAL_DEPLOY_ENV_DIR } = require('../paths');
+const { ROOT_DIR, DATA_DIR, FLOW_STATE_FILE, CONFIG_FILE, ENV_FILE, TEST_RECORDS_DIR, LOCAL_DEPLOY_ENV_DIR } = require('../paths');
 const { replaceFlowState } = require('./flowState');
 const { writeFileAtomic } = require('../atomicWrite');
 const { TEST_IMAGE_RE } = require('../../shared/flow-rules.js');
-const { parseConfig, applyLegacy } = require('./appConfig');
+const { parseConfig, applyLegacy, replaceConfigText, replaceEnvText } = require('./appConfig');
 
 /**
  * 匯出 / 匯入「不進 git、也無法從 API 取回」的本地資料。
@@ -206,10 +206,15 @@ async function applyImport() {
   // 先寫圖片，再寫流程狀態（狀態中的 testRecord 才找得到圖片）
   for (const img of content.images) await writeFileAtomic(absPath(img.name), img.buf);
   for (const f of content.deployEnvs) await writeFileAtomic(absPath(f.name), f.buf);
+  // 設定檔與流程狀態都經各自的寫入佇列，不會和正在進行的存檔 / 勾選互相覆蓋
+  const writers = {
+    [FLOW_STATE_FILE]: (buf) => replaceFlowState(buf.toString('utf-8')),
+    [CONFIG_FILE]: (buf) => replaceConfigText(buf.toString('utf-8')),
+    [ENV_FILE]: (buf) => replaceEnvText(buf),
+  };
   for (const f of content.files) {
     const file = absPath(f.name);
-    if (file === FLOW_STATE_FILE) await replaceFlowState(f.buf.toString('utf-8'));
-    else await writeFileAtomic(file, f.buf);
+    await (writers[file] ? writers[file](f.buf) : writeFileAtomic(file, f.buf));
   }
   return { files: importList(content), localStorage: content.localStorage };
 }

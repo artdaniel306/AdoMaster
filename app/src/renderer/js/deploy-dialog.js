@@ -4,21 +4,16 @@ import { repoTag } from './repos.js';
 import { backMergeRows, backMergeProblems, hasBackMerges } from './back-merge.js';
 import { mergeItemRow, willMerge } from './merge-dialog.js';
 import { createRestartPicker, restartText } from './restart-picker.js';
-import { restartSlot } from '../../shared/flow-rules.js';
+import {
+  restartSlot,
+  runText,
+  sameCommit,
+  PIPELINE_POLL_MS as POLL_MS,
+  PIPELINE_FIRST_POLL_MS as FIRST_POLL_MS,
+  PIPELINE_FIND_RUN_TIMEOUT_MS as FIND_RUN_TIMEOUT_MS,
+} from '../../shared/flow-rules.js';
 
-/** 查詢 Pipeline Run 的間隔 */
-const POLL_MS = 15_000;
-/** push 後第一次查詢前的等待（CI trigger 通常幾秒內就會建立 Run） */
-const FIRST_POLL_MS = 5_000;
-/** push 後超過這麼久還找不到觸發的 Run 就放棄 */
-const FIND_RUN_TIMEOUT_MS = 10 * 60_000;
-
-const STATUS_TEXT = { notStarted: '排隊中', inProgress: '進行中', cancelling: '取消中', postponed: '停等中' };
-const RESULT_TEXT = { succeeded: '成功', partiallySucceeded: '部分成功', failed: '失敗', canceled: '已取消' };
-
-const runText = (run) => (run.active ? STATUS_TEXT[run.status] || run.status : RESULT_TEXT[run.result] || run.result || '已結束');
 const runClass = (run) => (run.active ? 'warn' : run.result === 'succeeded' ? 'ok' : 'bad');
-const sameCommit = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 const timeText = (d) => d.toLocaleTimeString('zh-TW', { hour12: false });
 
 const PHASE_TEXT = {

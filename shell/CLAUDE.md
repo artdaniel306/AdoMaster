@@ -1,6 +1,6 @@
 # shell/ — PowerShell scripts run by the app
 
-Run by `app/src/main/powershell.js`: `runPowerShell(script, args)` / `runPowerShellJson(script, args)` → `child_process.execFile` with `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File`, `cwd=shell/`. Only bare `*.ps1` names inside `shell/` are accepted (so no subfolders). Executable is `powershell.exe` unless the `POWERSHELL` env var overrides it (e.g. `pwsh`).
+Run by `app/src/main/powershell.js`: `runPowerShellJson(script, args)` / `runPowerShellLines(script, args, { onLine, onMarker, stderr })` (splits output into lines; `::error::` replaces the error message, other `::<kind>::` markers → `onMarker`) → `child_process.execFile` with `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File`, `cwd=shell/`. Only bare `*.ps1` names inside `shell/` are accepted (so no subfolders). Executable is `powershell.exe` unless the `POWERSHELL` env var overrides it (e.g. `pwsh`).
 
 ## Conventions (same as `script/*.py`)
 - Named parameters only (the app passes every argument as a string).
@@ -8,7 +8,8 @@ Run by `app/src/main/powershell.js`: `runPowerShell(script, args)` / `runPowerSh
 - Failure → message to stderr + `exit 1`; the app shows stderr as the error message.
 - Save every `.ps1` as **UTF-8 with BOM** (Windows PowerShell 5.1 needs it for Chinese) and set `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`.
 - Non-interactive: no `Read-Host` / confirmation prompts.
-- Settings: read `data/config.json` with `ConvertFrom-Json` and secrets from `data/.env` (`Read-DotEnv` in `Release-UpAgent.ps1` — same rules as Python: a same-named env var wins). Never add a new config file.
+- Shared helpers live in `Common.ps1` (`Get-DataRoot`, `Write-Result`, `Exit-WithError` (`::error::` + stderr + exit 1), `Invoke-Az`, `Read-DotEnv`); dot-source it after `param()` with `. (Join-Path $PSScriptRoot 'Common.ps1')` and never redefine those functions in a script. `1-` / `2-` / `3-*.ps1` are copied from another project and kept as-is (they don't load it).
+- Settings: read `data/config.json` with `ConvertFrom-Json` and secrets from `data/.env` (`Read-DotEnv` in `Common.ps1` — same rules as Python: a same-named env var wins). Never add a new config file.
 - To wire a new script: a service in `main/services/` calls `runPowerShellJson` → channel in `ipc.js` → method in `preload/index.js`.
 
 ## Scripts

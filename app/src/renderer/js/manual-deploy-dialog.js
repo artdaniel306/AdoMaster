@@ -3,19 +3,8 @@ import { $, el } from './dom.js';
 import { loadRepos } from './repos.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 import { createRestartPicker } from './restart-picker.js';
-import { RELEASE_STEPS, UPAGENT_REPO } from '../../shared/flow-rules.js';
+import { RELEASE_STEPS, RELEASE_STEP_TEXT as STEP_TEXT, UPAGENT_REPO, ENV_LABEL, TARGET_LABEL } from '../../shared/flow-rules.js';
 
-const STEP_TEXT = {
-  WaitAction: '等待 GitHub Action',
-  Download: '下載 staging 檔案',
-  Sign: '簽署 Windows 安裝檔',
-  UpdateYml: '重算 latest.yml',
-  Publish: '上傳 Blob',
-  CleanStaging: '清空 staging',
-  Database: '寫入資料庫',
-};
-const ENV_LABEL = { test: '測試環境', prod: '正式環境', customer: '客戶環境' };
-const TARGET_LABEL = { saas: 'SaaS', local: 'Local' };
 
 /**
  * 手動佈版 dialog（選單「佈版 → 手動佈版…」/ 標題列按鈕）：選 SaaS / Local、測試 / 正式、repository 與 commit

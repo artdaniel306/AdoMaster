@@ -88,20 +88,14 @@ param(
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
+. (Join-Path $PSScriptRoot 'Common.ps1')
+
 $DockerTimeoutSec = 180
 $KeepTars = 3
-$dataRoot = if ($env:ADOMASTER_DATA_DIR) { $env:ADOMASTER_DATA_DIR } else { Join-Path (Split-Path -Parent $PSScriptRoot) 'data' }  # app 會以 ADOMASTER_DATA_DIR 指定 data 資料夾
+$dataRoot = Get-DataRoot
 $tarRoot = Join-Path $dataRoot "local_deploy"
 $customerTarRoot = Join-Path $dataRoot "customer_build"
 $envFileRoot = Join-Path $dataRoot "local_deploy_env"   # envFile 相對路徑的基準（匯出本地資料會包含這個資料夾）
-
-function Exit-WithError {
-    <# 輸出 ::error:: 標記（stdout）與錯誤訊息（stderr），以 exit code 1 結束 #>
-    param([string]$Message)
-    Write-Host "::error::$($Message -replace '\r?\n', ' ')"
-    [Console]::Error.WriteLine($Message)
-    exit 1
-}
 
 function Invoke-Native {
     <#
@@ -430,9 +424,7 @@ try {
             envTarget      = $envTarget
             envRemoved     = [bool]$removeEnv
         }
-        if ($Out) {
-            [System.IO.File]::WriteAllText($Out, ($result | ConvertTo-Json -Depth 10), (New-Object System.Text.UTF8Encoding $false))
-        }
+        Write-Result $result
         exit 0
     }
 
@@ -471,9 +463,7 @@ try {
         remoteHost  = $remoteHost
         hostPort    = $hostPort
     }
-    if ($Out) {
-        [System.IO.File]::WriteAllText($Out, ($result | ConvertTo-Json -Depth 10), (New-Object System.Text.UTF8Encoding $false))
-    }
+    Write-Result $result
 }
 catch {
     Exit-WithError $_.Exception.Message

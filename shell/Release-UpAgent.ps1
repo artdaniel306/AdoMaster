@@ -147,37 +147,7 @@ $dataDir     = if ($env:ADOMASTER_DATA_DIR) { $env:ADOMASTER_DATA_DIR } else { J
 # 共用函式
 # ---------------------------------------------------------------------------
 
-function Exit-WithError {
-    <# 輸出 ::error:: 標記（stdout）與錯誤訊息（stderr），以 exit code 1 結束 #>
-    param([string]$Message)
-    Write-Host "::error::$($Message -replace '\r?\n', ' ')"
-    [Console]::Error.WriteLine($Message)
-    exit 1
-}
-
-function Read-DotEnv {
-    <#
-      讀取 .env（KEY=VALUE），規則與 script/ado/config.py 的 load_env 相同：# 開頭為註解，可加 export 前綴；
-      值有成對的引號時去掉引號（引號內的 # 不是註解），沒有引號時去掉行尾「 #」之後的註解。檔案不存在時回傳空表。
-    #>
-    param([Parameter(Mandatory = $true)][string]$Path)
-    $vars = @{}
-    if (-not (Test-Path -LiteralPath $Path)) { return $vars }
-    foreach ($raw in [System.IO.File]::ReadAllLines($Path)) {
-        $line = $raw.Trim()
-        if (-not $line -or $line.StartsWith('#')) { continue }
-        if ($line -notmatch '^(?:export\s+)?(?<k>[^=\s]+)\s*=\s*(?<v>.*)$') { continue }
-        $key = $Matches['k']
-        $value = $Matches['v']
-        if ($value.Length -ge 2 -and $value[0] -eq $value[-1] -and ($value[0] -eq [char]"'" -or $value[0] -eq [char]'"')) {
-            $value = $value.Substring(1, $value.Length - 2)
-        } else {
-            $value = ($value -split ' #', 2)[0].Trim()
-        }
-        $vars[$key] = $value
-    }
-    return $vars
-}
+. (Join-Path $PSScriptRoot 'Common.ps1')
 
 function Get-ConfigValue {
     <# 從 config.json 的物件取值（$Label 用在錯誤訊息，例如 upagentRelease.db.test_saas.host） #>
@@ -721,7 +691,7 @@ if ($Out) {
         steps       = $completedSteps
         folderUrl   = $folderUrl
     }
-    [System.IO.File]::WriteAllText($Out, ($result | ConvertTo-Json -Depth 5), (New-Object System.Text.UTF8Encoding $false))
+    Write-Result $result -Depth 5
 }
 
 Write-Host ""

@@ -58,35 +58,12 @@ $ApiVersion = '2023-11-01'
 # Azure 要求 Schedule 的開始時間至少在 5 分鐘之後
 $MinLeadMinutes = 6
 
-function Write-Result {
-    param($Result)
-    if (-not $Out) { return }
-    $json = ConvertTo-Json -InputObject $Result -Depth 10
-    [System.IO.File]::WriteAllText($Out, $json, (New-Object System.Text.UTF8Encoding $false))
-}
+. (Join-Path $PSScriptRoot 'Common.ps1')
 
 function Get-Setting {
     param($Object, [string]$Field, [string]$Default)
     if ($Object -and $Object.PSObject.Properties[$Field] -and [string]$Object.$Field) { return [string]$Object.$Field }
     return $Default
-}
-
-function Invoke-Az {
-    <# 執行 az，退出碼非 0 時拋出例外（含 az 的錯誤輸出）；回傳 stdout #>
-    param([Parameter(Mandatory = $true)][string[]]$Arguments, [string]$Context = 'az 指令')
-    $errFile = [System.IO.Path]::GetTempFileName()
-    try {
-        $stdout = & az @Arguments 2> $errFile
-        if ($LASTEXITCODE -ne 0) {
-            $detail = (Get-Content -Raw -Encoding UTF8 $errFile)
-            $detail = if ($detail) { "：$($detail.Trim())" } else { '' }
-            throw "$Context 失敗（az 退出碼 $LASTEXITCODE）$detail"
-        }
-        return $stdout
-    }
-    finally {
-        Remove-Item $errFile -ErrorAction SilentlyContinue
-    }
 }
 
 function Invoke-Arm {
@@ -211,7 +188,7 @@ function Get-RunbookParameters {
 
 try {
     # ---- 設定 ----
-    $dataRoot = if ($env:ADOMASTER_DATA_DIR) { $env:ADOMASTER_DATA_DIR } else { Join-Path (Split-Path -Parent $PSScriptRoot) 'data' }  # app 會以 ADOMASTER_DATA_DIR 指定 data 資料夾
+    $dataRoot = Get-DataRoot
     if (-not $ConfigPath) { $ConfigPath = Join-Path $dataRoot 'config.json' }
     if (-not (Test-Path -LiteralPath $ConfigPath)) { throw "找不到設定檔：$ConfigPath（範本：templates\config_example.json）" }
     try {
