@@ -76,6 +76,33 @@
       }
     }
   },
+  "customerDeploy": {
+    "saas": {
+      "acme": {
+        "label": "Acme",
+        "repos": {
+          "crmapp": { "platform": "linux/amd64", "preBuild": "armor.bat" },
+          "crmappui": {
+            "platform": "linux/amd64",
+            "envFile": "acme.crmappui.env", "envTarget": "deploy/env-acme",
+            "buildArgs": { "ENV_R1": "env-acme", "ENV_R2": "env-acme" }
+          }
+        }
+      }
+    },
+    "local": {
+      "beta": {
+        "label": "Beta",
+        "repos": {
+          "crmapp": { "envFile": "beta.crmapp.env" },
+          "crmappui": {
+            "envFile": "beta.crmappui.env", "envTarget": "deploy/env-beta",
+            "buildArgs": { "ENV_R1": "env-beta", "ENV_R2": "env-beta" }
+          }
+        }
+      }
+    }
+  },
   "prodRestart": {
     "subscription": "",
     "resourceGroup": "UpDay_Prod_RG",

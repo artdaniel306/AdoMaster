@@ -52,6 +52,9 @@ contextBridge.exposeInMainWorld('api', {
   manualDeployRetry: (id, { rerunAction = false } = {}) => ipcRenderer.invoke('manualDeploy:retry', { id, rerunAction: !!rerunAction }),
   manualDeployDismiss: (id) => ipcRenderer.invoke('manualDeploy:dismiss', { id }),
   manualDeployList: () => ipcRenderer.invoke('manualDeploy:list'),
+  manualDeployShowOutput: (id) => ipcRenderer.invoke('manualDeploy:showOutput', { id }),
+  manualDeployCustomers: () => ipcRenderer.invoke('manualDeploy:customers'),
+  manualDeployProdHead: (repo) => ipcRenderer.invoke('manualDeploy:prodHead', { repo }),
   /** 手動佈版工作的快照：cb(job)（job.removed = 已從清單移除）；輸出：cb({ id, line }) */
   onManualDeployUpdate: (cb) => ipcRenderer.on('manualDeploy:update', (_e, data) => cb(data)),
   onManualDeployLog: (cb) => ipcRenderer.on('manualDeploy:log', (_e, data) => cb(data)),

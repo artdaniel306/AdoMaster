@@ -436,7 +436,10 @@
           <div class="md-seg">
             <label><input type="radio" name="md-env" value="test" checked /> 測試環境</label>
             <label><input type="radio" name="md-env" value="prod" /> 正式環境</label>
+            <label><input type="radio" name="md-env" value="customer" /> 客戶環境</label>
           </div>
+          <label class="md-label md-customer" for="md-customer" hidden>客戶</label>
+          <select id="md-customer" class="md-customer" hidden></select>
           <label class="md-label" for="md-repo">Repository</label>
           <select id="md-repo"></select>
           <label class="md-label" for="md-commit">Commit</label>

@@ -59,6 +59,9 @@ function registerIpcHandlers() {
   ipcMain.handle('manualDeploy:retry', (_e, { id, rerunAction } = {}) => manualDeploy.retry({ id, rerunAction }));
   ipcMain.handle('manualDeploy:dismiss', (_e, { id } = {}) => manualDeploy.dismiss({ id }));
   ipcMain.handle('manualDeploy:list', () => manualDeploy.list());
+  ipcMain.handle('manualDeploy:showOutput', (_e, { id } = {}) => manualDeploy.showOutput({ id }));
+  ipcMain.handle('manualDeploy:customers', () => manualDeploy.customers());
+  ipcMain.handle('manualDeploy:prodHead', (_e, { repo } = {}) => manualDeploy.prodHead({ repo }));
   // 正式環境排程重啟（Azure Automation Schedule + Runbook）
   ipcMain.handle('prodRestart:options', () => prodRestart.restartOptions());
   ipcMain.handle('prodRestart:list', () => prodRestart.listSchedules());

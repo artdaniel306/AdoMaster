@@ -1,6 +1,6 @@
-const { BrowserWindow } = require('electron');
+const { BrowserWindow, shell } = require('electron');
 const { loadRepoConfig, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
-const { checkMerged, mergeNoFf, mergeBackToFeatures } = require('./gitCommit');
+const { checkMerged, mergeNoFf, mergeBackToFeatures, remoteBranchHead } = require('./gitCommit');
 const { repoPipelineRuns } = require('./pipelines');
 const { afterDeployRepo } = require('./afterDeploy');
 const prodRestart = require('./prodRestart');
@@ -25,6 +25,8 @@ const {
  *   Local：merge 進環境 branch → （有 localDeploy 設定）shell/Deploy-Local.ps1
  *   upagent：再執行 UpAgent 發佈（shell/Release-UpAgent.ps1，寫入該環境 SaaS / Local 的資料庫）
  *   正式環境 merge 後同樣把 prodBranch 反向 merge 回所有 feature branch。
+ *   客戶環境（env = 'customer'）：不 merge、不佈版，只在部署用資料夾以正式環境 branch 中的 commit build image tar 交給客戶
+ *         （customerDeploy.<saas|local>.<客戶>，localDeploy.runCustomerBuild）。
  * 不寫入流程狀態（只有 UpAgent 寫入資料庫時，把流程中同版本的紀錄標記為已寫入）。
  *
  * 工作在 main process 執行（可在背景跑、renderer 重新載入也不中斷），進度以 'manualDeploy:update'（工作快照）
@@ -33,7 +35,7 @@ const {
  */
 
 const ENV_STAGE = { test: 'testDeploy', prod: 'prodDeploy' };
-const ENV_LABEL = { test: '測試環境', prod: '正式環境' };
+const ENV_LABEL = { test: '測試環境', prod: '正式環境', customer: '客戶環境' };
 const TARGET_LABEL = { saas: 'SaaS', local: 'Local' };
 const BUMPS = ['patch', 'minor'];
 /** 「接續」可以選的起點（Bump 需要用「完整發佈」） */
@@ -60,6 +62,7 @@ const LOCAL_STEP_TEXT = {
   Push: 'docker load + push',
   Deploy: 'ssh 更新 container',
 };
+const CUSTOMER_KEY_RE = /^[A-Za-z0-9_.-]+$/;
 const RELEASE_STEP_TEXT = {
   Bump: '更版並 push tag',
   WaitAction: '等待 GitHub Action',
@@ -96,9 +99,17 @@ function broadcast(channel, payload) {
  */
 function normalizeParams(p = {}) {
   const repo = str(p.repo);
-  if (!repo || !ENV_STAGE[p.env] || !TARGET_LABEL[p.target]) throw new Error('參數錯誤');
+  if (!repo || !ENV_LABEL[p.env] || !TARGET_LABEL[p.target]) throw new Error('參數錯誤');
   const commit = str(p.commit).toLowerCase();
   if (commit && !COMMIT_RE.test(commit)) throw new Error(`commit 格式錯誤（${COMMIT_FORMAT_HINT}）`);
+  if (p.env === 'customer') {
+    const customer = str(p.customer);
+    if (!customer) throw new Error('請選擇客戶');
+    if (!CUSTOMER_KEY_RE.test(customer)) throw new Error('參數錯誤');
+    if (repo === UPAGENT_REPO) throw new Error('客戶環境不支援 upagent');
+    if (!commit) throw new Error('請填入要打包的 commit');
+    return { repo, env: 'customer', target: p.target, customer, commit, rebuild: p.rebuild === true, restart: null };
+  }
   const out = { repo, env: p.env, target: p.target, commit, rebuild: p.target === 'local' && p.rebuild === true };
   // 正式環境 SaaS：Pipeline Run 成功後在 Azure Automation 排程重啟（null = 不排程）
   out.restart = p.env === 'prod' && p.target === 'saas' ? prodRestart.normalizeRestart(p.restart) : null;
@@ -132,6 +143,7 @@ function normalizeParams(p = {}) {
  */
 async function preview(raw) {
   const p = normalizeParams(raw);
+  if (p.env === 'customer') return previewCustomer(p);
   const stage = ENV_STAGE[p.env];
   const r = (await loadRepoConfig()).repos.find((x) => x.key === p.repo);
   if (!r) throw new Error(`未知的 repository：${p.repo}`);
@@ -189,6 +201,34 @@ async function preview(raw) {
 
   const steps = planSteps({ p, envBranch, merge, pipeline, appService, local, release });
   return { params: p, label: r.label, envBranch, merge, pipeline, appService, local, release, steps, warnings, errors };
+}
+
+/** 客戶環境的檢查：commit 必須已在正式環境 branch（git fetch 後確認），只有一個 build 步驟 */
+async function previewCustomer(p) {
+  const r = (await loadRepoConfig()).repos.find((x) => x.key === p.repo);
+  if (!r) throw new Error(`未知的 repository：${p.repo}`);
+  const t = await localDeploy.customerTarget(p.repo, p.target, p.customer);
+  if (!t) throw new Error(`${CONFIG_LABEL} 尚未設定 customerDeploy.${p.target}.${p.customer}`);
+  const errors = [];
+  const warnings = [];
+  let merge = null;
+  if (t.error) errors.push(t.error);
+  else {
+    const m = await checkMerged({ repo: p.repo, commit: p.commit, envBranch: t.envBranch });
+    const short = m.full.slice(0, 10);
+    merge = { ...m, merged: m.merged, canMerge: false, message: m.merged ? `✓ ${short} 已在正式環境 branch ${t.envBranch}` : `${short} 不在正式環境 branch ${t.envBranch}` };
+    if (!m.merged) errors.push(`客戶環境只能打包已在正式環境 branch（${t.envBranch}）的 commit`);
+  }
+  if (!t.error) {
+    warnings.push(
+      t.envRemoved
+        ? `build 時移除部署用資料夾的 ${t.envTarget}（套用客戶環境設定的變數），完成後還原。`
+        : `build 時使用 env 檔 ${t.envFile} → ${t.envTarget}，完成後還原部署用資料夾原本的檔案。`,
+    );
+  }
+  const steps = [{ key: 'customerBuild', label: `Build ${t.appName} image tar（${t.customerLabel}，${t.platform}）` }];
+  const customer = { key: t.customer, label: t.customerLabel, appName: t.appName, envFile: t.envFile, envTarget: t.envTarget, envRemoved: t.envRemoved };
+  return { params: p, label: r.label, envBranch: t.envBranch, merge, pipeline: null, appService: '', local: null, release: null, customer, steps, warnings, errors };
 }
 
 /** 依設定決定要做的步驟 */
@@ -403,6 +443,23 @@ async function execute(job) {
       });
       step.detail = `${result.image || '完成'} → ${result.remoteHost}`;
     });
+    await runStep(job, 'customerBuild', async (step) => {
+      const result = await localDeploy.runCustomerBuild({
+        repo: p.repo,
+        target: p.target,
+        customer: p.customer,
+        commit: p.commit,
+        rebuild: p.rebuild,
+        log,
+        onStep: (s) => {
+          step.detail = LOCAL_STEP_TEXT[s] || s || '';
+          emit(job);
+        },
+        signal,
+      });
+      job.output = result.tar || null;
+      step.detail = `${result.image} → ${result.tar}`;
+    });
     await runStep(job, 'release', async (step) => {
       await upagentRelease.runManualRelease({
         env: p.env,
@@ -454,11 +511,13 @@ async function start(raw) {
   const job = {
     id: nextId++,
     params: p,
-    title: `${ENV_LABEL[p.env]} ${TARGET_LABEL[p.target]} · ${pv.label}${p.commit ? ` ${p.commit.slice(0, 10)}` : ''}`,
+    title: `${ENV_LABEL[p.env]} ${TARGET_LABEL[p.target]}${pv.customer ? ` ${pv.customer.label}` : ''} · ${pv.label}${p.commit ? ` ${p.commit.slice(0, 10)}` : ''}`,
     envBranch: pv.envBranch,
     steps: pv.steps.map((s) => ({ ...s, state: 'pending', detail: '' })),
     status: 'running',
     message: '佈版中',
+    // 客戶環境：build 出的 image tar（「開啟資料夾」用）
+    output: null,
     error: '',
     startedAt: new Date().toISOString(),
     finishedAt: null,
@@ -526,9 +585,26 @@ function dismiss({ id } = {}) {
   return true;
 }
 
+/** 客戶環境的工作結束後，在檔案總管中顯示 image tar（路徑只取自工作本身） */
+function showOutput({ id } = {}) {
+  const job = jobs.get(id);
+  if (!job?.output) throw new Error('這個工作沒有輸出檔案');
+  shell.showItemInFolder(job.output);
+  return true;
+}
+
+/** 客戶環境的預設 commit：正式環境 branch 在 remote 的最新 commit */
+async function prodHead({ repo } = {}) {
+  const r = (await loadRepoConfig()).repos.find((x) => x.key === repo);
+  if (!r) throw new Error(`未知的 repository：${repo}`);
+  const branch = r.deployBranches.prodDeploy;
+  if (!branch) throw new Error(`尚未設定 ${repo} 的正式環境 branch，請在 ${fieldHint(repo, DEPLOY_BRANCH_FIELDS.prodDeploy)} 設定`);
+  return remoteBranchHead({ repo, branch });
+}
+
 /** 所有工作（含輸出），renderer 載入時同步用 */
 function list() {
   return [...jobs.values()].map((j) => snapshot(j, true));
 }
 
-module.exports = { preview, start, cancel, retry, dismiss, list, RESUME_STEPS };
+module.exports = { preview, start, cancel, retry, dismiss, list, showOutput, prodHead, customers: localDeploy.listCustomers, RESUME_STEPS };

@@ -35,6 +35,11 @@ const {
 
 const MARKER_RE = /^::(step|error)::(.*)$/;
 const SECTION = 'localDeploy';
+/** 客戶環境（手動佈版選「客戶環境」）：customerDeploy.<saas|local>.<客戶 key> */
+const CUSTOMER_SECTION = 'customerDeploy';
+const CUSTOMER_TARGETS = ['saas', 'local'];
+const CUSTOMER_KEY_RE = /^[A-Za-z0-9_.-]+$/;
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** 目前執行中的佈版：{ id, stage, repo, controller }（手動佈版的 id 為 null） */
 let running = null;
@@ -158,10 +163,10 @@ async function runScript(t, { env, rebuild, signal, log, onStep }) {
   };
   const onStdout = onText('out');
   const onStderr = onText('err');
-  const args = ['-Repo', t.repo, '-Environment', env, '-Branch', t.envBranch, '-ConfigPath', CONFIG_FILE];
+  const args = ['-Repo', t.repo, '-Environment', env, '-Branch', t.envBranch, '-ConfigPath', CONFIG_FILE, ...(t.extraArgs || [])];
   if (t.commit) args.push('-ExpectedCommit', t.commit);
   if (rebuild === true) args.push('-Rebuild');
-  log(`▶ ${t.label}：Local 佈版到 ${t.remoteHost}（${t.envBranch}）`);
+  log(t.startLine || `▶ ${t.label}：Local 佈版到 ${t.remoteHost}（${t.envBranch}）`);
   try {
     return await runPowerShellJson('Deploy-Local.ps1', args, { timeout: 0, onStdout, onStderr, signal });
   } catch (err) {
@@ -245,10 +250,118 @@ async function runManualLocalDeploy({ repo, env, commit, rebuild = false, log, o
   }
 }
 
+/* ---------- 客戶環境（只 build image tar 交給客戶） ---------- */
+
+/**
+ * config.json 的 customerDeploy：{ saas: { <客戶 key>: { label, repos: { <repo>: { …localDeploy 欄位, envFile, envTarget } } } }, local: { … } }
+ * @returns {{ saas: [{ key, label, repos: string[] }], local: [...] }}（給 dialog 列客戶）
+ */
+async function listCustomers() {
+  const section = (await readConfig())?.[CUSTOMER_SECTION];
+  const out = {};
+  for (const target of CUSTOMER_TARGETS) {
+    const t = isObj(section?.[target]) ? section[target] : {};
+    out[target] = Object.entries(t)
+      .filter(([key, c]) => CUSTOMER_KEY_RE.test(key) && isObj(c))
+      .map(([key, c]) => ({ key, label: str(c.label) || key, repos: isObj(c.repos) ? Object.keys(c.repos) : [] }));
+  }
+  return out;
+}
+
+/**
+ * 某客戶某 repository 的打包目標；客戶不存在時回傳 null。設定有問題時 error 為錯誤訊息。
+ * 設定 = localDeploy.repos.<repo> 外層（不含 test / prod）被客戶的 repos.<repo> 覆蓋；envFile / envTarget 只看客戶的設定。
+ * env：有 envFile → 複製到 envTarget；SaaS 沒有 envFile → build 時移除 envTarget（預設 .env）；Local 必須有 envFile。
+ */
+async function customerTarget(repo, target, customer) {
+  if (!CUSTOMER_TARGETS.includes(target) || !CUSTOMER_KEY_RE.test(customer || '')) throw new Error('參數錯誤');
+  const config = await readConfig();
+  const c = config?.[CUSTOMER_SECTION]?.[target]?.[customer];
+  if (!isObj(c)) return null;
+  const where = `${CONFIG_LABEL} 的 ${CUSTOMER_SECTION}.${target}.${customer}.repos.${repo}`;
+  const own = isObj(c.repos?.[repo]) ? c.repos[repo] : null;
+  const base = config?.[SECTION]?.repos?.[repo];
+  const { test, prod, ...common } = isObj(base) ? base : {};
+  const s = { ...common, ...(own || {}) };
+  const r = (await loadRepoConfig()).repos.find((x) => x.key === repo);
+  const prodBranch = r?.deployBranches.prodDeploy || '';
+  const projectDir = str(s.projectDir);
+  const envFile = str(own?.envFile);
+  const envTarget = str(own?.envTarget) || '.env';
+  const appName = str(s.appName) || repo;
+  let error = '';
+  if (!own) error = `客戶 ${str(c.label) || customer} 沒有設定 ${repo}（${where}）`;
+  else if (!prodBranch) error = `repos 中 ${repo} 尚未設定正式環境 branch`;
+  else if (!projectDir) error = `${where} 缺少 projectDir（或設定在 localDeploy.repos.${repo}）`;
+  else if (samePath(projectDir, r?.path)) error = `${repo} 的 projectDir 不可與開發用 clone（repos 的 path）相同`;
+  else if (!/^[A-Za-z0-9_.-]+$/.test(appName)) error = `${where} 的 appName 含有不允許的字元：${appName}`;
+  else if (!envFile && target === 'local') error = `${where} 缺少 envFile（Local 客戶環境需要 env 檔，放在 data/local_deploy_env/）`;
+  else if (envFile && !fs.existsSync(path.resolve(LOCAL_DEPLOY_ENV_DIR, envFile))) error = `找不到 ${where} 的 envFile：${path.resolve(LOCAL_DEPLOY_ENV_DIR, envFile)}`;
+  else if (!validEnvTarget(envTarget)) error = `${where} 的 envTarget 必須是部署用資料夾內的相對路徑：${envTarget}`;
+  return {
+    repo,
+    label: r?.label || repo,
+    customer,
+    customerLabel: str(c.label) || customer,
+    target,
+    envBranch: prodBranch,
+    appName,
+    platform: str(s.platform) || 'linux/arm64',
+    projectDir,
+    envFile,
+    envTarget,
+    envRemoved: !envFile,
+    error,
+  };
+}
+
+/**
+ * 手動佈版的客戶環境：在部署用資料夾切到 commit（必須已在正式環境 branch）build image tar（data/customer_build/…），不 push、不 ssh。
+ * 與 Local 佈版共用「一次一個」的限制。
+ * @returns {{ commit, image, tar }}
+ */
+async function runCustomerBuild({ repo, target, customer, commit, rebuild = false, log, onStep, signal }) {
+  if (running) throw new Error(`已有 Local 佈版進行中：${ownerLabel(running)}`);
+  const t = await customerTarget(repo, target, customer);
+  if (!t) throw new Error(`${CONFIG_LABEL} 尚未設定 ${CUSTOMER_SECTION}.${target}.${customer}`);
+  if (t.error) throw new Error(t.error);
+  if (running) throw new Error(`已有 Local 佈版進行中：${ownerLabel(running)}`);
+  if (signal?.aborted) throw new Error('已停止');
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener('abort', abort);
+  running = { id: null, stage: 'customer', repo, controller };
+  try {
+    const result = await runScript(
+      {
+        ...t,
+        commit,
+        extraArgs: ['-Customer', customer, '-CustomerTarget', target],
+        startLine: `▶ ${t.label}：打包客戶環境 ${t.customerLabel}（${commit.slice(0, 10)}）`,
+      },
+      { env: 'customer', rebuild, signal: controller.signal, log, onStep },
+    );
+    log(`✔ ${t.label} 完成`);
+    return { commit: str(result?.commit), image: str(result?.image), tar: str(result?.tar) };
+  } finally {
+    signal?.removeEventListener('abort', abort);
+    running = null;
+  }
+}
+
 /** 停止執行中的 Local 佈版 */
 function cancelLocalDeploy() {
   running?.controller.abort();
   return !!running;
 }
 
-module.exports = { localDeployStatus, runLocalDeploy, cancelLocalDeploy, manualTarget, runManualLocalDeploy };
+module.exports = {
+  localDeployStatus,
+  runLocalDeploy,
+  cancelLocalDeploy,
+  manualTarget,
+  runManualLocalDeploy,
+  listCustomers,
+  customerTarget,
+  runCustomerBuild,
+};

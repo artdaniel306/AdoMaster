@@ -136,6 +136,20 @@ push 環境 branch 會觸發 ADO Pipeline 自動佈版（在 Repository 設定�
 - **重新 build**：預設同一個 commit 已 build 過的 image tar（`data/local_deploy/`）會直接拿來推送、不重新 build。若改了佈版 clone 的設定或 build 參數，請勾選「重新 build」。
 - 可以按「背景執行」關閉視窗；「取消」會中止執行中的佈版。
 
+### 手動佈版的客戶環境
+
+選單「佈版 → 手動佈版…」的「環境」選「**客戶環境**」：不 merge、不佈版，只把 image build 成 tar 檔，交給客戶自行載入（`docker load -i <檔案>`）。
+
+- **客戶**：依「目標」（SaaS / Local）列出 `data/config.json` 的 `customerDeploy.saas` / `customerDeploy.local` 中設定的客戶（範例見 `templates/config_example.json`）。
+- **Commit**：預設帶入正式環境 branch 最新的 commit，可以改成其他 commit，但必須已經在正式環境 branch 中。upagent 不支援客戶環境。
+- **設定**：沿用 `localDeploy.repos.<repo>` 的部署用 clone（`projectDir`）、`appName`、`platform`、`preBuild`、`buildArgs`，客戶的 `repos.<repo>` 中同名欄位會覆蓋（例如 SaaS 客戶改用 `linux/amd64` 與對應的 `preBuild`）。
+- **env 檔**（放在 `data/local_deploy_env/`，只讀客戶自己的 `envFile` / `envTarget`）：
+  - 有設定 `envFile`：build 時複製到部署用 clone 的 `envTarget`（預設 `.env`）。crmappui 不論 SaaS / Local 都要設定，例如 `"envTarget": "deploy/env-acme"` 並以 `buildArgs` 指定。
+  - **SaaS 客戶**沒有設定 `envFile`：build 時**移除** `.env`（`envTarget`），讓 crmapp 套用客戶環境設定的變數。
+  - **Local 客戶**一定要設定 `envFile`。
+  - build 結束後會還原部署用 clone 原本的檔案，不影響之後的測試 / 正式環境 Local 佈版。
+- **輸出**：`data/customer_build/<saas|local>/<客戶>/<repo>/` 下的 tar 檔（每個客戶 / repository 保留最新 3 個）。完成後在「佈版進度」按「**開啟資料夾**」。同一個 commit 與 env 已 build 過時直接沿用，需要重新 build 請勾「重新 build」。
+
 ### 測試與檢核
 
 在進行中的階段勾選「測試 / 檢核完成」會開啟記錄視窗。記下這次的測試場景或驗證方式，之後才能回想起當時的狀況。可以從以下面向記錄：
@@ -249,7 +263,7 @@ push 環境 branch 會觸發 ADO Pipeline 自動佈版（在 Repository 設定�
 - Port 空白 = 使用預設值（輸入框中的灰字）。
 - psql 空白 = 使用 PATH 上的 psql；4 個資料庫通常用同一個。
 
-`upagentRelease` 的其他欄位（storage / github / codesign）與 `localDeploy` 目前沒有設定畫面，請直接編輯 `data/config.json`（可參考 `templates/config_example.json`）。
+`upagentRelease` 的其他欄位（storage / github / codesign）、`localDeploy` 與 `customerDeploy` 目前沒有設定畫面，請直接編輯 `data/config.json`（可參考 `templates/config_example.json`）。
 
 ## 同步所有 Repository
 

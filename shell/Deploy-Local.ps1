@@ -44,6 +44,15 @@
     image tag = <Environment>-<deploy 的 commit 前 10 碼>（例如 test-1a2b3c4d5e）；
     有 envFile 時再加 8 碼雜湊（env 檔內容 + envTarget，例如 test-1a2b3c4d5e-0f1e2d3c），改了 env 檔或 envTarget 就不會沿用舊的 tar。
 
+    客戶環境（-Environment customer -Customer <key> -CustomerTarget <saas|local>，手動佈版選「客戶環境」）：
+      只 build image tar 交給客戶，不 push、不 ssh。
+      設定 = localDeploy.repos.<Repo> 外層（projectDir / appName / platform / preBuild / buildArgs …，不含 test / prod 子物件）
+             被 customerDeploy.<saas|local>.<Customer>.repos.<Repo> 覆蓋；envFile / envTarget 只讀客戶的設定。
+      Source：-Branch 為正式環境 branch，-ExpectedCommit 必填且必須已在 origin/<Branch> 中，切到該 commit（不是 branch 最新）。
+      Env：有 envFile → 複製到 envTarget；SaaS 客戶沒有 envFile → build 時移除 envTarget（預設 .env，讓 image 套用客戶環境的變數）；
+           Local 客戶必須有 envFile。build 完成（或失敗）後還原部署用資料夾中原本的 envTarget。
+      tar = data\customer_build\<saas|local>\<Customer>\<Repo>\<appName>_<tag>.tar，tag = <Customer>-<commit 前 10 碼>-<env 雜湊>。
+
     慣例（見 shell/CLAUDE.md）：進度寫 stdout（docker / git 的進度在 stderr，app 也會即時顯示），
     結果 JSON 寫到 -Out，失敗時 ::error:: 標記 + stderr + exit 1。
 
@@ -55,11 +64,16 @@ param(
     [string]$Repo,              # data/config.json 的 repos 的 key（crmapp / crmappui …）
 
     [Parameter(Mandatory = $true)]
-    [ValidateSet("test", "prod")]
+    [ValidateSet("test", "prod", "customer")]
     [string]$Environment,
 
+    [string]$Customer,          # 客戶環境：customerDeploy.<saas|local> 的客戶 key
+
+    [ValidateSet("", "saas", "local")]
+    [string]$CustomerTarget = "",
+
     [Parameter(Mandatory = $true)]
-    [string]$Branch,            # 環境 branch（testBranch / prodBranch）
+    [string]$Branch,            # 環境 branch（testBranch / prodBranch；客戶環境 = prodBranch）
 
     [string]$ExpectedCommit,    # Confirm Commit 的 commit：必須已在 origin/<Branch> 中
 
@@ -78,6 +92,7 @@ $DockerTimeoutSec = 180
 $KeepTars = 3
 $dataRoot = if ($env:ADOMASTER_DATA_DIR) { $env:ADOMASTER_DATA_DIR } else { Join-Path (Split-Path -Parent $PSScriptRoot) 'data' }  # app 會以 ADOMASTER_DATA_DIR 指定 data 資料夾
 $tarRoot = Join-Path $dataRoot "local_deploy"
+$customerTarRoot = Join-Path $dataRoot "customer_build"
 $envFileRoot = Join-Path $dataRoot "local_deploy_env"   # envFile 相對路徑的基準（匯出本地資料會包含這個資料夾）
 
 function Exit-WithError {
@@ -160,6 +175,13 @@ try {
     if ($Repo -notmatch '^[A-Za-z0-9_.-]+$') { throw "Repo 名稱不正確：$Repo" }
     if ($ExpectedCommit -and $ExpectedCommit -notmatch '^[0-9a-fA-F]{4,40}$') { throw "ExpectedCommit 格式不正確：$ExpectedCommit" }
 
+    $isCustomer = $Environment -eq "customer"
+    if ($isCustomer) {
+        if ($Customer -notmatch '^[A-Za-z0-9_.-]+$') { throw "客戶 key 不正確：$Customer" }
+        if (-not $CustomerTarget) { throw "客戶環境需要 -CustomerTarget saas|local" }
+        if (-not $ExpectedCommit) { throw "客戶環境需要 -ExpectedCommit" }
+    }
+
     # ---- 讀取設定 ----
     if (-not (Test-Path -LiteralPath $ConfigPath)) { throw "找不到設定檔 $ConfigPath" }
     $config = [System.IO.File]::ReadAllText($ConfigPath) | ConvertFrom-Json
@@ -167,36 +189,64 @@ try {
     if ($config.localDeploy -and $config.localDeploy.repos -and $config.localDeploy.repos.PSObject.Properties[$Repo]) {
         $repoSettings = $config.localDeploy.repos.$Repo
     }
-    if (-not $repoSettings) { throw "$ConfigPath 尚未設定 localDeploy.repos.$Repo" }
     $envSettings = $null
-    if ($repoSettings.PSObject.Properties[$Environment]) { $envSettings = $repoSettings.$Environment }
-    if (-not $envSettings) { throw "$ConfigPath 尚未設定 localDeploy.repos.$Repo.$Environment" }
+    if ($isCustomer) {
+        # 客戶設定覆蓋 localDeploy.repos.<Repo> 外層（Get-Setting 只讀具名欄位，不會用到 test / prod 子物件）
+        $settingsPath = "customerDeploy.$CustomerTarget.$Customer.repos.$Repo"
+        $customerSettings = $null
+        if ($config.customerDeploy -and $config.customerDeploy.PSObject.Properties[$CustomerTarget]) {
+            $targetSection = $config.customerDeploy.$CustomerTarget
+            if ($targetSection -and $targetSection.PSObject.Properties[$Customer]) { $customerSettings = $targetSection.$Customer }
+        }
+        if (-not $customerSettings) { throw "$ConfigPath 尚未設定 customerDeploy.$CustomerTarget.$Customer" }
+        if ($customerSettings.repos -and $customerSettings.repos.PSObject.Properties[$Repo]) { $envSettings = $customerSettings.repos.$Repo }
+        if (-not $envSettings) { throw "$ConfigPath 尚未設定 $settingsPath" }
+        $customerLabel = if ($customerSettings.label) { [string]$customerSettings.label } else { $Customer }
+    } else {
+        $settingsPath = "localDeploy.repos.$Repo"
+        if (-not $repoSettings) { throw "$ConfigPath 尚未設定 localDeploy.repos.$Repo" }
+        if ($repoSettings.PSObject.Properties[$Environment]) { $envSettings = $repoSettings.$Environment }
+        if (-not $envSettings) { throw "$ConfigPath 尚未設定 localDeploy.repos.$Repo.$Environment" }
+    }
 
     $projectDir   = [string](Get-Setting "projectDir" -Required)
     $appName      = [string](Get-Setting "appName" $Repo)
     $platform     = [string](Get-Setting "platform" "linux/arm64")
     $preBuild     = [string](Get-Setting "preBuild" "")
-    $pushRegistry = [string](Get-Setting "pushRegistry" -Required)
-    $pullRegistry = [string](Get-Setting "pullRegistry" "localhost:5000")
-    $remoteHost   = [string](Get-Setting "remoteHost" -Required)
-    $network      = [string](Get-Setting "network" "")
-    $hostPort     = [string](Get-Setting "hostPort" -Required)
-    $appPort      = [string](Get-Setting "appPort" -Required)
     $buildArgs    = Get-Pairs "buildArgs"
-    $runEnv       = Get-Pairs "runEnv"
-    $envFile      = [string](Get-Setting "envFile" "")
-    $envTarget    = [string](Get-Setting "envTarget" ".env")
+    if ($isCustomer) {
+        # 客戶環境只 build，不 push / ssh；env 檔只用客戶自己的設定
+        $envFile   = [string]$envSettings.envFile
+        $envTarget = if ($envSettings.envTarget) { [string]$envSettings.envTarget } else { ".env" }
+        $removeEnv = (-not $envFile) -and $CustomerTarget -eq "saas"
+        if (-not $envFile -and -not $removeEnv) { throw "$settingsPath 缺少 envFile（Local 客戶環境需要 env 檔）" }
+    } else {
+        $pushRegistry = [string](Get-Setting "pushRegistry" -Required)
+        $pullRegistry = [string](Get-Setting "pullRegistry" "localhost:5000")
+        $remoteHost   = [string](Get-Setting "remoteHost" -Required)
+        $network      = [string](Get-Setting "network" "")
+        $hostPort     = [string](Get-Setting "hostPort" -Required)
+        $appPort      = [string](Get-Setting "appPort" -Required)
+        $runEnv       = Get-Pairs "runEnv"
+        $envFile      = [string](Get-Setting "envFile" "")
+        $envTarget    = [string](Get-Setting "envTarget" ".env")
+        $removeEnv    = $false
+    }
     $envHash      = ""
-    if ($envFile) {
-        if (-not [System.IO.Path]::IsPathRooted($envFile)) { $envFile = Join-Path $envFileRoot $envFile }
-        if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) { throw "找不到 localDeploy.repos.$Repo 的 envFile：$envFile" }
-        $envFile = (Resolve-Path -LiteralPath $envFile).ProviderPath
+    if ($envFile -or $removeEnv) {
         # envTarget 只能是 projectDir 內的相對路徑
         $envTarget = $envTarget -replace '/', '\'
         if ([System.IO.Path]::IsPathRooted($envTarget) -or ($envTarget -split '\\' | Where-Object { $_ -eq '..' }) -or $envTarget -notmatch '^[A-Za-z0-9_.\\-]+$') {
-            throw "localDeploy.repos.$Repo 的 envTarget 必須是部署用資料夾內的相對路徑：$envTarget"
+            throw "$settingsPath 的 envTarget 必須是部署用資料夾內的相對路徑：$envTarget"
         }
-        $fileHash = (Get-FileHash -LiteralPath $envFile -Algorithm SHA256).Hash
+        if ($envFile) {
+            if (-not [System.IO.Path]::IsPathRooted($envFile)) { $envFile = Join-Path $envFileRoot $envFile }
+            if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) { throw "找不到 $settingsPath 的 envFile：$envFile" }
+            $envFile = (Resolve-Path -LiteralPath $envFile).ProviderPath
+            $fileHash = (Get-FileHash -LiteralPath $envFile -Algorithm SHA256).Hash
+        } else {
+            $fileHash = "remove"   # 移除 envTarget 的 build 與有 env 檔的 build 用不同的 tag
+        }
         $sha = [System.Security.Cryptography.SHA256]::Create()
         try {
             $bytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("$($envTarget.ToLowerInvariant())`n$fileHash"))
@@ -204,17 +254,27 @@ try {
         $envHash = (-join ($bytes | ForEach-Object { $_.ToString("x2") })).Substring(0, 8)
     }
 
-    # 會組進遠端 shell 指令的值，只允許安全字元
-    foreach ($pair in @(@("appName", $appName), @("pullRegistry", $pullRegistry), @("network", $network), @("hostPort", $hostPort), @("appPort", $appPort))) {
-        if ($pair[1] -notmatch '^[A-Za-z0-9_.:/-]*$') { throw "localDeploy.repos.$Repo 的 $($pair[0]) 含有不允許的字元：$($pair[1])" }
-    }
-    foreach ($kv in $runEnv) {
-        if ($kv -notmatch '^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9_.:/@%+,-]*$') { throw "localDeploy.repos.$Repo 的 runEnv 含有不允許的字元：$kv" }
+    if ($isCustomer) {
+        # 客戶環境的 appName 也是 tar 檔名的一部分
+        if ($appName -notmatch '^[A-Za-z0-9_.-]+$') { throw "$settingsPath 的 appName 含有不允許的字元：$appName" }
+    } else {
+        # 會組進遠端 shell 指令的值，只允許安全字元
+        foreach ($pair in @(@("appName", $appName), @("pullRegistry", $pullRegistry), @("network", $network), @("hostPort", $hostPort), @("appPort", $appPort))) {
+            if ($pair[1] -notmatch '^[A-Za-z0-9_.:/-]*$') { throw "localDeploy.repos.$Repo 的 $($pair[0]) 含有不允許的字元：$($pair[1])" }
+        }
+        foreach ($kv in $runEnv) {
+            if ($kv -notmatch '^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9_.:/@%+,-]*$') { throw "localDeploy.repos.$Repo 的 runEnv 含有不允許的字元：$kv" }
+        }
     }
     if (-not (Test-Path -LiteralPath (Join-Path $projectDir ".git"))) { throw "部署用資料夾不是 git repository：$projectDir" }
 
-    $label = @{ test = "測試環境"; prod = "正式環境" }[$Environment]
-    Write-Host "Local 佈版：$Repo → $label（$remoteHost，port $hostPort）"
+    if ($isCustomer) {
+        $label = "客戶環境 $customerLabel（$(@{ saas = 'SaaS'; local = 'Local' }[$CustomerTarget])）"
+        Write-Host "客戶環境打包：$Repo → $label（只 build image tar）"
+    } else {
+        $label = @{ test = "測試環境"; prod = "正式環境" }[$Environment]
+        Write-Host "Local 佈版：$Repo → $label（$remoteHost，port $hostPort）"
+    }
 
     # ---- 1. Docker ----
     Write-Step "Docker" "確認 Docker engine"
@@ -257,31 +317,55 @@ try {
         Write-Host "保留部署用資料夾的本機修改："
         $dirty | ForEach-Object { Write-Host "  $_" }
     }
+    # 客戶環境切到指定的 commit（預設是正式環境 branch 最新），其他環境切到環境 branch 最新
+    if ($isCustomer) { $target = $expected }
     # 不加 --force：本機修改與新版本衝突時 git 會拒絕，不會覆蓋
-    Invoke-Native -FilePath "git" -Arguments @("checkout", "--detach", $target) -Context "git checkout origin/$Branch（若是本機修改衝突，請手動處理 $projectDir）"
+    Invoke-Native -FilePath "git" -Arguments @("checkout", "--detach", $target) -Context "git checkout $(if ($isCustomer) { $ExpectedCommit } else { "origin/$Branch" })（若是本機修改衝突，請手動處理 $projectDir）"
     $short = $target.Substring(0, 10)
-    Write-Host "目前版本：$short（origin/$Branch）"
+    Write-Host "目前版本：$short（$(if ($isCustomer) { "在 origin/$Branch 中" } else { "origin/$Branch" })）"
 
-    $tag = "$Environment-$short"
+    # docker tag 只能小寫
+    $tag = if ($isCustomer) { "$Customer-$short".ToLowerInvariant() } else { "$Environment-$short" }
     if ($envHash) { $tag += "-$envHash" }
     # tar 內的 image 名稱不含 registry：改了 pushRegistry 也能沿用已 build 的 tar
     $localImage = "${appName}:$tag"
-    $pushImage = "$pushRegistry/$localImage"
-    $pullImage = "$pullRegistry/$localImage"
-    $tarDir = Join-Path $tarRoot $Repo
+    if ($isCustomer) {
+        $tarDir = Join-Path (Join-Path (Join-Path $customerTarRoot $CustomerTarget) $Customer) $Repo
+    } else {
+        $pushImage = "$pushRegistry/$localImage"
+        $pullImage = "$pullRegistry/$localImage"
+        $tarDir = Join-Path $tarRoot $Repo
+    }
     $tarPath = Join-Path $tarDir "${appName}_$tag.tar"
 
     if ((Test-Path -LiteralPath $tarPath) -and -not $Rebuild) {
         Write-Host ""
         Write-Host "已有此版本的 image tar，略過前置指令與 build：$tarPath"
     } else {
+      # 客戶環境：build 後（成功或失敗）還原部署用資料夾原本的 envTarget，不影響之後的測試 / 正式環境 Local 佈版
+      $envBackup = $null
+      $envRestore = $false
+      try {
         # ---- 3. Env ----
-        if ($envFile) {
+        if ($envFile -or $removeEnv) {
             $envDest = Join-Path $projectDir $envTarget
-            Write-Step "Env" "使用$label 的 env 檔：$envFile → $envDest"
-            if ($envFile -ne $envDest) {   # envFile 就是目標檔時不用複製
-                New-Item -ItemType Directory -Force -Path (Split-Path -Parent $envDest) | Out-Null
-                Copy-Item -LiteralPath $envFile -Destination $envDest -Force
+            if ($isCustomer -and $envFile -ne $envDest) {
+                $envRestore = $true
+                if (Test-Path -LiteralPath $envDest -PathType Leaf) {
+                    $envBackup = [System.IO.Path]::GetTempFileName()
+                    Copy-Item -LiteralPath $envDest -Destination $envBackup -Force
+                }
+            }
+            if ($removeEnv) {
+                Write-Step "Env" "SaaS 客戶環境：build 時移除 $envDest（套用客戶環境的變數）"
+                Remove-Item -LiteralPath $envDest -Force -ErrorAction SilentlyContinue
+                if (Test-Path -LiteralPath $envDest) { throw "無法移除 $envDest" }
+            } else {
+                Write-Step "Env" "使用$label 的 env 檔：$envFile → $envDest"
+                if ($envFile -ne $envDest) {   # envFile 就是目標檔時不用複製
+                    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $envDest) | Out-Null
+                    Copy-Item -LiteralPath $envFile -Destination $envDest -Force
+                }
             }
         }
 
@@ -307,6 +391,18 @@ try {
         }
         Move-Item -LiteralPath $partial -Destination $tarPath -Force
         Write-Host ("已輸出 {0}（{1:N0} MB）" -f $tarPath, ((Get-Item -LiteralPath $tarPath).Length / 1MB))
+      }
+      finally {
+        if ($envRestore) {
+            if ($envBackup) {
+                Copy-Item -LiteralPath $envBackup -Destination $envDest -Force
+                Remove-Item -LiteralPath $envBackup -Force -ErrorAction SilentlyContinue
+                Write-Host "已還原部署用資料夾的 $envTarget"
+            } else {
+                Remove-Item -LiteralPath $envDest -Force -ErrorAction SilentlyContinue
+            }
+        }
+      }
 
         # 只保留最新的 $KeepTars 個 tar
         Get-ChildItem -LiteralPath $tarDir -Filter "*.tar" |
@@ -316,6 +412,28 @@ try {
                 Write-Host "刪除舊的 image tar：$($_.Name)"
                 Remove-Item -LiteralPath $_.FullName -Force
             }
+    }
+
+    if ($isCustomer) {
+        Write-Host ""
+        Write-Host "完成：$localImage（$label）→ $tarPath"
+        Write-Host "客戶載入：docker load -i $([System.IO.Path]::GetFileName($tarPath))"
+        $result = [ordered]@{
+            repo           = $Repo
+            environment    = $Environment
+            customer       = $Customer
+            customerTarget = $CustomerTarget
+            commit         = $target
+            image          = $localImage
+            tar            = $tarPath
+            envFile        = $envFile
+            envTarget      = $envTarget
+            envRemoved     = [bool]$removeEnv
+        }
+        if ($Out) {
+            [System.IO.File]::WriteAllText($Out, ($result | ConvertTo-Json -Depth 10), (New-Object System.Text.UTF8Encoding $false))
+        }
+        exit 0
     }
 
     # ---- 5. Push ----

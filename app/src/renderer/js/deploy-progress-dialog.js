@@ -92,6 +92,8 @@ export function createDeployProgressDialog({ openManual, badgeEl }) {
       actions.append(button('停止', 'btn-ghost btn-danger', () => api.manualDeployCancel(job.id)));
     } else {
       actions.append(button('移除', 'btn-ghost', () => api.manualDeployDismiss(job.id)));
+      // 客戶環境：在檔案總管中顯示 build 出的 image tar
+      if (job.output) actions.append(button('開啟資料夾', 'btn-ghost', () => api.manualDeployShowOutput(job.id)));
       if (job.status !== 'succeeded') {
         const next = nextReleaseStep(job);
         if (next === 'WaitAction') {

@@ -270,6 +270,25 @@ async function remoteRef(cwd, repo, branch, label) {
 }
 
 /**
+ * 環境 branch 在 remote 的最新 commit（先 git fetch）。手動佈版的客戶環境用來預設帶入正式環境 branch 的 commit。
+ * @returns {{ repo, branch, full, subject, author, date }}
+ */
+async function remoteBranchHead({ repo, branch } = {}) {
+  if (typeof repo !== 'string' || typeof branch !== 'string' || !branch.trim()) throw new Error('參數錯誤');
+  branch = branch.trim();
+  const r = await resolveRepo(repo);
+  try {
+    await git(r.path, ['fetch', REMOTE, '--quiet', '--no-tags'], FETCH_TIMEOUT);
+  } catch (err) {
+    throw new Error(`${repo} git fetch ${REMOTE} 失敗：${(err.stderr || err.message).trim()}`);
+  }
+  const ref = await remoteRef(r.path, repo, branch, '環境 branch');
+  const found = await lookup(r.path, ref);
+  if (!found) throw new Error(`${repo} 找不到 ${REMOTE}/${branch}`);
+  return { repo, branch, ...found };
+}
+
+/**
  * 佈版的 merge 狀態：Confirm Commit 一律「開發 branch → feature branch → 環境 branch」，不直接 merge 進環境 branch。
  *   1. commit 不在 origin/<featureBranch> → 先以 merge commit（--no-ff）merge 進 feature branch（已在其中則略過）
  *   2. 再把 feature branch 上包含它的 commit（featureEntry；第 1 步建立的 merge commit）merge 進 origin/<envBranch>
@@ -638,4 +657,4 @@ async function branchGraph({ repo, branch, fetch = false, all = false } = {}) {
   return result;
 }
 
-module.exports = { git, checkCommit, checkMerged, mergeNoFf, checkDeployMerge, mergeViaFeature, mergeBackToFeatures, branchGraph };
+module.exports = { git, checkCommit, checkMerged, remoteBranchHead, mergeNoFf, checkDeployMerge, mergeViaFeature, mergeBackToFeatures, branchGraph };
