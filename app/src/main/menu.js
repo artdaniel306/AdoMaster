@@ -1,4 +1,4 @@
-const { Menu } = require('electron');
+const { app, Menu } = require('electron');
 const { openHelpWindow } = require('./helpWindow');
 
 /**
@@ -10,6 +10,7 @@ const { openHelpWindow } = require('./helpWindow');
  * 「工具」放同步所有 Repository（repo-sync-dialog.js），
  * 同樣只通知 renderer，
  * 「說明 → 使用手冊」（F1）由 main 直接開獨立視窗（helpWindow.js，內容是 docs/user-guide.md），
+ * 「說明 → 關於 AdoMaster」把版本號（package.json version）傳給 renderer，用 app 內的 confirm dialog 顯示，
  * 其餘沿用 Electron 預設的編輯 / 檢視 / 視窗選單。
  */
 function buildMenu() {
@@ -55,7 +56,14 @@ function buildMenu() {
     {
       label: '說明',
       role: 'help',
-      submenu: [{ label: '使用手冊', accelerator: 'F1', click: () => openHelpWindow() }],
+      submenu: [
+        { label: '使用手冊', accelerator: 'F1', click: () => openHelpWindow() },
+        { type: 'separator' },
+        {
+          label: '關於 AdoMaster',
+          click: (_item, win) => win?.webContents.send('menu:about', { name: app.getName(), version: app.getVersion() }),
+        },
+      ],
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

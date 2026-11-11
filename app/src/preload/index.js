@@ -124,4 +124,6 @@ contextBridge.exposeInMainWorld('api', {
   /** 選單「設定 → UpAgent 發佈資料庫設定…」被點擊時呼叫 cb() */
   onUpagentReleaseDbSettingsMenu: (cb) => ipcRenderer.on('menu:upagentReleaseDbSettings', () => cb()),
   onProdRestartSettingsMenu: (cb) => ipcRenderer.on('menu:prodRestartSettings', () => cb()),
+  /** 選單「說明 → 關於 AdoMaster」被點擊時呼叫 cb({ name, version }) */
+  onAboutMenu: (cb) => ipcRenderer.on('menu:about', (_e, info) => cb(info)),
 });

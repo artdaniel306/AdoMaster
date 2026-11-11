@@ -13,6 +13,7 @@ import { createDeployProgressDialog } from './deploy-progress-dialog.js';
 import { createRestartScheduleDialog } from './restart-schedule-dialog.js';
 import { initProdRestartSettings } from './prod-restart-settings-dialog.js';
 import { createRepoSyncDialog } from './repo-sync-dialog.js';
+import { createConfirmDialog } from './confirm-dialog.js';
 import { api } from './api.js';
 
 const exactEl = $('exact');
@@ -70,3 +71,5 @@ const restartSchedule = createRestartScheduleDialog({ openSettings: (onSaved) =>
 api.onDeployMenu((action) => (action === 'manual' ? manualDeploy.open() : action === 'restart' ? restartSchedule.open() : progress.open()));
 
 tree.load();
+
+api.onAboutMenu(({ name, version }) => createConfirmDialog().alert(`關於 ${name}`, `版本 ${version}`));

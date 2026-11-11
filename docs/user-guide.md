@@ -1,6 +1,6 @@
 # AdoMaster 使用手冊
 
-AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也是 Requirement 從開發到正式發佈的流程看板。這份手冊說明各畫面與對話框的用法；在 app 中按 **F1** 或選單「說明 → 使用手冊」即可開啟。
+AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也是 Requirement 從開發到正式發佈的流程看板。這份手冊說明各畫面與對話框的用法；在 app 中按 **F1** 或選單「說明 → 使用手冊」即可開啟。目前安裝的版本可在選單「說明 → 關於 AdoMaster」查看。
 
 > 開發者請看 `docs/requirement-flow.md`（流程的詳細規格）與專案根目錄的 `CLAUDE.md`。
 
