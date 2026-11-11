@@ -7,6 +7,7 @@ const flowState = require('./services/flowState');
 const repoConfig = require('./services/repoConfig');
 const appConfig = require('./services/appConfig');
 const gitCommit = require('./services/gitCommit');
+const branchGraph = require('./services/branchGraph');
 const pipelines = require('./services/pipelines');
 const afterDeploy = require('./services/afterDeploy');
 const testRecord = require('./services/testRecord');
@@ -16,6 +17,7 @@ const upagentConnection = require('./services/upagentConnection');
 const upagentReleaseDb = require('./services/upagentReleaseDb');
 const userGuide = require('./services/userGuide');
 const manualDeploy = require('./services/manualDeploy');
+const customerDeploy = require('./services/customerDeploy');
 const prodRestart = require('./services/prodRestart');
 const repoSync = require('./services/repoSync');
 
@@ -60,8 +62,8 @@ function registerIpcHandlers() {
   ipcMain.handle('manualDeploy:dismiss', (_e, { id } = {}) => manualDeploy.dismiss({ id }));
   ipcMain.handle('manualDeploy:list', () => manualDeploy.list());
   ipcMain.handle('manualDeploy:showOutput', (_e, { id } = {}) => manualDeploy.showOutput({ id }));
-  ipcMain.handle('manualDeploy:customers', () => manualDeploy.customers());
-  ipcMain.handle('manualDeploy:prodHead', (_e, { repo } = {}) => manualDeploy.prodHead({ repo }));
+  ipcMain.handle('manualDeploy:customers', () => customerDeploy.customers());
+  ipcMain.handle('manualDeploy:prodHead', (_e, { repo } = {}) => customerDeploy.prodHead({ repo }));
   // 正式環境排程重啟（Azure Automation Schedule + Runbook）
   ipcMain.handle('prodRestart:options', () => prodRestart.restartOptions());
   ipcMain.handle('prodRestart:list', () => prodRestart.listSchedules());
@@ -84,7 +86,7 @@ function registerIpcHandlers() {
   ipcMain.handle('repoSync:cancel', () => repoSync.cancelSync());
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());
   ipcMain.handle('repos:checkCommit', (_e, params) => gitCommit.checkCommit(params));
-  ipcMain.handle('repos:branchGraph', (_e, params) => gitCommit.branchGraph(params));
+  ipcMain.handle('repos:branchGraph', (_e, params) => branchGraph.branchGraph(params));
 
   const senderWindow = (e) => BrowserWindow.fromWebContents(e.sender);
   ipcMain.handle('repos:loadSettings', () => repoConfig.loadRepoSettings());

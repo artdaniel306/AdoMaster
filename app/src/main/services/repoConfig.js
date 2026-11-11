@@ -21,7 +21,7 @@ const { CONFIG_LABEL, readConfig, updateConfig } = require('./appConfig');
  *   - testAppService / testResourceGroup：測試環境 Pipeline Run 成功後要重啟的 App Service（afterDeploy.js；
  *     空白 = 不重啟；Resource Group 空白時自動查詢）。正式環境刻意沒有對應欄位（不自動重啟）
  *   - backMergeKeepPaths（選填，設定 dialog 不編輯）：{ "peach_101": ["tenant_db/migrations"] }
- *     正式環境反向 merge 回 feature branch 時，這些路徑保留該 branch 原本的內容（見 gitCommit.mergeBackToFeatures）
+ *     正式環境反向 merge 回 feature branch 時，這些路徑保留該 branch 原本的內容（見 deployMerge.mergeBackToFeatures）
  */
 const FILE_LABEL = `${CONFIG_LABEL} 的 repos`;
 const KEY_RE = /^[A-Za-z0-9_.-]+$/;

@@ -1,6 +1,6 @@
 # 架構優化計畫：第二批、第三批
 
-進度：第一步（2-5、2-6、3-7）、第二步（2-1、2-2）已完成（2-1、2-2 待手動驗證）。
+進度：第一步（2-5、2-6、3-7）、第二步（2-1、2-2）、第三步（2-3、2-4）已完成（2-1 ~ 2-4 待手動驗證）。下一步：3-2。
 
 第一批（bug 修正、共用常數、`Common.ps1`、`runPowerShellLines`、`exclusiveRunner`、`findRepo`）已在 commit `e2f35ab refactor` 完成。
 本文件列出剩下的項目，依建議順序排列。每項都標了成本 / 效益與驗證方式；做完一項就勾起來，並同步更新 CLAUDE.md / 文件。
@@ -36,7 +36,12 @@
 - **驗證**：Local 佈版與 UpAgent 發佈各跑一次成功、一次中途停止、一次失敗後重試；關閉 dialog 後從「佈版進度」再打開。
 - **成本**：中
 
-### 2-3. 拆 `main/services/gitCommit.js`（660 行，四種職責）
+### 2-3. ✅ 拆 `main/services/gitCommit.js`（660 行，四種職責）
+- 完成情況：`git.js`（214 行）、`deployMerge.js`（279 行）、`branchGraph.js`（146 行）、`gitCommit.js`（57 行）。
+  與原計畫的差異：`resolveRepo` 放在 `git.js`（`deployMerge` / `branchGraph` 都要用，放 `gitCommit.js` 會讓下層依賴上層），改用 `repoConfig.requireRepo`；另加 `gitError(err)`。
+  `fetchOrigin(r, { all, tags, prune })` 取代 6 處 fetch + 錯誤包裝（失敗時 `err.detail` = git 原始訊息，給 `checkCommit` / `branchGraph` 自訂訊息）。
+  `checkMerged` / `mergeNoFf` 的參數與回傳欄位 `envBranch` → `targetBranch`，branch 檢查改用 `remoteRef`（錯誤訊息改為「的 branch 名稱不正確」/「remote 沒有 branch …」）。
+  行為不變：fetch 次數維持原樣（留給 3-2）。
 - **拆法**：
   - `git.js`：`git`、`lookup`、`normalizeCommit`、`isAncestor`、`trialMerge`、`remoteRef`、`commitAndPush`、`restorePaths`，再加一個 `fetchOrigin(path, { tags, all, prune })`
     —— 目前 fetch + 錯誤包裝寫了 6 次（`:100`、`:171`、`:281`、`:312`、`:471`、`:590`）
@@ -48,7 +53,9 @@
   - 檔頭註解只描述 Confirm Commit；`checkCommit` 的 JSDoc 掛錯位置（在 `resolveRepo` 上）
 - **成本**：中（純搬移，但呼叫端多；用 `node --check` + 走一次流程 merge 驗證）
 
-### 2-4. 拆 `main/services/manualDeploy.js`（588 行）
+### 2-4. ✅ 拆 `main/services/manualDeploy.js`（588 行）
+- 完成情況：`jobs.js` 的 `createJobStore({ channel, noun, doneText, keepFinished })`（工作清單、廣播、`add` / `runStep` / `finish` / `cancel` / `dismiss` / `list` / `getFinished`）+ `sleep`；
+  `customerDeploy.js`（`previewCustomer`、`prodHead`、`customers`，ipc 直接呼叫）。`manualDeploy.js` 588 → 442 行；Pipeline 等待 / 監看（`pollRuns`、`waitIdle`、`watchRun`）仍在 `manualDeploy.js`，3-1 再搬到 `pipelineWatch.js`。
 - `jobs.js`：`jobs` Map、`broadcast`、`snapshot`、`appendLog`、`runStep`、`finish`、`cancel` / `dismiss` / `list`、`sleep`
 - `manualDeploy.js` 只留 `normalizeParams`、`preview`、`planSteps`、`execute`、`retry`
 - 客戶環境的 `previewCustomer` 可再獨立成 `customerDeploy.js`

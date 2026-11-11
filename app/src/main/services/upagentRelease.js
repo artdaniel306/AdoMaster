@@ -4,7 +4,8 @@ const { runPowerShellLines } = require('../powershell');
 const { createExclusiveRunner } = require('../exclusiveRunner');
 const { findRepo, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
 const { loadFlowState, updateRequirementState, updateFlowState } = require('./flowState');
-const { git, mergeNoFf, mergeViaFeature, mergeBackToFeatures } = require('./gitCommit');
+const { git } = require('./git');
+const { mergeNoFf, mergeViaFeature, mergeBackToFeatures } = require('./deployMerge');
 const {
   COMMIT_STAGES,
   PLAN_REPOS_KEY,
@@ -266,7 +267,7 @@ async function mergeIntoFeature({ commit, featureBranch, reqId, log }) {
   const r = await mergeNoFf({
     repo: UPAGENT_REPO,
     commit,
-    envBranch: featureBranch,
+    targetBranch: featureBranch,
     message: `Merge ${commit.slice(0, 10)} into ${featureBranch}${reqId ? `\n\nRequirement #${reqId}` : ''}`,
   });
   log(r.mergeCommit ? `已建立 merge commit ${r.mergeCommit.slice(0, 10)} 並 push 到 ${featureBranch}` : `✓ ${commit.slice(0, 10)} 已在 ${featureBranch}`);

@@ -1,6 +1,8 @@
-const { BrowserWindow, shell } = require('electron');
+const { shell } = require('electron');
 const { requireRepo, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
-const { checkMerged, mergeNoFf, mergeBackToFeatures, remoteBranchHead } = require('./gitCommit');
+const { checkMerged, mergeNoFf, mergeBackToFeatures } = require('./deployMerge');
+const { createJobStore, sleep } = require('./jobs');
+const customerDeploy = require('./customerDeploy');
 const { repoPipelineRuns } = require('./pipelines');
 const { afterDeployRepo } = require('./afterDeploy');
 const prodRestart = require('./prodRestart');
@@ -40,33 +42,25 @@ const {
  *   Local：merge 進環境 branch → （有 localDeploy 設定）shell/Deploy-Local.ps1
  *   upagent：再執行 UpAgent 發佈（shell/Release-UpAgent.ps1，寫入該環境 SaaS / Local 的資料庫）
  *   正式環境 merge 後同樣把 prodBranch 反向 merge 回所有 feature branch。
- *   客戶環境（env = 'customer'）：不 merge、不佈版，只在部署用資料夾以正式環境 branch 中的 commit build image tar 交給客戶
- *         （customerDeploy.<saas|local>.<客戶>，localDeploy.runCustomerBuild）。
+ *   客戶環境（env = 'customer'）：不 merge、不佈版，只 build image tar 交給客戶（檢查在 customerDeploy.js）。
  * 不寫入流程狀態（只有 UpAgent 寫入資料庫時，把流程中同版本的紀錄標記為已寫入）。
  *
- * 工作在 main process 執行（可在背景跑、renderer 重新載入也不中斷），進度以 'manualDeploy:update'（工作快照）
- * 與 'manualDeploy:log'（{ id, line }）廣播給所有視窗。工作只存在記憶體中（App 關閉即消失）。
+ * 工作清單、廣播（'manualDeploy:update' / 'manualDeploy:log'）、步驟執行、停止 / 移除在 jobs.js。
  * Local 佈版 / UpAgent 發佈與流程共用「一次一個」的限制。
  */
 
 /** 「接續」可以選的起點（Bump 需要用「完整發佈」） */
 const RESUME_STEPS = RELEASE_STEPS.slice(1);
-const LOG_MAX_LINES = 3000;
-/** 保留的已結束工作數 */
-const KEEP_FINISHED = 20;
 
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
 const runName = (run) => `#${run.buildNumber || run.id}`;
 
-/** 所有工作（新到舊加入）：id → job */
-const jobs = new Map();
-let nextId = 1;
-
-function broadcast(channel, payload) {
-  for (const w of BrowserWindow.getAllWindows()) {
-    if (!w.webContents.isDestroyed()) w.webContents.send(channel, payload);
-  }
-}
+const store = createJobStore({
+  channel: 'manualDeploy',
+  noun: '佈版工作',
+  doneText: { running: '佈版中', succeeded: '佈版完成', failed: '佈版失敗', canceled: '已停止' },
+});
+const { emit, appendLog, runStep } = store;
 
 /* ---------- 參數 ---------- */
 
@@ -121,7 +115,7 @@ function normalizeParams(p = {}) {
  */
 async function preview(raw) {
   const p = normalizeParams(raw);
-  if (p.env === 'customer') return previewCustomer(p);
+  if (p.env === 'customer') return customerDeploy.previewCustomer(p);
   const stage = stageOfEnv(p.env);
   const r = await requireRepo(p.repo);
   if (p.release?.mode === 'new' && !r.branches.includes(p.release.branch)) {
@@ -134,7 +128,7 @@ async function preview(raw) {
   let merge = null;
   if (p.commit) {
     if (!envBranch) throw new Error(`尚未設定 ${p.repo} 的環境 branch，請在 ${fieldHint(p.repo, DEPLOY_BRANCH_FIELDS[stage])} 設定`);
-    merge = await checkMerged({ repo: p.repo, commit: p.commit, envBranch });
+    merge = await checkMerged({ repo: p.repo, commit: p.commit, targetBranch: envBranch });
     if (!merge.merged && !merge.canMerge) errors.push(merge.message);
   }
 
@@ -155,7 +149,7 @@ async function preview(raw) {
     }
     if (p.release.mode === 'new' && p.commit) {
       // Release-UpAgent.ps1 會拒絕不在更版 branch 中的 commit；先擋下，避免已 merge / push 進環境 branch 才發現不能發佈
-      const inBranch = await checkMerged({ repo: p.repo, commit: p.commit, envBranch: p.release.branch, fetch: false });
+      const inBranch = await checkMerged({ repo: p.repo, commit: p.commit, targetBranch: p.release.branch, fetch: false });
       if (!inBranch.merged) errors.push(`commit ${inBranch.full.slice(0, 10)} 不在 ${p.release.branch}：UpAgent 會在 ${p.release.branch} 更版，請先把 commit merge 進 ${p.release.branch}。`);
       const v = await upagentRelease.versionContaining(p.commit);
       if (v) warnings.push(`commit 已包含在版本 tag v${v} 中；若該版本已上傳 Blob，通常只需改用「接續 / 只寫入資料庫」（版號 ${v}，從「寫入資料庫」開始），不用再更版。`);
@@ -181,33 +175,6 @@ async function preview(raw) {
 
   const steps = planSteps({ p, envBranch, merge, pipeline, appService, local, release });
   return { params: p, label: r.label, envBranch, merge, pipeline, appService, local, release, steps, warnings, errors };
-}
-
-/** 客戶環境的檢查：commit 必須已在正式環境 branch（git fetch 後確認），只有一個 build 步驟 */
-async function previewCustomer(p) {
-  const r = await requireRepo(p.repo);
-  const t = await localDeploy.customerTarget(p.repo, p.target, p.customer);
-  if (!t) throw new Error(`${CONFIG_LABEL} 尚未設定 customerDeploy.${p.target}.${p.customer}`);
-  const errors = [];
-  const warnings = [];
-  let merge = null;
-  if (t.error) errors.push(t.error);
-  else {
-    const m = await checkMerged({ repo: p.repo, commit: p.commit, envBranch: t.envBranch });
-    const short = m.full.slice(0, 10);
-    merge = { ...m, merged: m.merged, canMerge: false, message: m.merged ? `✓ ${short} 已在正式環境 branch ${t.envBranch}` : `${short} 不在正式環境 branch ${t.envBranch}` };
-    if (!m.merged) errors.push(`客戶環境只能打包已在正式環境 branch（${t.envBranch}）的 commit`);
-  }
-  if (!t.error) {
-    warnings.push(
-      t.envRemoved
-        ? `build 時移除部署用資料夾的 ${t.envTarget}（套用客戶環境設定的變數），完成後還原。`
-        : `build 時使用 env 檔 ${t.envFile} → ${t.envTarget}，完成後還原部署用資料夾原本的檔案。`,
-    );
-  }
-  const steps = [{ key: 'customerBuild', label: `Build ${t.appName} image tar（${t.customerLabel}，${t.platform}）` }];
-  const customer = { key: t.customer, label: t.customerLabel, appName: t.appName, envFile: t.envFile, envTarget: t.envTarget, envRemoved: t.envRemoved };
-  return { params: p, label: r.label, envBranch: t.envBranch, merge, pipeline: null, appService: '', local: null, release: null, customer, steps, warnings, errors };
 }
 
 /** 依設定決定要做的步驟 */
@@ -238,59 +205,6 @@ function planSteps({ p, envBranch, pipeline, appService, local, release }) {
 }
 
 /* ---------- 工作 ---------- */
-
-/** 送給 renderer 的工作快照（不含 controller；withLog = 含輸出） */
-function snapshot(job, withLog = false) {
-  const { controller, lines, ...rest } = job;
-  return withLog ? { ...rest, lines: [...lines] } : rest;
-}
-
-const emit = (job) => broadcast('manualDeploy:update', snapshot(job));
-
-function appendLog(job, line) {
-  job.lines.push(line);
-  if (job.lines.length > LOG_MAX_LINES) job.lines.splice(0, job.lines.length - LOG_MAX_LINES);
-  broadcast('manualDeploy:log', { id: job.id, line });
-}
-
-function sleep(ms, signal) {
-  return new Promise((resolve, reject) => {
-    if (signal.aborted) return reject(new Error('已停止'));
-    const done = () => {
-      clearTimeout(timer);
-      signal.removeEventListener('abort', onAbort);
-    };
-    const onAbort = () => {
-      done();
-      reject(new Error('已停止'));
-    };
-    const timer = setTimeout(() => {
-      done();
-      resolve();
-    }, ms);
-    signal.addEventListener('abort', onAbort);
-  });
-}
-
-/** 執行一個步驟：fn 可把 step.state 設成 'skipped'；失敗時記下錯誤再往外丟 */
-async function runStep(job, key, fn) {
-  const step = job.steps.find((s) => s.key === key);
-  if (!step) return;
-  if (job.controller.signal.aborted) throw new Error('已停止');
-  step.state = 'running';
-  emit(job);
-  try {
-    await fn(step);
-    if (step.state === 'running') step.state = 'done';
-  } catch (err) {
-    step.state = 'failed';
-    const reason = job.controller.signal.aborted ? '已停止' : err.message;
-    step.detail = step.detail && step.detail !== reason && !job.controller.signal.aborted ? `${step.detail} → ${reason}` : reason;
-    throw err;
-  } finally {
-    emit(job);
-  }
-}
 
 /** 查一次 Pipeline 的 Run；失敗時記在 log，回傳 null（之後會再重試） */
 async function pollRuns(job) {
@@ -330,7 +244,7 @@ async function waitIdle(job, step) {
 async function doMerge(job, envBranch, step) {
   const { repo, commit, env } = job.params;
   const message = `Merge ${commit.slice(0, 10)} into ${envBranch}\n\n手動佈版（AdoMaster）`;
-  const status = await mergeNoFf({ repo, commit, envBranch, message });
+  const status = await mergeNoFf({ repo, commit, targetBranch: envBranch, message });
   if (!status.mergeCommit) {
     step.detail = status.message;
     appendLog(job, status.message);
@@ -461,24 +375,9 @@ async function execute(job) {
       });
       step.detail = `UpAgent ${job.release.version} 已寫入${RELEASE_DB_LABEL[releaseDbKey(p.env, p.target)]} 資料庫`;
     });
-    finish(job, 'succeeded');
+    store.finish(job, 'succeeded');
   } catch (err) {
-    finish(job, signal.aborted ? 'canceled' : 'failed', err);
-  }
-}
-
-function finish(job, status, err) {
-  job.status = status;
-  job.error = err ? String(err.message || err) : '';
-  job.finishedAt = new Date().toISOString();
-  job.message = status === 'succeeded' ? '佈版完成' : status === 'canceled' ? '已停止' : '佈版失敗';
-  appendLog(job, `${status === 'succeeded' ? '✔' : '✖'} ${job.message}${job.error && status !== 'canceled' ? `：${job.error}` : ''}`);
-  emit(job);
-  // 只保留最近的已結束工作
-  const finished = [...jobs.values()].filter((j) => j.status !== 'running');
-  for (const j of finished.slice(0, Math.max(0, finished.length - KEEP_FINISHED))) {
-    jobs.delete(j.id);
-    broadcast('manualDeploy:update', { id: j.id, removed: true });
+    store.finish(job, signal.aborted ? 'canceled' : 'failed', err);
   }
 }
 
@@ -487,19 +386,13 @@ async function start(raw) {
   const pv = await preview(raw);
   if (pv.errors.length) throw new Error(pv.errors.join('；'));
   const p = pv.params;
-  const job = {
-    id: nextId++,
+  const job = store.add({
     params: p,
     title: `${ENV_LABEL[p.env]} ${TARGET_LABEL[p.target]}${pv.customer ? ` ${pv.customer.label}` : ''} · ${pv.label}${p.commit ? ` ${p.commit.slice(0, 10)}` : ''}`,
     envBranch: pv.envBranch,
-    steps: pv.steps.map((s) => ({ ...s, state: 'pending', detail: '' })),
-    status: 'running',
-    message: '佈版中',
+    steps: pv.steps,
     // 客戶環境：build 出的 image tar（「開啟資料夾」用）
     output: null,
-    error: '',
-    startedAt: new Date().toISOString(),
-    finishedAt: null,
     waited: [],
     run: null,
     mergeCommit: null,
@@ -507,24 +400,11 @@ async function start(raw) {
     pollError: '',
     // UpAgent：版號與最後完成的步驟（重試時從下一步接續）
     release: p.release ? { version: p.release.version || '', completed: '' } : null,
-    lines: [],
-    controller: new AbortController(),
-  };
-  jobs.set(job.id, job);
-  emit(job); // 先讓 renderer 知道這個工作，之後的輸出才接得上
+  });
   appendLog(job, `▶ ${job.title}`);
   for (const w of pv.warnings) appendLog(job, `⚠ ${w}`);
   execute(job);
-  return snapshot(job);
-}
-
-/** 停止執行中的工作（merge / 佈版後動作進行中時，等該步驟做完才停） */
-function cancel({ id } = {}) {
-  const job = jobs.get(id);
-  if (!job || job.status !== 'running') return false;
-  job.controller.abort();
-  appendLog(job, '■ 停止中…');
-  return true;
+  return store.snapshot(job);
 }
 
 /**
@@ -532,9 +412,7 @@ function cancel({ id } = {}) {
  * UpAgent 已有版號時，從最後完成步驟的下一步接續；rerunAction = 從「等待 GitHub Action」接續時先重跑整個 workflow run。
  */
 async function retry({ id, rerunAction = false } = {}) {
-  const job = jobs.get(id);
-  if (!job) throw new Error('找不到這個佈版工作');
-  if (job.status === 'running') throw new Error('佈版工作仍在執行中');
+  const job = store.getFinished(id);
   const params = { ...job.params };
   if (params.release) {
     const { version, completed } = job.release;
@@ -549,40 +427,16 @@ async function retry({ id, rerunAction = false } = {}) {
     if (params.release.mode === 'resume') params.release.rerunAction = rerunAction === true && params.release.startFrom === 'WaitAction';
   }
   const started = await start(params);
-  jobs.delete(id);
-  broadcast('manualDeploy:update', { id, removed: true });
+  store.remove(id);
   return started;
-}
-
-/** 從清單移除已結束的工作 */
-function dismiss({ id } = {}) {
-  const job = jobs.get(id);
-  if (!job) return false;
-  if (job.status === 'running') throw new Error('佈版工作仍在執行中，請先停止');
-  jobs.delete(id);
-  broadcast('manualDeploy:update', { id, removed: true });
-  return true;
 }
 
 /** 客戶環境的工作結束後，在檔案總管中顯示 image tar（路徑只取自工作本身） */
 function showOutput({ id } = {}) {
-  const job = jobs.get(id);
+  const job = store.get(id);
   if (!job?.output) throw new Error('這個工作沒有輸出檔案');
   shell.showItemInFolder(job.output);
   return true;
 }
 
-/** 客戶環境的預設 commit：正式環境 branch 在 remote 的最新 commit */
-async function prodHead({ repo } = {}) {
-  const r = await requireRepo(repo);
-  const branch = r.deployBranches.prodDeploy;
-  if (!branch) throw new Error(`尚未設定 ${repo} 的正式環境 branch，請在 ${fieldHint(repo, DEPLOY_BRANCH_FIELDS.prodDeploy)} 設定`);
-  return remoteBranchHead({ repo, branch });
-}
-
-/** 所有工作（含輸出），renderer 載入時同步用 */
-function list() {
-  return [...jobs.values()].map((j) => snapshot(j, true));
-}
-
-module.exports = { preview, start, cancel, retry, dismiss, list, showOutput, prodHead, customers: localDeploy.listCustomers };
+module.exports = { preview, start, retry, showOutput, cancel: store.cancel, dismiss: store.dismiss, list: store.list };

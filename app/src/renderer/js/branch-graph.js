@@ -2,7 +2,7 @@ import { api, cleanError } from './api.js';
 import { el } from './dom.js';
 
 /**
- * Confirm Commit 的分支圖：以 `git log --graph`（main process 產生，見 gitCommit.branchGraph）
+ * Confirm Commit 的分支圖：以 `git log --graph`（main process 產生，見 branchGraph.js）
  * 顯示 feature branch 與 developer branch（`<feature>_<developer>`）之間的 commit 關係，點一下 commit 即可選取。
  * 開啟時先用本機資料畫出來，再 git fetch 後重畫。
  *

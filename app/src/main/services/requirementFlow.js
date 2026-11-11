@@ -2,7 +2,8 @@ const fs = require('node:fs/promises');
 const { runScriptJson, tempFile, removeTemp } = require('../python');
 const { loadFlowState, updateRequirementState } = require('./flowState');
 const { loadRepoConfig, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
-const { checkCommit, checkDeployMerge, mergeViaFeature, mergeBackToFeatures } = require('./gitCommit');
+const { checkCommit } = require('./gitCommit');
+const { checkDeployMerge, mergeViaFeature, mergeBackToFeatures } = require('./deployMerge');
 const { releaseVersionFor } = require('./upagentRelease');
 const {
   PLAN_KEY,
@@ -67,7 +68,7 @@ async function updateRequirementStateInAdo({ id, state } = {}) {
 
 /**
  * 佈版階段：Confirm Commit 的每個 commit 是否已（經由 feature branch）進到該 repository 的環境 branch
- * （data/config.json 的 repos 的 `testBranch` / `prodBranch`）。見 gitCommit.checkDeployMerge：
+ * （data/config.json 的 repos 的 `testBranch` / `prodBranch`）。見 deployMerge.checkDeployMerge：
  *   一般 repository：開發 branch 的 commit → 規劃的 feature branch → 環境 branch，不直接 merge 進環境 branch。
  *   upagent（需要 UpAgent 發佈）：已有版號（自己的或可沿用的已發佈版本）→ 把版本 tag 的 commit merge 進環境 branch；
  *     還沒有版號 → deferred：由 UpAgent 發佈先 merge 進 feature branch、更版後再 merge 進環境 branch。
@@ -136,7 +137,7 @@ function backMergeProblems(backMerges) {
 }
 
 /**
- * 把尚未 merge 的 commit 經由 feature branch merge 進環境 branch（gitCommit.mergeViaFeature：不在 feature branch 時先 merge 進去，
+ * 把尚未 merge 的 commit 經由 feature branch merge 進環境 branch（deployMerge.mergeViaFeature：不在 feature branch 時先 merge 進去，
  * 一律建立 merge commit（--no-ff））；upagent 則是 merge 版本 tag；deferred（UpAgent 尚未更版）的略過，由 UpAgent 發佈處理。
  * 回傳最新的 deployMergeStatus，另加 mergeCommits: { repo: 這次 push 的 merge commit }。
  * Prod deploy：merge 進 prodBranch 之後，再把 prodBranch 反向 merge 回該 repository 的所有 feature branch

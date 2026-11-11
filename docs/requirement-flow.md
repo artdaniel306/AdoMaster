@@ -4,7 +4,7 @@ Behavioral spec of the Requirement flow board (based on `docs/flow.pptx`).
 
 Read this before changing anything under the flow:
 - `renderer/js/requirement-flow.js` + `flow-*.js` + the dialogs
-- `main/services/requirementFlow.js` / `flowState.js` / `gitCommit.js` / `pipelines.js` / `afterDeploy.js` / `localDeploy.js` / `testRecord.js` / `upagentRelease.js`
+- `main/services/requirementFlow.js` / `flowState.js` / `gitCommit.js` / `deployMerge.js` / `branchGraph.js` / `git.js` / `pipelines.js` / `afterDeploy.js` / `localDeploy.js` / `testRecord.js` / `upagentRelease.js`
 - `shared/flow-rules.js`
 
 ## Code layout
@@ -74,7 +74,7 @@ Creating the default Task and updating the Requirement state are the **only** ac
 - Saved via `flow:setCommits` as `"<stage>.commits": { repo: commit }`, re-verifying every commit first; clearing it also clears that stage's SaaS/Local.
   - `flow:setCheck` refuses `*.commits` keys and refuses SaaS/Local until commits cover all plan repos.
   - Prod deploy's dialog prefills from Test deploy's commits.
-- Each row has a「分支圖」panel (`branch-graph.js`, expanded by default when the input is empty) → `repos:branchGraph` → `gitCommit.branchGraph`:
+- Each row has a「分支圖」panel (`branch-graph.js`, expanded by default when the input is empty) → `repos:branchGraph` → `branchGraph.js`:
   - `git log --graph --color=always --boundary` over the plan feature branch and its **developer branches** (`<feature>_<developer>`, e.g. `peach_hotfix_max`; remote refs preferred, a name belonging to a longer configured feature branch is excluded),
     excluding commits already in `origin/<prodBranch>` unless「包含已進…」is checked (max 300 commits).
   - ANSI lane colors parsed with `anser` into `ansi-*` classes.
@@ -91,7 +91,7 @@ Creating the default Task and updating the Requirement state are the **only** ac
   - `flow:setCheck` re-verifies merge status (without fetching) before saving.
 
 ### Merge through the feature branch
-- **Always through the feature branch** (`gitCommit.checkDeployMerge` / `mergeViaFeature`); a developer-branch commit is never merged straight into an env branch:
+- **Always through the feature branch** (`deployMerge.checkDeployMerge` / `mergeViaFeature`); a developer-branch commit is never merged straight into an env branch:
   1. Confirm Commit not in `origin/<plan feature branch>` → merge it into the feature branch first (message `Merge <sha> into <feature>` + `Requirement #<id>`); already in it → skip.
   2. Merge into the env branch the feature-branch commit that contains it:
      the merge commit from step 1, or — when it was already there — `featureEntry`, the oldest commit on the feature branch's first-parent chain that contains it (the commit itself if it sits on that chain),
@@ -107,7 +107,7 @@ Creating the default Task and updating the Requirement state are the **only** ac
       `flow:setCheck` refuses with「請先完成 UpAgent 發佈」until then.
 
 ### Merge back to feature branches (Prod deploy only)
-- **Merge back to feature branches (Prod deploy only)**: after `flow:mergeDeploy` merges a repo into `prodBranch`, `gitCommit.mergeBackToFeatures` merges `origin/<prodBranch>` back into **every** feature branch in that repo's `branches`
+- **Merge back to feature branches (Prod deploy only)**: after `flow:mergeDeploy` merges a repo into `prodBranch`, `deployMerge.mergeBackToFeatures` merges `origin/<prodBranch>` back into **every** feature branch in that repo's `branches`
   (env branches excluded; developer branches `<feature>_<dev>` not included) so they stay based on production.
   - Same mechanics: always a merge commit even when fast-forward is possible (message `Merge <prod> (<sha>) into <feature>` + `Requirement #<id>`), no working tree, no `--force`.
   - Only repos actually merged by this call; already-containing branches are skipped, missing remote branches are skipped, conflicting ones are left for manual handling.
@@ -251,7 +251,7 @@ Scripts: `shell/Release-UpAgent.ps1` + child scripts `1-Get-BlobArtifacts.ps1` /
 Menu「佈版」(also the 🛠 / 🚀 buttons in the content header) — deploy without a Requirement, reusing the same actions as checking SaaS / Local.
 
 ### 手動佈版
-- **手動佈版** (`manual-deploy-dialog.js` → `manualDeploy:preview` / `:start`, `main/services/manualDeploy.js`): pick SaaS / Local, test / prod, a repo from `repos`, and a commit.
+- **手動佈版** (`manual-deploy-dialog.js` → `manualDeploy:preview` / `:start`, `main/services/manualDeploy.js`; job list / broadcast / steps in `jobs.js`, customer environment checks in `customerDeploy.js`): pick SaaS / Local, test / prod, a repo from `repos`, and a commit.
   - 「檢查」 runs `preview` (git fetch + merge check, Pipeline runs, `localDeploy` settings) and lists the steps / warnings.
   - Errors (merge conflict, bad Local settings, missing `upagentRelease`) block start; prod asks for confirmation.
   - Steps, in the flow's order:
@@ -269,7 +269,7 @@ Menu「佈版」(also the 🛠 / 🚀 buttons in the content header) — deploy 
 - **客戶環境** (env `customer`): a third environment that only **builds an image tar to hand to a customer** — no merge, no push, no ssh.
   - Customers come from `customerDeploy.<saas|local>.<key>` in `config.json` (`{ label, repos: { <repo>: { …localDeploy fields, envFile, envTarget } } }`, listed by `manualDeploy:customers`).
   - The dialog shows a 客戶 select for the chosen target and pre-fills the commit with `origin/<prodBranch>` HEAD
-    (`manualDeploy:prodHead` → `gitCommit.remoteBranchHead`; only overwrites an empty / previously auto-filled value).
+    (`manualDeploy:prodHead` → `customerDeploy.prodHead` → `gitCommit.remoteBranchHead`; only overwrites an empty / previously auto-filled value).
   - Preview requires the commit to be **in `prodBranch`** (error otherwise), upagent is refused.
   - Settings = `localDeploy.repos.<repo>` outer fields (not `test` / `prod`) overridden by the customer's repo object; `envFile` / `envTarget` come **only** from the customer object.
   - Env:
