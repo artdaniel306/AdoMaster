@@ -3,6 +3,7 @@ const path = require('node:path');
 const { CONFIG_FILE, LOCAL_DEPLOY_ENV_DIR } = require('../paths');
 const { CONFIG_LABEL, readConfig, str, isObj } = require('./appConfig');
 const { runPowerShellLines } = require('../powershell');
+const { withPathLock } = require('../pathLock');
 const { createExclusiveRunner } = require('../exclusiveRunner');
 const { loadRepoConfig, findRepo } = require('./repoConfig');
 const { loadFlowState, updateRequirementState } = require('./flowState');
@@ -152,6 +153,7 @@ async function localDeployStatus({ id, stage } = {}) {
 
 /**
  * 對一個目標執行 shell/Deploy-Local.ps1，回傳腳本的結果（{ commit, image, tar }）。
+ * 執行期間佔用部署用 clone（pathLock）：「同步所有 Repository」會等 build 完才快轉這個資料夾的 branch。
  * @param t buildTarget 的結果 + commit（要確認已在環境 branch 中的 commit，可省略）
  * @param log (line) => void；onStep (step) => void
  */
@@ -161,12 +163,17 @@ async function runScript(t, { env, rebuild, signal, log, onStep }) {
   if (rebuild === true) args.push('-Rebuild');
   log(t.startLine || `▶ ${t.label}：Local 佈版到 ${t.remoteHost}（${t.envBranch}）`);
   try {
-    return await runPowerShellLines('Deploy-Local.ps1', args, {
-      stderr: true, // docker / git 的進度輸出在 stderr
-      onLine: log,
-      onMarker: (kind, value) => kind === 'step' && onStep(value),
-      signal,
-    });
+    return await withPathLock(
+      [t.projectDir],
+      () =>
+        runPowerShellLines('Deploy-Local.ps1', args, {
+          stderr: true, // docker / git 的進度輸出在 stderr
+          onLine: log,
+          onMarker: (kind, value) => kind === 'step' && onStep(value),
+          signal,
+        }),
+      { signal, onWait: () => log(`⏳ 等待 ${t.projectDir} 的其他 git 操作（例如同步 Repository）結束…`) },
+    );
   } catch (err) {
     err.message = `${t.label}：${err.message}`;
     throw err;

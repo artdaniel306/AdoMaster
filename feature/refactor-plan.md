@@ -1,6 +1,6 @@
 # 架構優化計畫：第二批、第三批
 
-進度：第一步（2-5、2-6、3-7）、第二步（2-1、2-2）、第三步（2-3、2-4）已完成（2-1 ~ 2-4 待手動驗證）。下一步：3-2。
+進度：第一步（2-5、2-6、3-7）、第二步（2-1、2-2）、第三步（2-3、2-4）已完成（2-1 ~ 2-4 待手動驗證）。3-2 已完成（待手動驗證）。下一步：3-1。
 
 第一批（bug 修正、共用常數、`Common.ps1`、`runPowerShellLines`、`exclusiveRunner`、`findRepo`）已在 commit `e2f35ab refactor` 完成。
 本文件列出剩下的項目，依建議順序排列。每項都標了成本 / 效益與驗證方式；做完一項就勾起來，並同步更新 CLAUDE.md / 文件。
@@ -94,7 +94,11 @@
 - **驗證**：流程測試 / 正式環境 SaaS 各一次（含重新載入視窗）、手動佈版一次、中途停止一次。
 - **前置**：2-3、2-4
 
-### 3-2. 同一個 clone 的 git 操作排隊、merge 只 fetch 一次
+### 3-2. ✅ 同一個 clone 的 git 操作排隊、merge 只 fetch 一次
+- 完成情況：`main/pathLock.js` 的 `withPathLock(paths, fn, { signal, onWait })`（以資料夾為 key，Windows 不分大小寫；多路徑同步登記，不會 deadlock；等待中可停止）。
+  `git()` 每個指令鎖自己的 cwd；`repoSync` 鎖 `repos[].path` + `localDeploy.repos.*.projectDir`；`Deploy-Local.ps1` 鎖部署用 clone（同步會等 build 完，避免快轉 checkout 中的 branch 改到 working tree）。需要等待時 log 會顯示「⏳ 等待…」。
+  fetch：`mergeNoFf` / `mergeViaFeature` 加 `fetch` 參數，內部呼叫一律 `fetch: false`；push 後的檢查不 fetch（`commitAndPush` 會 `update-ref` remote-tracking ref）；`requirementFlow.mergeDeploy` 剛跑過 `deployMergeStatus` 所以傳 `fetch: false`。
+  流程一次 merge 從 6 次 fetch 降為 1 次（正式環境的反向 merge 仍另外 fetch 一次）；手動佈版 merge 從 2 次降為 1 次。
 - **排隊**：流程 `flow:mergeStatus`（`Promise.all`）、手動佈版、`Sync-Repos.ps1` 可能同時對同一個 clone fetch / push，有 ref lock 失敗的機會。
   在 `git()` 外包一層以 `cwd` 為 key 的 promise queue（main 內）；`Sync-Repos.ps1` 執行時可以讓同一批 path 等待。
 - **fetch 次數**：一次 merge 會 fetch 5～6 次（`mergeDeploy` → `mergeViaFeature` → 兩次 `mergeNoFf` 各自呼叫 `checkMerged`）。

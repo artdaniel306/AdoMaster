@@ -3,11 +3,13 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { requireRepo, fieldHint } = require('./repoConfig');
+const { withPathLock } = require('../pathLock');
 const { COMMIT_RE, COMMIT_FORMAT_HINT } = require('../../shared/flow-rules.js');
 
 /**
  * git 指令的共用底層：在 repository 的本機 clone 執行 git、查 commit / ref、試算 merge、建立 merge commit 並 push。
  * 一律不 checkout、不動本機 working tree / index，push 不加 --force。
+ * 同一個 clone 的 git 指令依序執行（pathLock.js；也會等 Sync-Repos.ps1 / Deploy-Local.ps1 對同一個資料夾的操作結束）。
  * 上層：gitCommit.js（Confirm Commit）、deployMerge.js（佈版 merge）、branchGraph.js（分支圖）。
  */
 
@@ -15,7 +17,12 @@ const { COMMIT_RE, COMMIT_FORMAT_HINT } = require('../../shared/flow-rules.js');
 const REMOTE = 'origin';
 const FETCH_TIMEOUT = 60_000;
 
+/** timeout 從輪到這個指令執行時才開始算 */
 function git(cwd, args, timeout = 15_000, extraEnv = null) {
+  return withPathLock([cwd], () => runGit(cwd, args, timeout, extraEnv));
+}
+
+function runGit(cwd, args, timeout, extraEnv) {
   return new Promise((resolve, reject) => {
     execFile(
       'git',
@@ -150,6 +157,7 @@ async function trialMerge(cwd, base, commit, { keepConflictTree = false } = {}) 
 /**
  * 以 trialMerge 算出的 tree 建立 merge commit（第一個 parent = base、第二個 = source）並 push 到 origin/<target>。
  * base 必須是 origin/<target> 目前的 commit；push 不加 --force，remote 期間有變動會被拒絕。
+ * push 成功後本機的 refs/remotes/origin/<target> 也指向 merge commit，之後的檢查不用再 fetch。
  * merge commit 的作者 / committer 用該 repository 的 git user 設定。
  * @returns 建立的 merge commit
  */
@@ -165,6 +173,8 @@ async function commitAndPush(r, { tree, base, source, target, message }) {
   } catch (err) {
     throw new Error(`${r.key} push 到 ${REMOTE}/${target} 失敗：${gitError(err)}`);
   }
+  // git push 通常已更新 remote-tracking ref；明確再設一次（失敗不影響，下次 fetch 也會更新）
+  await git(r.path, ['update-ref', `refs/remotes/${REMOTE}/${target}`, mergeCommit]).catch(() => {});
   return mergeCommit;
 }
 

@@ -15,6 +15,8 @@ const {
 /**
  * 佈版的 merge：把 commit merge 進環境 / feature branch、正式環境後反向 merge 回 feature branch。
  * 一律建立 merge commit（等同 `git merge --no-ff`），不 checkout、不動本機 working tree、不 --force push；有衝突就拒絕。
+ * 一次 merge 只在最外層 fetch 一次（內部呼叫傳 fetch: false）；push 後本機的 remote-tracking ref 已更新（commitAndPush），
+ * 所以 push 後的檢查不再 fetch。remote 在期間被別人更新時 push 會被拒絕，不會覆蓋。
  * 底層 git 操作在 git.js。
  */
 
@@ -54,10 +56,11 @@ async function checkMerged({ repo, commit, targetBranch, fetch = true } = {}) {
  *   git merge-tree --write-tree origin/<target> <commit>  → tree
  *   git commit-tree <tree> -p origin/<target> -p <commit> → merge commit
  *   git push origin <merge commit>:refs/heads/<target>
+ * @param fetch 先 git fetch（預設 true；呼叫端剛 fetch 過時傳 false）
  * @returns 最新的 checkMerged 結果，另加 mergeCommit（push 上去的 merge commit，用來找出 push 觸發的 Pipeline Run；已在其中時沒有）
  */
-async function mergeNoFf({ repo, commit, targetBranch, message } = {}) {
-  const status = await checkMerged({ repo, commit, targetBranch });
+async function mergeNoFf({ repo, commit, targetBranch, message, fetch = true } = {}) {
+  const status = await checkMerged({ repo, commit, targetBranch, fetch });
   if (status.merged) return status;
   if (!status.canMerge) throw new Error(status.message);
   const r = await resolveRepo(repo);
@@ -70,7 +73,7 @@ async function mergeNoFf({ repo, commit, targetBranch, message } = {}) {
     ? message.trim()
     : `Merge commit '${status.full.slice(0, 10)}' into ${status.targetBranch}`;
   const mergeCommit = await commitAndPush(r, { tree, base, source: status.full, target: status.targetBranch, message: msg });
-  return { ...(await checkMerged({ repo, commit, targetBranch })), mergeCommit };
+  return { ...(await checkMerged({ repo, commit, targetBranch, fetch: false })), mergeCommit };
 }
 
 /* ---------- 流程佈版：開發 branch → feature branch → 環境 branch ---------- */
@@ -189,22 +192,23 @@ async function checkDeployMerge({ repo, commit, featureBranch, envBranch, source
  * 佈版 merge（見 checkDeployMerge）：需要時先把 Confirm Commit merge 進 feature branch 並 push，
  * 再把 feature branch 上的對應 commit（或指定的 source）merge 進環境 branch 並 push。
  * @param reqId 寫進 merge commit 訊息
+ * @param fetch 先 git fetch（預設 true；呼叫端剛以 checkDeployMerge fetch 過時傳 false）
  * @returns 最新的 checkDeployMerge 結果，另加 mergeCommit（push 到環境 branch 的 merge commit）、featureMergeCommit（第 1 步，有做才有）
  */
-async function mergeViaFeature({ repo, commit, featureBranch, envBranch, source = null, reqId } = {}) {
-  const status = await checkDeployMerge({ repo, commit, featureBranch, envBranch, source });
+async function mergeViaFeature({ repo, commit, featureBranch, envBranch, source = null, reqId, fetch = true } = {}) {
+  const status = await checkDeployMerge({ repo, commit, featureBranch, envBranch, source, fetch });
   if (status.merged) return status;
   if (!status.canMerge) throw new Error(status.message);
   const tail = reqId ? `\n\nRequirement #${reqId}` : '';
   let from = status.source;
   let featureMergeCommit;
   if (!from) {
-    const fm = await mergeNoFf({ repo, commit: status.full, targetBranch: featureBranch, message: `Merge ${status.full.slice(0, 10)} into ${featureBranch}${tail}` });
+    const fm = await mergeNoFf({ repo, commit: status.full, targetBranch: featureBranch, message: `Merge ${status.full.slice(0, 10)} into ${featureBranch}${tail}`, fetch: false });
     featureMergeCommit = fm.mergeCommit;
     from = featureMergeCommit || (await featureEntry((await resolveRepo(repo)).path, status.full, `refs/remotes/${REMOTE}/${featureBranch}`));
   }
   const label = source || featureBranch;
-  const em = await mergeNoFf({ repo, commit: from, targetBranch: envBranch, message: `Merge ${label} (${from.slice(0, 10)}) into ${envBranch}${tail}` });
+  const em = await mergeNoFf({ repo, commit: from, targetBranch: envBranch, message: `Merge ${label} (${from.slice(0, 10)}) into ${envBranch}${tail}`, fetch: false });
   return { ...(await checkDeployMerge({ repo, commit, featureBranch, envBranch, source, fetch: false })), mergeCommit: em.mergeCommit, featureMergeCommit };
 }
 

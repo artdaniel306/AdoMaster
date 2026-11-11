@@ -158,6 +158,7 @@ async function mergeDeploy({ id, stage } = {}) {
           envBranch: x.envBranch,
           source: x.sourceRef,
           reqId: id,
+          fetch: false, // 上面的 deployMergeStatus 剛 fetch 過
         })
       )
   );
