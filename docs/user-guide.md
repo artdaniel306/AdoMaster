@@ -11,7 +11,7 @@ AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也�
 3. 在左側按「↻ 同步」取得 Iteration 清單。
 4. 按「☰ 選擇 Iteration…」挑一個 Iteration，就會顯示它的 Requirement 流程。
 
-設定檔都放在 data 資料夾：開發時是專案的 `data/`，安裝版是 `%APPDATA%\AdoMaster\data`（可用環境變數 `ADOMASTER_DATA_DIR` 指定）。
+設定檔都放在 data 資料夾：開發時是專案的 `data/`，安裝版是 `%APPDATA%\AdoMaster\data`（可用環境變數 `ADOMASTER_DATA_DIR` 指定）。選單「設定 → 開啟設定資料夾」會直接用檔案總管開啟 app 目前使用的 data 資料夾。
 
 - `data/.env`：連線資訊與機密（PAT、Token、資料庫密碼）。
 - `data/config.json`：其他非機密設定，每個功能一個區段（`repos`、`upagentRelease`、`upagentConnection`、`localDeploy`…）。

@@ -25,6 +25,7 @@ Every settings dialog uses `renderer/js/form-dialog.js`: `bindFormDialog({ dialo
 | UpAgent 連線設定… | `upagentConnection` | `upagent-connection-settings-dialog.js` → `upagentConnection.loadConnectionSettings` / `saveConnectionSettings` |
 | UpAgent 發佈資料庫設定… | `upagentRelease.db.*` + `UPAGENT_DB_*_PASSWORD` in `.env` | `upagent-release-db-dialog.js` → `upagentReleaseDb.loadReleaseDbSettings` / `saveReleaseDbSettings` |
 | 正式環境排程重啟設定… | `prodRestart` | `prod-restart-settings-dialog.js` → `prodRestart.loadSettings` / `saveSettings` |
+| 開啟設定資料夾 | — (opens `paths.DATA_DIR` in the file manager) | none — handled in `main/menu.js` (`shell.openPath`) |
 
 ### 連線與機密設定（`.env`）
 - Only keys listed in `ENV_GROUPS` (`appConfig.js`) are shown — **a new `.env` key must be added there**.

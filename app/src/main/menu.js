@@ -1,11 +1,24 @@
-const { app, Menu } = require('electron');
+const fs = require('fs');
+const { app, Menu, shell } = require('electron');
 const { openHelpWindow } = require('./helpWindow');
+const { DATA_DIR } = require('./paths');
+
+/** 用檔案總管開啟 data 資料夾（paths.DATA_DIR，即 app 實際讀寫設定的位置）；不存在時先建立。 */
+async function openDataFolder() {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const err = await shell.openPath(DATA_DIR);
+    if (err) console.error(`無法開啟設定資料夾 ${DATA_DIR}：${err}`);
+  } catch (e) {
+    console.error(`無法開啟設定資料夾 ${DATA_DIR}：${e.message}`);
+  }
+}
 
 /**
  * 選單列：「檔案」放匯出 / 匯入本地資料（只通知 renderer，流程與 dialog 在 renderer 的 local-data.js），
  * 「設定」放連線與機密設定（data/.env，env-settings-dialog.js）、Repository 設定（repo-settings-dialog.js）
  * 、UpAgent 連線設定（upagent-connection-settings-dialog.js）、UpAgent 發佈資料庫設定（upagent-release-db-dialog.js）
- * 與正式環境排程重啟設定（prod-restart-settings-dialog.js），
+ * 與正式環境排程重啟設定（prod-restart-settings-dialog.js），以及「開啟設定資料夾」（main 直接用檔案總管開啟 DATA_DIR），
  * 「佈版」放手動佈版（manual-deploy-dialog.js）、佈版進度（deploy-progress-dialog.js）與正式環境排程重啟（restart-schedule-dialog.js），
  * 「工具」放同步所有 Repository（repo-sync-dialog.js），
  * 同樣只通知 renderer，
@@ -35,6 +48,8 @@ function buildMenu() {
         { label: 'UpAgent 連線設定…', click: (_item, win) => win?.webContents.send('menu:upagentConnectionSettings') },
         { label: 'UpAgent 發佈資料庫設定…', click: (_item, win) => win?.webContents.send('menu:upagentReleaseDbSettings') },
         { label: '正式環境排程重啟設定…', click: (_item, win) => win?.webContents.send('menu:prodRestartSettings') },
+        { type: 'separator' },
+        { label: '開啟設定資料夾', click: () => openDataFolder() },
       ],
     },
     {
