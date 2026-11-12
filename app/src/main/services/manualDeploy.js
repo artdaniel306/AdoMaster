@@ -181,7 +181,9 @@ async function preview(raw) {
 function planSteps({ p, envBranch, pipeline, appService, local, release }) {
   const steps = [];
   if (pipeline) steps.push({ key: 'waitIdle', label: `等待 Pipeline ${pipeline.name} 進行中的 Run 結束` });
-  if (p.commit) steps.push({ key: 'merge', label: `merge 進 ${envBranch} 並 push${p.env === 'prod' ? '（再反向 merge 回 feature branch）' : ''}` });
+  const mergeStep = (what) => ({ key: 'merge', label: `${what}merge 進 ${envBranch} 並 push${p.env === 'prod' ? '（再反向 merge 回 feature branch）' : ''}` });
+  // upagent：先更版發佈，再把版本 tag（含版號 commit）merge 進環境 branch（與流程相同），所以 merge 排在發佈之後
+  if (p.commit && !release) steps.push(mergeStep(''));
   if (pipeline) {
     steps.push({ key: 'watch', label: '監看 push 觸發的 Pipeline Run' });
     steps.push({
@@ -200,6 +202,7 @@ function planSteps({ p, envBranch, pipeline, appService, local, release }) {
   if (release) {
     const from = release.mode === 'new' ? `在 ${release.branch} 更版（${release.bump}）` : `${release.version} 從「${RELEASE_STEP_TEXT[release.startFrom]}」開始`;
     steps.push({ key: 'release', label: `UpAgent 發佈：${from} → 寫入${release.dbLabel} 資料庫` });
+    if (p.commit) steps.push(mergeStep(`版本 tag v${release.mode === 'new' ? '<新版號>' : release.version} `));
   }
   return steps;
 }
@@ -241,9 +244,10 @@ async function waitIdle(job, step) {
 }
 
 /** merge 進環境 branch 並 push；正式環境再反向 merge 回 feature branch。回傳 push 的 merge commit（已在環境 branch 時為 null） */
-async function doMerge(job, envBranch, step) {
-  const { repo, commit, env } = job.params;
-  const message = `Merge ${commit.slice(0, 10)} into ${envBranch}\n\n手動佈版（AdoMaster）`;
+async function doMerge(job, envBranch, step, source = null) {
+  const { repo, env } = job.params;
+  const commit = source?.commit || job.params.commit;
+  const message = `Merge ${source?.label ? `${source.label} (${commit.slice(0, 10)})` : commit.slice(0, 10)} into ${envBranch}\n\n手動佈版（AdoMaster）`;
   const status = await mergeNoFf({ repo, commit, targetBranch: envBranch, message });
   if (!status.mergeCommit) {
     step.detail = status.message;
@@ -309,9 +313,11 @@ async function execute(job) {
   let mergeCommit = null;
   try {
     await runStep(job, 'waitIdle', (step) => waitIdle(job, step));
-    await runStep(job, 'merge', async (step) => {
-      mergeCommit = await doMerge(job, job.envBranch, step);
-    });
+    if (!p.release) {
+      await runStep(job, 'merge', async (step) => {
+        mergeCommit = await doMerge(job, job.envBranch, step);
+      });
+    }
     await runStep(job, 'watch', async (step) => {
       if (mergeCommit) return watchRun(job, mergeCommit, step);
       step.state = 'skipped';
@@ -386,6 +392,12 @@ async function execute(job) {
       });
       step.detail = `UpAgent ${job.release.version} 已寫入${RELEASE_DB_LABEL[releaseDbKey(p.env, p.target)]} 資料庫`;
     });
+    if (p.release) {
+      // upagent：發佈完成後才把版本 tag merge 進環境 branch（不是 merge 原本的 commit，否則環境 branch 會缺版號 commit）
+      await runStep(job, 'merge', async (step) => {
+        await doMerge(job, job.envBranch, step, { commit: await upagentRelease.versionTagCommit(job.release.version), label: `v${job.release.version}` });
+      });
+    }
     store.finish(job, 'succeeded');
   } catch (err) {
     store.finish(job, signal.aborted ? 'canceled' : 'failed', err);

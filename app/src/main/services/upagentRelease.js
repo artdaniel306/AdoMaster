@@ -374,6 +374,14 @@ async function releaseConfigExists() {
   return !!(await readConfig().catch(() => null))?.upagentRelease;
 }
 
+/** 版本 tag（v<version>）指向的 commit（完整 hash）；手動佈版發佈後把它 merge 進環境 branch 用 */
+async function versionTagCommit(version) {
+  if (!VERSION_RE.test(version || '')) throw new Error(`版號格式錯誤：${version}`);
+  const repo = await findRepo(UPAGENT_REPO);
+  if (!repo?.path) throw new Error('尚未設定 upagent 的路徑');
+  return (await git(repo.path, ['rev-parse', '--verify', `v${version}^{commit}`])).trim();
+}
+
 /** 包含 commit 的最新版本 tag（v<x.y.z>）的版號；沒有或查不到時回傳 ''（手動佈版提醒「已有版本」用） */
 async function versionContaining(commit) {
   return (await versionTagsContaining(commit))?.pop() || '';
@@ -435,4 +443,4 @@ function cancelRelease() {
   return runner.cancel();
 }
 
-module.exports = { releaseStatus, runRelease, cancelRelease, runManualRelease, releaseConfigExists, versionContaining, releaseVersionFor, dropStaleRelease };
+module.exports = { releaseStatus, runRelease, cancelRelease, runManualRelease, releaseConfigExists, versionContaining, releaseVersionFor, dropStaleRelease, versionTagCommit };

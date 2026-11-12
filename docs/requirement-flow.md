@@ -270,6 +270,7 @@ Menu「佈版」(also the 🛠 / 🚀 buttons in the content header) — deploy 
   - SaaS without a Pipeline / Local without `localDeploy` = merge only.
   - Local → `runManualLocalDeploy` (`Deploy-Local.ps1 -ExpectedCommit`, optional `-Rebuild`).
   - upagent → `runManualRelease`:「完整發佈」(bump on a branch from the upagent repo's `branches`) or「接續 / 只寫入資料庫」(version + start step; commit optional, empty = no merge).
+    **Order: release first, then merge** — the version tag `v<version>` (not the entered commit) is merged into the env branch *after* the release, like the flow; otherwise the env branch would miss the version-bump commit.
   - A commit already in the env branch → no push, so no new Pipeline run.
 
 ### 客戶環境
