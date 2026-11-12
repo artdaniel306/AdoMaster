@@ -12,6 +12,7 @@ const {
   commitsKey,
   UPAGENT_REPO,
   UPAGENT_RELEASE_KEY,
+  UPAGENT_RELEASE_HISTORY_KEY,
   RELEASE_STEPS,
   RELEASE_TARGETS,
   RELEASE_DB_LABEL,
@@ -57,13 +58,16 @@ const compareVersion = (a, b) => {
 function publishedVersions(state) {
   const map = new Map();
   for (const [rid, checks] of Object.entries(state)) {
-    const rel = checks?.[UPAGENT_RELEASE_KEY];
-    if (!VERSION_RE.test(rel?.version || '')) continue;
-    const entry = map.get(rel.version) || { db: {} };
-    Object.assign(entry.db, rel.db);
-    // 以實際發佈（非沿用）的紀錄為來源
-    if (isPublished(rel) && !rel.adoptedFrom && !entry.rel) Object.assign(entry, { from: Number(rid), rel });
-    map.set(rel.version, entry);
+    // 目前的紀錄 + 因 Confirm Commit 變更而作廢的舊紀錄（版本仍已發佈，其他 Requirement 可沿用）
+    const history = Array.isArray(checks?.[UPAGENT_RELEASE_HISTORY_KEY]) ? checks[UPAGENT_RELEASE_HISTORY_KEY] : [];
+    for (const rel of [checks?.[UPAGENT_RELEASE_KEY], ...history]) {
+      if (!VERSION_RE.test(rel?.version || '')) continue;
+      const entry = map.get(rel.version) || { db: {} };
+      Object.assign(entry.db, rel.db);
+      // 以實際發佈（非沿用）的紀錄為來源
+      if (isPublished(rel) && !rel.adoptedFrom && !entry.rel) Object.assign(entry, { from: Number(rid), rel });
+      map.set(rel.version, entry);
+    }
   }
   for (const [version, entry] of map) if (!entry.rel) map.delete(version);
   return map;
@@ -103,12 +107,44 @@ async function versionTagsContaining(commit) {
 }
 
 /**
+ * 這張 Requirement 自己的發佈紀錄是否已過期：Bump 已完成（tag 已 push），但此階段 Confirm Commit 的 upagent commit
+ * 不在該版本的 tag（v<版號>）中——Confirm Commit 改成更新的 commit 了，要重新更版。git 查不到時視為未過期。
+ */
+async function isReleaseStale(checks, stage) {
+  const rel = releaseOf(checks);
+  if (!DEPLOY_ENV[stage] || !needsUpagentRelease(checks) || !VERSION_RE.test(rel.version || '')) return false;
+  if (RELEASE_STEPS.indexOf(rel.completed) < 0) return false; // Bump 尚未完成：tag 可能還不存在
+  const commit = checks[commitsKey(stage)]?.[UPAGENT_REPO];
+  if (!commit) return false;
+  const versions = await versionTagsContaining(commit);
+  return !!versions && !versions.includes(rel.version);
+}
+
+/**
+ * 發佈紀錄已過期時作廢它（自己發佈的移到 upagentReleaseHistory，沿用的直接刪掉），回傳更新後的狀態；不需作廢時回傳 null。
+ * 之後 adoptPublishedRelease 會找包含新 Confirm Commit 的已發佈版本，找不到就從 Bump 開始（詢問 minor / patch）。
+ */
+async function dropStaleRelease(id, stage) {
+  if (runner.current?.id === id) return null; // 這張 Requirement 的發佈正在執行
+  if (!(await isReleaseStale((await loadFlowState())[id] || {}, stage))) return null;
+  return updateRequirementState(id, (checks) => {
+    const rel = releaseOf(checks);
+    if (isPublished(rel) && !rel.adoptedFrom) {
+      const history = Array.isArray(checks[UPAGENT_RELEASE_HISTORY_KEY]) ? checks[UPAGENT_RELEASE_HISTORY_KEY] : [];
+      checks[UPAGENT_RELEASE_HISTORY_KEY] = [...history, rel];
+    }
+    delete checks[UPAGENT_RELEASE_KEY];
+  });
+}
+
+/**
  * Confirm Commit 已包含在已發佈的版本中：把該版本記成這張 Requirement 的發佈紀錄（沿用，不再 Bump），回傳更新後的狀態；
  * 不需沿用時回傳 null。
  */
 async function adoptPublishedRelease(id, stage) {
+  const dropped = await dropStaleRelease(id, stage);
   const found = await findCoveringRelease(await loadFlowState(), id, stage);
-  if (!found) return null;
+  if (!found) return dropped;
   const { version, from, rel, db } = found;
   return updateRequirementState(id, (checks) => {
     if (releaseOf(checks).version) return; // 期間已有自己的紀錄
@@ -130,8 +166,13 @@ async function adoptPublishedRelease(id, stage) {
  */
 async function releaseVersionFor(id, stage) {
   const state = await loadFlowState();
-  const own = releaseOf(state[id] || {}).version;
-  if (own) return own;
+  const checks = state[id] || {};
+  if (releaseOf(checks).version) {
+    if (!(await isReleaseStale(checks, stage))) return releaseOf(checks).version;
+    // 自己的紀錄已過期（Confirm Commit 不在該版本中）：當作沒有紀錄，只查有沒有包含 Confirm Commit 的已發佈版本
+    const { [UPAGENT_RELEASE_KEY]: _stale, ...rest } = checks;
+    return (await findCoveringRelease({ ...state, [id]: rest }, id, stage))?.version || '';
+  }
   return (await findCoveringRelease(state, id, stage))?.version || '';
 }
 
@@ -394,4 +435,4 @@ function cancelRelease() {
   return runner.cancel();
 }
 
-module.exports = { releaseStatus, runRelease, cancelRelease, runManualRelease, releaseConfigExists, versionContaining, releaseVersionFor };
+module.exports = { releaseStatus, runRelease, cancelRelease, runManualRelease, releaseConfigExists, versionContaining, releaseVersionFor, dropStaleRelease };

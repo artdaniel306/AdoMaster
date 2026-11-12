@@ -4,7 +4,7 @@ const { loadFlowState, updateRequirementState } = require('./flowState');
 const { loadRepoConfig, fieldHint, DEPLOY_BRANCH_FIELDS } = require('./repoConfig');
 const { checkCommit } = require('./gitCommit');
 const { checkDeployMerge, mergeViaFeature, mergeBackToFeatures } = require('./deployMerge');
-const { releaseVersionFor } = require('./upagentRelease');
+const { releaseVersionFor, dropStaleRelease } = require('./upagentRelease');
 const {
   PLAN_KEY,
   PLAN_REPOS_KEY,
@@ -13,6 +13,7 @@ const {
   PLAN_KEYS,
   TEST_RECORD_KEY,
   UPAGENT_RELEASE_KEY,
+  UPAGENT_RELEASE_HISTORY_KEY,
   COMMIT_STAGES,
   COMMIT_RE,
   COMMIT_FORMAT_HINT,
@@ -200,7 +201,7 @@ async function setFlowCheck({ id, key, value, force = false } = {}) {
       }
     });
   }
-  if (key.startsWith(PLAN_KEY) || key.endsWith('.commits') || key.endsWith('.localDeploy') || forcedStage || key === TEST_RECORD_KEY || key === UPAGENT_RELEASE_KEY) throw new Error('參數錯誤');
+  if (key.startsWith(PLAN_KEY) || key.endsWith('.commits') || key.endsWith('.localDeploy') || forcedStage || key === TEST_RECORD_KEY || key === UPAGENT_RELEASE_KEY || key === UPAGENT_RELEASE_HISTORY_KEY) throw new Error('參數錯誤');
   if (force) {
     return updateRequirementState(id, (checks) => {
       if (value) checks[key] = true;
@@ -301,13 +302,15 @@ async function setCommits({ id, stage, commits } = {}) {
   const missing = results.filter((r) => !r.ok);
   if (missing.length) throw new Error(missing.map((r) => r.message).join('；'));
 
-  return updateRequirementState(id, (checks) => {
+  const saved = await updateRequirementState(id, (checks) => {
     if (JSON.stringify(checks[PLAN_REPOS_KEY] || {}) !== JSON.stringify(repos)) {
       throw new Error('規劃的 repository 已變更，請重新開啟後再確認');
     }
     checks[commitsKey(stage)] = normalized;
     delete checks[commitsForcedKey(stage)]; // 已填入實際 commit，不再是跳階段勾起
   });
+  // upagent 的 Confirm Commit 不在已發佈的版本中：作廢舊的發佈紀錄，勾 SaaS / Local 時重新更版
+  return (await dropStaleRelease(id, stage)) || saved;
 }
 
 module.exports = {

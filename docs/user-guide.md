@@ -193,6 +193,7 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
 - **簽署需要 HSM**：請先插上 HSM USB，簽署時會跳出 PIN 輸入視窗。
 - 失敗時再勾選會從下一個步驟接續；GitHub Action 失敗時可以按「**重跑 GitHub Action**」，透過 GitHub API 重跑整個 workflow run 後接續等待結果（Token 需要 Actions 寫入權限）。
 - 同一個 upagent feature branch 上的多個 Requirement 會**共用版號**：Confirm Commit 已包含在某個已發佈的版本中時，會沿用該版本（顯示「沿用 #id」），只補寫尚未寫入的資料庫。
+- **Confirm Commit 改成新的 commit**：已發佈的版本不包含新的 commit 時，舊的發佈紀錄會作廢，再勾 SaaS / Local 會重新詢問版號遞增（minor / patch）並發佈新版本（包含新 commit 的已發佈版本則沿用）。
 - 可以按「背景執行」關閉視窗。
 
 ## 設定

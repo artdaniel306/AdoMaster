@@ -107,6 +107,8 @@ export function commitsConfirmed(checks, stage) {
  */
 export const UPAGENT_REPO = 'upagent';
 export const UPAGENT_RELEASE_KEY = 'upagentRelease';
+/** Confirm Commit 改成舊版本 tag 不包含的 commit 時，舊的（自己發佈的）發佈紀錄移到這裡，仍供其他 Requirement 沿用 */
+export const UPAGENT_RELEASE_HISTORY_KEY = 'upagentReleaseHistory';
 /** 發佈步驟（key = shell/Release-UpAgent.ps1 的 -StartFrom 與輸出的 ::step:: 標記） */
 export const RELEASE_STEPS = ['Bump', 'WaitAction', 'Download', 'Sign', 'UpdateYml', 'Publish', 'CleanStaging', 'Database'];
 export const RELEASE_STEP_TEXT = {

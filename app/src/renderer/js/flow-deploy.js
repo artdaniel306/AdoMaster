@@ -10,7 +10,7 @@ import { registerDeploySource } from './deploy-jobs.js';
 import {
   PLAN_REPOS_KEY,
   noRepoChange,
-  upagentReleasePlan,
+  needsUpagentRelease,
   UPAGENT_RELEASE_KEY,
   DEPLOY_ENV,
   RELEASE_TARGETS,
@@ -64,7 +64,9 @@ export function createFlowDeploy(ctx) {
    */
   async function ensureReleased(req, stage, key, text) {
     const target = releaseTargetOf(key);
-    if (!upagentReleasePlan(ctx.checks(req.id), stage.key, target)) return true;
+    // 不能只看本機狀態的 upagentReleasePlan：Confirm Commit 改成新 commit 後，舊版本的紀錄（DB 已寫入）會讓它回傳 null。
+    // 由 main 判斷（作廢過期的紀錄 / 沿用已發佈的版本）
+    if (!target || !needsUpagentRelease(ctx.checks(req.id))) return true;
     const status = await api.upagentReleaseStatus(req.id, stage.key, target);
     // Confirm Commit 已包含在已發佈的版本中：main 已沿用該版本，先同步狀態
     if (status.checks) ctx.setChecks(req.id, status.checks);

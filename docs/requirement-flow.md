@@ -240,6 +240,13 @@ Scripts: `shell/Release-UpAgent.ps1` + child scripts `1-Get-BlobArtifacts.ps1` /
   - `releaseStatus` then also returns `checks` so the renderer syncs.
   - A finished **Database** step is written to **every** record of the same version (`markDbWritten`, via `flowState.updateFlowState`), so one version is never inserted into the same DB twice.
   - No Confirm Commit (forced) / git failure → falls back to the normal Bump path.
+- **A stale record is dropped** (`dropStaleRelease`): when the Requirement already has its own record whose Bump finished (tag pushed)
+  but the stage's Confirm Commit (upagent) is **not** in `v<version>` (Confirm Commit moved to a newer commit), the record is stale —
+  otherwise `upagentReleasePlan` sees `db[<env>_<target>]` already written and silently skips the release.
+  - Checked by `setCommits` (right after saving the Confirm Commit) and by `adoptPublishedRelease` (so `releaseStatus` / `runRelease`); `releaseVersionFor` ignores a stale record (read-only).
+  - Own published records move to `upagentReleaseHistory` (array; still counted by `publishedVersions`, so other Requirements can adopt that version; refused by `flow:setCheck`); adopted ones are just deleted.
+  - Then the normal path applies: adopt a published version containing the new commit, else start from **Bump** (asks minor / patch).
+  - The renderer (`ensureReleased`) therefore always asks `upagentRelease:status` when Plan includes upagent, instead of trusting the local `upagentReleasePlan`.
   - Summary shows「沿用 #id」.
 - Non-interactive (no `Read-Host`; `-NonInteractive`, no timeout, stdout streamed via `runPowerShellLines(..., { onLine, onMarker, signal })`, cancel = `taskkill /T`).
   - Settings: `upagentRelease` in `data/config.json` (`-ConfigPath`) + `GITHUB_TOKEN` / DB passwords in `data/.env` (`-EnvPath`); the dialog's `configExists` only checks the section exists.
