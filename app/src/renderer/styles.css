@@ -589,7 +589,7 @@ td.stage-split { padding: 0; height: 1px; }
 .rs-list-head { display: flex; gap: 12px; align-items: center; }
 .rs-list-head .check { font-weight: normal; font-size: 12px; }
 .rs-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-.rs-item { display: grid; grid-template-columns: auto 160px 110px 1fr auto; gap: 10px; align-items: center; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; }
+.rs-item { display: grid; grid-template-columns: auto 160px 110px 1fr auto auto; gap: 10px; align-items: center; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; }
 .rs-item.expired { opacity: .6; }
 
 /* ---- 同步所有 Repository（選單「工具」，shell/Sync-Repos.ps1）---- */
@@ -613,3 +613,4 @@ td.stage-split { padding: 0; height: 1px; }
 .rs-item .cc-result { grid-column: auto; }
 .rs-when { font-variant-numeric: tabular-nums; }
 .rs-desc { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rs-info { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 1px solid var(--border); border-radius: 50%; font-size: 11px; color: var(--muted); cursor: help; user-select: none; }

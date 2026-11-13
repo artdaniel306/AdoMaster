@@ -8,6 +8,17 @@ import { restartSlot } from '../../shared/flow-rules.js';
 const timeText = (iso) => (iso ? new Date(iso).toLocaleString('zh-TW', { hour12: false }) : '');
 
 /**
+ * 排程 description 中的說明部分。Restart-Schedule.ps1 建立的格式為
+ * 「AdoMaster：<日期 時間 重啟 App Service> · <說明> · 建立者 <user@host> <時間>」，去掉頭尾的固定部分。
+ */
+function noteText(description) {
+  const parts = String(description || '').split(' · ');
+  if (parts[0].startsWith('AdoMaster：')) parts.shift();
+  if (parts.length && parts[parts.length - 1].startsWith('建立者 ')) parts.pop();
+  return parts.join(' · ').trim();
+}
+
+/**
  * 「佈版 → 正式環境排程重啟…」：查看 Azure Automation 中的重啟排程（prodRestart:list），
  * 為選擇的 repository 新增排程（prodRestart:create，同一時間已排程的不會重複建立），或刪除排程（prodRestart:delete）。
  * 設定在 data/config.json 的 prodRestart（main/services/prodRestart.js）；「設定…」開啟設定 dialog，儲存後重新讀取。
@@ -73,8 +84,11 @@ export function createRestartScheduleDialog({ openSettings } = {}) {
         const when = el('span', 'rs-when', restartText(s.date, s.time));
         const linked = (s.links || []).length > 0;
         const state = s.expired ? ['muted', '已執行'] : linked ? ['ok', '待執行'] : ['bad', '未連結 Runbook'];
-        const desc = el('span', 'muted rs-desc', s.description || '');
-        desc.title = [
+        const note = noteText(s.description);
+        const desc = el('span', 'muted rs-desc', note);
+        if (note) desc.title = note;
+        const info = el('span', 'rs-info', '?');
+        info.title = [
           s.description,
           `Schedule：${s.name}`,
           ...(s.links || []).map((l) => `Runbook ${l.runbook}：${Object.entries(l.parameters || {}).map(([k, v]) => `${k}=${v}`).join(', ')}`),
@@ -83,7 +97,7 @@ export function createRestartScheduleDialog({ openSettings } = {}) {
         const del = el('button', 'btn-ghost btn-danger', '刪除');
         del.type = 'button';
         del.addEventListener('click', () => remove(s));
-        row.append(repoTag(s.repo), when, el('span', `cc-result ${state[0]}`, state[1]), desc, del);
+        row.append(repoTag(s.repo), when, el('span', `cc-result ${state[0]}`, state[1]), desc, info, del);
         return row;
       })
     );
