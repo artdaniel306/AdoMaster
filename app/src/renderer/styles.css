@@ -72,12 +72,15 @@ button { font: inherit; cursor: pointer; }
 .node-row:hover .pin-btn, .pin-item:hover .pin-btn { opacity: 1; }
 .pin-btn:hover { background: var(--border); }
 
-/* Iteration 選擇 dialog */
-#iter-dialog {
+/* ---- 對話框共用外觀（每個 <dialog> 加 class="app-dialog"；寬度等尺寸由各 dialog 的 id 規則設定）---- */
+.app-dialog {
   padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(640px, 90vw); height: min(720px, 85vh); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
 }
-#iter-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+.app-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+
+/* Iteration 選擇 dialog */
+#iter-dialog { width: min(640px, 90vw); height: min(720px, 85vh); }
 .dlg-box { display: flex; flex-direction: column; height: 100%; }
 .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; }
 .dlg-head h3 { margin: 0; font-size: 16px; }
@@ -198,11 +201,7 @@ td.stage-split { padding: 0; height: 1px; }
 .node-row .node-date + .pin-btn { margin-left: 0; }
 
 /* ---- 規劃 dialog ---- */
-#plan-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(560px, 90vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#plan-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#plan-dialog { width: min(560px, 90vw); }
 .dlg-body { padding: 0 14px 8px; }
 .dlg-req { margin: 0 0 4px; font-weight: 600; word-break: break-word; }
 .plan-repos { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
@@ -233,11 +232,7 @@ td.stage-split { padding: 0; height: 1px; }
 .note-icon { cursor: help; font-weight: normal; }
 
 /* ---- Repository 設定（選單「設定 → Repository 設定…」，編輯 data/config.json 的 repos）---- */
-#repo-settings-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(760px, 94vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#repo-settings-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#repo-settings-dialog { width: min(760px, 94vw); }
 #repo-settings-dialog .dlg-box { max-height: 90vh; }
 #repo-settings-dialog .dlg-body { overflow: auto; }
 .rs-repos { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
@@ -265,11 +260,7 @@ td.stage-split { padding: 0; height: 1px; }
 .rs-branches { resize: vertical; font: 13px Consolas, "Courier New", monospace; }
 
 /* ---- 連線與機密設定（選單「設定 → 連線與機密設定…」，編輯 data/.env；沿用 Repository 設定的 rs-* 樣式）---- */
-#env-settings-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(720px, 94vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#env-settings-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#env-settings-dialog { width: min(720px, 94vw); }
 #env-settings-dialog .dlg-box { max-height: 90vh; }
 #env-settings-dialog .dlg-body { overflow: auto; }
 #es-file { word-break: break-all; }
@@ -286,11 +277,7 @@ td.stage-split { padding: 0; height: 1px; }
 .rs-field .rs-warn { margin: 0; }
 
 /* ---- UpAgent 連線設定（選單「設定 → UpAgent 連線設定…」，編輯 config.json upagentConnection；沿用 rs-* / es-* 樣式）---- */
-#upagent-conn-settings-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(640px, 94vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#upagent-conn-settings-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#upagent-conn-settings-dialog { width: min(640px, 94vw); }
 #upagent-conn-settings-dialog .dlg-box { max-height: 90vh; }
 #upagent-conn-settings-dialog .dlg-body { overflow: auto; display: flex; flex-direction: column; gap: 10px; }
 #ucs-file { margin: 0; word-break: break-all; }
@@ -300,11 +287,7 @@ td.stage-split { padding: 0; height: 1px; }
 .ucs-add { align-self: flex-start; margin-top: 6px; }
 
 /* ---- UpAgent 發佈資料庫設定（選單「設定 → UpAgent 發佈資料庫設定…」，config.json upagentRelease.db + .env 密碼；沿用 rs-* / es-* 樣式）---- */
-#upagent-release-db-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(720px, 94vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#upagent-release-db-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#upagent-release-db-dialog { width: min(720px, 94vw); }
 #upagent-release-db-dialog .dlg-box { max-height: 90vh; }
 #upagent-release-db-dialog .dlg-body { overflow: auto; }
 #urd-file { margin: 0; word-break: break-all; }
@@ -314,11 +297,7 @@ td.stage-split { padding: 0; height: 1px; }
 }
 
 /* ---- 正式環境排程重啟設定（選單「設定 → 正式環境排程重啟設定…」，config.json prodRestart；沿用 rs-* / es-* 樣式）---- */
-#prod-restart-settings-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(720px, 94vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#prod-restart-settings-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#prod-restart-settings-dialog { width: min(720px, 94vw); }
 #prod-restart-settings-dialog .dlg-box { max-height: 90vh; }
 #prod-restart-settings-dialog .dlg-body { overflow: auto; display: flex; flex-direction: column; gap: 10px; }
 #prs-file { margin: 0; word-break: break-all; }
@@ -331,11 +310,7 @@ td.stage-split { padding: 0; height: 1px; }
 .prs-add { align-self: flex-start; margin-top: 6px; }
 
 /* ---- Confirm Commit（Test deploy / Prod deploy 佈版前）---- */
-#commit-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(900px, 94vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#commit-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#commit-dialog { width: min(900px, 94vw); }
 .cc-repos { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .cc-repo { display: grid; grid-template-columns: 150px 1fr auto auto; align-items: center; gap: 4px 10px; }
 .cc-repo .cc-result { grid-column: 2 / -1; }
@@ -407,30 +382,18 @@ td.stage-split { padding: 0; height: 1px; }
 .flow-check.disabled input { cursor: not-allowed; }
 
 /* ---- 通用確認 dialog（跳階段勾選等）---- */
-#confirm-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(480px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#confirm-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#confirm-dialog { width: min(480px, 92vw); }
 .cf-msg { white-space: pre-line; margin: 8px 0 0; }
 
 /* ---- 尚未 merge 進環境 branch（勾 SaaS / Local 前）---- */
-#merge-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(620px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#merge-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#merge-dialog { width: min(620px, 92vw); }
 .mg-item { display: grid; grid-template-columns: 200px 1fr; align-items: center; gap: 10px; }
 .mg-item .repo-commit { font: 11px Consolas, "Courier New", monospace; color: var(--muted); word-break: break-all; }
 .mg-item .cc-result { grid-column: auto; white-space: normal; }
 .btn-primary:disabled { opacity: .5; cursor: not-allowed; filter: none; }
 
 /* ---- 自動佈版（勾 SaaS：等待 Run → merge + push → 監看新 Run）---- */
-#deploy-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(680px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#deploy-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#deploy-dialog { width: min(680px, 92vw); }
 #deploy-dialog .status { margin: 4px 0; }
 #deploy-dialog .status.ok { color: var(--ok); font-weight: 600; }
 #deploy-dialog #dp-phase.error { font-weight: 600; }
@@ -452,11 +415,7 @@ td.stage-split { padding: 0; height: 1px; }
 .deploy-status { display: block; margin-top: 4px; font-size: 12px; text-align: left; }
 
 /* ---- UpAgent 發佈（規劃含 upagent，勾佈版階段的 SaaS / Local 前執行 shell/Release-UpAgent.ps1）---- */
-#release-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(760px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#release-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#release-dialog { width: min(760px, 92vw); }
 #release-dialog .status { margin: 6px 0; }
 #release-dialog .status.ok { color: var(--ok); font-weight: 600; }
 #release-dialog #ur-phase.error { font-weight: 600; }
@@ -475,11 +434,7 @@ td.stage-split { padding: 0; height: 1px; }
 .release-status { display: block; margin-top: 4px; font-size: 12px; text-align: left; }
 
 /* ---- Local 佈版（勾佈版階段的 Local 時執行 shell/Deploy-Local.ps1）---- */
-#local-deploy-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(760px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#local-deploy-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#local-deploy-dialog { width: min(760px, 92vw); }
 #local-deploy-dialog .status { margin: 6px 0; }
 #local-deploy-dialog .status.ok { color: var(--ok); font-weight: 600; }
 #local-deploy-dialog #ld-phase:empty { display: none; }
@@ -494,19 +449,11 @@ td.stage-split { padding: 0; height: 1px; }
 .local-deploy-status { display: block; margin-top: 4px; font-size: 12px; text-align: left; }
 
 /* ---- 安排預設 Task（Pending 階段、尚未展開 Task）---- */
-#task-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(560px, 90vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#task-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#task-dialog { width: min(560px, 90vw); }
 .btn-default-task { display: block; margin-top: 6px; font-size: 12px; }
 
 /* ---- Work Item Description dialog ---- */
-#desc-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(720px, 92vw); max-height: 85vh; box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#desc-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#desc-dialog { width: min(720px, 92vw); max-height: 85vh; }
 #desc-dialog .dlg-box { max-height: 85vh; }
 #desc-dialog .dlg-body { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .ds-body {
@@ -530,11 +477,7 @@ td.stage-split { padding: 0; height: 1px; }
 .repo-chip.has-color { border-color: color-mix(in srgb, var(--repo-color) 45%, transparent); }
 
 /* ---- 測試記錄（勾「測試完成」時）---- */
-#test-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(720px, 92vw); max-height: 90vh; box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#test-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#test-dialog { width: min(720px, 92vw); max-height: 90vh; }
 #test-dialog .dlg-box { max-height: 90vh; }
 #test-dialog .dlg-body { overflow: auto; }
 #test-dialog.drag-over .tr-images { border-color: var(--accent); background: var(--sel); }
@@ -558,6 +501,7 @@ td.stage-split { padding: 0; height: 1px; }
 #image-viewer img { display: block; max-width: 95vw; max-height: 95vh; object-fit: contain; }
 
 /* 設定 UpAgent 連線 dialog */
+#upagent-conn-dialog { width: min(560px, 92vw); }
 .uc-files { margin-top: 8px; white-space: pre-line; font: 11px Consolas, "Courier New", monospace; color: var(--muted); word-break: break-all; }
 .uc-targets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-top: 10px; }
 .uc-targets label { display: flex; gap: 6px; align-items: center; }
@@ -575,11 +519,7 @@ td.stage-split { padding: 0; height: 1px; }
   background: var(--cur-border); color: #fff; font-size: 11px; font-weight: 600; text-align: center; line-height: 18px;
 }
 .pg-count[hidden] { display: none; }
-#manual-deploy-dialog, #deploy-progress-dialog, #restart-schedule-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(760px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#manual-deploy-dialog::backdrop, #deploy-progress-dialog::backdrop, #restart-schedule-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#manual-deploy-dialog, #deploy-progress-dialog, #restart-schedule-dialog { width: min(760px, 92vw); }
 #manual-deploy-dialog .dlg-box, #deploy-progress-dialog .dlg-box, #restart-schedule-dialog .dlg-box { max-height: 90vh; }
 #manual-deploy-dialog .dlg-body, #deploy-progress-dialog .dlg-body, #restart-schedule-dialog .dlg-body { overflow: auto; }
 #manual-deploy-dialog [hidden], #deploy-progress-dialog [hidden], #restart-schedule-dialog [hidden] { display: none !important; }
@@ -653,15 +593,12 @@ td.stage-split { padding: 0; height: 1px; }
 .rs-item.expired { opacity: .6; }
 
 /* ---- 同步所有 Repository（選單「工具」，shell/Sync-Repos.ps1）---- */
-#repo-sync-dialog {
-  padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--fg);
-  width: min(760px, 92vw); box-shadow: 0 10px 40px rgba(0, 0, 0, .3);
-}
-#repo-sync-dialog::backdrop { background: rgba(0, 0, 0, .35); }
-#repo-sync-dialog .dlg-box { max-height: 90vh; }
-#repo-sync-dialog .dlg-body { overflow: auto; }
-#repo-sync-dialog [hidden] { display: none !important; }
-#repo-sync-dialog .status:empty { display: none; }
+#repo-sync-dialog, #prod-sync-dialog, #saas-monitor-dialog { width: min(760px, 92vw); }
+#repo-sync-dialog .dlg-box, #prod-sync-dialog .dlg-box, #saas-monitor-dialog .dlg-box { max-height: 90vh; }
+#repo-sync-dialog .dlg-body, #prod-sync-dialog .dlg-body, #saas-monitor-dialog .dlg-body { overflow: auto; }
+#repo-sync-dialog [hidden], #prod-sync-dialog [hidden], #saas-monitor-dialog [hidden] { display: none !important; }
+#repo-sync-dialog .status:empty, #prod-sync-dialog .status:empty, #saas-monitor-dialog .status:empty { display: none; }
+#saas-monitor-dialog .cc-repos { margin-top: 4px; gap: 6px; }
 .sy-fetch-only { display: inline-flex; gap: 4px; align-items: center; }
 .sy-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .sy-list:empty { display: none; }
