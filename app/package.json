@@ -1,6 +1,6 @@
 {
   "name": "AdoMaster",
-  "version": "1.2.11",
+  "version": "1.2.12",
   "description": "Azure DevOps Iteration / Work Item 檢視工具",
   "author": "ART Solutions",
   "main": "src/main/index.js",
