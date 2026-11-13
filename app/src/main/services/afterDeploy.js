@@ -56,4 +56,15 @@ async function afterDeployRepo({ stage, repo, commit, restart, note } = {}) {
   return { action: 'restart', message: `已重啟 App Service ${app.name}${http || secs ? `（${http}${secs}）` : ''}`, result };
 }
 
-module.exports = { runAfterDeploy, afterDeployRepo };
+/**
+ * 監視 SaaS 佈版狀態的「重啟 App Service」：手動重啟某 repository 的測試環境 App Service（同 Test deploy 的佈版後動作）。
+ * 正式環境刻意不提供（改用排程重啟，見 prodRestart.js）。
+ */
+async function restartTestAppService({ repo } = {}) {
+  if (typeof repo !== 'string') throw new Error('參數錯誤');
+  const r = await afterDeployRepo({ stage: 'testDeploy', repo });
+  if (r.action !== 'restart') throw new Error(`${repo} 沒有設定測試環境 App Service（testAppService）`);
+  return r;
+}
+
+module.exports = { runAfterDeploy, afterDeployRepo, restartTestAppService };

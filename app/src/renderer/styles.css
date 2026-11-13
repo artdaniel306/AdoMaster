@@ -446,6 +446,9 @@ td.stage-split { padding: 0; height: 1px; }
 .dp-run.warn { color: var(--cur-border); }
 .dp-run.bad { color: var(--err); }
 .dp-run .muted { font-size: 11px; }
+.sm-sec { display: flex; align-items: center; gap: 10px; }
+.sm-sec-btn, .sm-restart { font-size: 12px; padding: 2px 8px; }
+.sm-restart { align-self: flex-start; margin-top: 2px; }
 .deploy-status { display: block; margin-top: 4px; font-size: 12px; text-align: left; }
 
 /* ---- UpAgent 發佈（規劃含 upagent，勾佈版階段的 SaaS / Local 前執行 shell/Release-UpAgent.ps1）---- */

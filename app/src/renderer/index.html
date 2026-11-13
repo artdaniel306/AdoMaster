@@ -555,6 +555,30 @@
     </div>
   </dialog>
 
+  <dialog id="saas-monitor-dialog">
+    <div class="dlg-box">
+      <header class="dlg-head">
+        <h3>監視 SaaS 佈版狀態</h3>
+        <button type="button" id="sm-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <p id="sm-status" class="status"></p>
+        <h4 class="dp-sec">測試環境</h4>
+        <div id="sm-test" class="cc-repos"></div>
+        <h4 class="dp-sec sm-sec">正式環境
+          <button type="button" id="sm-prod-restart" class="btn-ghost sm-sec-btn">正式環境排程重啟…</button>
+        </h4>
+        <div id="sm-prod" class="cc-repos"></div>
+        <p id="sm-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" id="sm-refresh" class="btn-ghost">重新整理</button>
+        <button type="button" id="sm-ok" class="btn-primary">關閉</button>
+      </footer>
+    </div>
+  </dialog>
+
   <dialog id="prod-sync-dialog">
     <div class="dlg-box">
       <header class="dlg-head">

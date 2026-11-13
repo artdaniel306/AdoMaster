@@ -51,4 +51,31 @@ async function repoPipelineRuns(repo, stage) {
   return name ? fetchRuns(repo, name) : null;
 }
 
-module.exports = { deployPipelineRuns, repoPipelineRuns };
+/** 監視 SaaS 佈版狀態：每個 Pipeline 只取最近幾個 Run */
+const MONITOR_TOP = 5;
+
+/**
+ * 選單「佈版 → 監視 SaaS 佈版狀態…」：所有 repository 有設定的測試 / 正式環境 Pipeline 最近的 Run（只讀，不 merge、不重啟）。
+ * 個別 Pipeline 查詢失敗不影響其他的，錯誤放在該筆的 error。
+ * @returns {{ pipelines: [{ repo, stage, name, pipeline?, runs, error?, appService }] }}
+ *   appService：測試環境有設定 testAppService 時為其名稱（可手動重啟），否則為 ''
+ */
+async function monitorPipelineRuns() {
+  const config = await loadRepoConfig();
+  const targets = COMMIT_STAGES.flatMap((stage) =>
+    config.repos.filter((r) => r.pipelines[stage]).map((r) => ({ repo: r.key, stage, name: r.pipelines[stage], appService: r.appServices[stage]?.name || '' }))
+  );
+  const pipelines = await Promise.all(
+    targets.map(async (t) => {
+      try {
+        const { pipeline, runs } = await runScriptJson('get_pipeline_runs.py', ['--pipeline', t.name, '--top', String(MONITOR_TOP)]);
+        return { ...t, pipeline, runs };
+      } catch (err) {
+        return { ...t, runs: [], error: String(err.message || err).trim() };
+      }
+    })
+  );
+  return { pipelines };
+}
+
+module.exports = { deployPipelineRuns, repoPipelineRuns, monitorPipelineRuns };

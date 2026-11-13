@@ -16,6 +16,18 @@ import {
 const runClass = (run) => (run.active ? 'warn' : run.result === 'succeeded' ? 'ok' : 'bad');
 const timeText = (d) => d.toLocaleTimeString('zh-TW', { hour12: false });
 
+/** 一個 Pipeline Run 一行：#編號（點擊在瀏覽器開啟）、狀態、觸發者 · commit；extra 附加在最後（監視 SaaS 佈版狀態也用） */
+export function runLine(run, extra = '') {
+  const line = el('div', `dp-run ${runClass(run)}`);
+  const link = el('button', 'btn-link', `#${run.buildNumber || run.id}`);
+  link.type = 'button';
+  link.title = '在瀏覽器開啟此 Run';
+  link.addEventListener('click', () => run.webUrl && api.openExternal(run.webUrl));
+  const meta = [run.requestedFor, run.sourceVersion?.slice(0, 10), extra].filter(Boolean).join(' · ');
+  line.append(link, el('span', null, runText(run)), el('span', 'muted', meta));
+  return line;
+}
+
 const PHASE_TEXT = {
   confirm: '確認後開始佈版',
   waiting: '等待 Pipeline 進行中 / 停等的 Run 結束',
@@ -88,17 +100,6 @@ export function createDeployDialog() {
     j.onChange?.(j.req.id);
   }
 
-  function runLine(run) {
-    const line = el('div', `dp-run ${runClass(run)}`);
-    const link = el('button', 'btn-link', `#${run.buildNumber || run.id}`);
-    link.type = 'button';
-    link.title = '在瀏覽器開啟此 Run';
-    link.addEventListener('click', () => run.webUrl && api.openExternal(run.webUrl));
-    const meta = [run.requestedFor, run.sourceVersion?.slice(0, 10)].filter(Boolean).join(' · ');
-    line.append(link, el('span', null, runText(run)), el('span', 'muted', meta));
-    return line;
-  }
-
   function renderMerge(j) {
     mergeHead.hidden = !j.mergeStatus.items.length;
     mergeEl.replaceChildren(...j.mergeStatus.items.map(mergeItemRow));
@@ -134,7 +135,7 @@ export function createDeployDialog() {
       }
       if (waited.length) {
         if (target) runs.append(el('div', 'muted', '先前等待的 Run：'));
-        runs.append(...waited.map(runLine));
+        runs.append(...waited.map((r) => runLine(r)));
       }
       if (!target && !waited.length) runs.append(el('div', 'dp-run ok', '沒有進行中 / 停等的 Run'));
       row.append(name, runs);

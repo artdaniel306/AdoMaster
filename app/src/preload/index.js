@@ -71,6 +71,10 @@ contextBridge.exposeInMainWorld('api', {
   saveProdRestartSettings: (settings, parameters, repos) => ipcRenderer.invoke('prodRestart:saveSettings', { settings, parameters, repos }),
   /** 選單「佈版 → 手動佈版… / 佈版進度… / 正式環境排程重啟…」被點擊時呼叫 cb('manual' | 'progress' | 'restart') */
   onDeployMenu: (cb) => ipcRenderer.on('menu:deploy', (_e, action) => cb(action)),
+  /** 監視 SaaS 佈版狀態：{ pipelines: [{ repo, stage, name, pipeline?, runs, error?, appService }] } */
+  monitorPipelineRuns: () => ipcRenderer.invoke('saasMonitor:runs'),
+  /** 手動重啟某 repository 的測試環境 App Service，回傳 { action, message, result } */
+  restartTestAppService: (repo) => ipcRenderer.invoke('saasMonitor:restartTest', { repo }),
   /** UpAgent 連線：要刪除的設定檔與各目標是否有 Activation Code */
   upagentConnectionStatus: () => ipcRenderer.invoke('upagentConnection:status'),
   /** 切換 UpAgent 連線（刪掉 UpAgent 設定檔），回傳 { target, label, activationCode, files } */

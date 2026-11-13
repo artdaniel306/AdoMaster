@@ -11,6 +11,7 @@ import { initUpagentReleaseDbSettings } from './upagent-release-db-dialog.js';
 import { createManualDeployDialog } from './manual-deploy-dialog.js';
 import { createDeployProgressDialog } from './deploy-progress-dialog.js';
 import { createRestartScheduleDialog } from './restart-schedule-dialog.js';
+import { createSaasMonitorDialog } from './saas-monitor-dialog.js';
 import { initProdRestartSettings } from './prod-restart-settings-dialog.js';
 import { createRepoSyncDialog } from './repo-sync-dialog.js';
 import { createProdSyncDialog } from './prod-sync-dialog.js';
@@ -70,7 +71,9 @@ const manualDeploy = createManualDeployDialog({ onStarted: (job) => progress.sta
 $('manual-deploy-btn').addEventListener('click', () => manualDeploy.open());
 $('deploy-progress-btn').addEventListener('click', () => progress.open());
 const restartSchedule = createRestartScheduleDialog({ openSettings: (onSaved) => prodRestartSettings.open(onSaved) });
-api.onDeployMenu((action) => (action === 'manual' ? manualDeploy.open() : action === 'restart' ? restartSchedule.open() : progress.open()));
+const saasMonitor = createSaasMonitorDialog({ openRestartSchedule: () => restartSchedule.open() });
+const DEPLOY_MENU = { manual: manualDeploy, restart: restartSchedule, saasMonitor, progress };
+api.onDeployMenu((action) => (DEPLOY_MENU[action] || progress).open());
 
 tree.load();
 

@@ -45,6 +45,9 @@ function registerIpcHandlers() {
   ipcMain.handle('flow:mergeDeploy', (_e, { id, stage } = {}) => requirementFlow.mergeDeploy({ id, stage }));
   ipcMain.handle('flow:pipelineRuns', (_e, { id, stage } = {}) => pipelines.deployPipelineRuns({ id, stage }));
   ipcMain.handle('flow:afterDeploy', (_e, params) => afterDeploy.runAfterDeploy(params));
+  // 監視 SaaS 佈版狀態：所有 Pipeline 最近的 Run；手動重啟測試環境 App Service
+  ipcMain.handle('saasMonitor:runs', () => pipelines.monitorPipelineRuns());
+  ipcMain.handle('saasMonitor:restartTest', (_e, params) => afterDeploy.restartTestAppService(params));
   ipcMain.handle('upagentRelease:status', (_e, { id, stage, target } = {}) => upagentRelease.releaseStatus({ id, stage, target }));
   ipcMain.handle('upagentRelease:run', (e, params) =>
     upagentRelease.runRelease((channel, payload) => !e.sender.isDestroyed() && e.sender.send(channel, payload), params)
