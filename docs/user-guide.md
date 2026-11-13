@@ -61,7 +61,7 @@ AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也�
 整個流程只有兩個動作會寫入 ADO，其餘勾選都只存在本機的 `data/requirement_flow_state.json`：
 
 1. **安排預設 Task**：在 Requirement 底下建立一個**同名**的 Task，Area / Iteration 沿用 Requirement；Description 在對話框中填寫。
-2. **更新狀態**：狀態標籤顯示「目前 → 應有狀態」並以醒目色標示時，點擊它會把 ADO 狀態更新成應有狀態（有人被指派 → Active；開發完成 → Resolved；整個流程完成 → Closed）。
+2. **更新狀態**：狀態標籤顯示「目前 → 應有狀態」並以醒目色標示時，點擊它會把 ADO 狀態更新成應有狀態（有人被指派 → Active；開發完成 → Resolved；整個流程完成 → Closed）。更新成 Closed 時，會先把底下尚未關閉的子 Task 也一併改成 Closed。
 
 ### 開發欄
 

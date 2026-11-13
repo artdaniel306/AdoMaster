@@ -155,8 +155,15 @@ export function createFlowCells(ctx) {
       try {
         const updated = await api.updateRequirementState(req.id, target);
         Object.assign(req, { state: updated.state, reason: updated.reason, changedDate: updated.changedDate });
+        const closedTasks = updated.closedTasks || [];
+        for (const t of closedTasks) {
+          const kid = req.children.find((c) => c.id === t.id);
+          if (kid) Object.assign(kid, { state: t.state, reason: t.reason, changedDate: t.changedDate });
+        }
         ctx.update(req);
-        statusEl.textContent = `已將 #${req.id} 的狀態更新為 ${updated.state}`;
+        statusEl.textContent =
+          `已將 #${req.id} 的狀態更新為 ${updated.state}` +
+          (closedTasks.length ? `，並關閉 ${closedTasks.length} 個子 Task` : '');
       } catch (err) {
         btn.disabled = false;
         statusEl.className = 'status error';

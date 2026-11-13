@@ -61,10 +61,16 @@ async function createDefaultTask({ id, description } = {}) {
 /** 點擊 Requirement 狀態 chip 時可更新成的狀態（renderer 依 Task 指派 / Implement / 流程進度決定） */
 const SYNC_STATES = ['Active', 'Resolved', 'Closed'];
 
-/** 更新 Requirement 在 ADO 的狀態（update_state.py），回傳更新後的 Work Item（欄位同 requirements，不含 children）。 */
+/**
+ * 更新 Requirement 在 ADO 的狀態（update_state.py），回傳更新後的 Work Item（欄位同 requirements，不含 children）。
+ * 改成 Closed 時先把底下的子 Task 也都 Closed（--close-child-tasks），結果另含 closedTasks: [這次關閉的子 Task]；
+ * 任何子 Task 失敗則 Requirement 不會被更新（已關閉的子 Task 不還原，再點一次會略過）。
+ */
 async function updateRequirementStateInAdo({ id, state } = {}) {
   if (!Number.isInteger(id) || id <= 0 || !SYNC_STATES.includes(state)) throw new Error('參數錯誤');
-  return runScriptJson('update_state.py', ['--id', String(id), '--state', state]);
+  const args = ['--id', String(id), '--state', state];
+  if (state === 'Closed') args.push('--close-child-tasks');
+  return runScriptJson('update_state.py', args);
 }
 
 /**

@@ -35,7 +35,7 @@ Read this before changing anything under the flow:
   - Nothing in these steps is written back to ADO.
 
 ## Writes to ADO
-Creating the default Task and updating the Requirement state are the **only** actions that write to ADO
+Creating the default Task and updating the Requirement state (closing it also closes its child Tasks) are the **only** actions that write to ADO
 (the UpAgent release writes to GitHub / Azure Blob / PostgreSQL; pipelines are only read; deploys are triggered by the git push).
 - **Default Task**: while a Requirement is Pending, its Pending cell shows「安排預設 Task」.
   - A dialog (`task-dialog.js`) asks for a Description, then `flow:createTask` runs `create_task.py` (`ado.work_items.create_child_task`) to create a Task with the **same title** as the Requirement, its Area/Iteration, and a parent link.
@@ -45,6 +45,7 @@ Creating the default Task and updating the Requirement state are the **only** ac
   - Expected state is Closed when the whole flow is done, else Resolved when Implement is done, else Active when any non-Removed child is assigned, else none.
   - When it differs from the current state (case-insensitive) the chip is highlighted (`state-mismatch`) and shows `current → expected`.
   - Clicking it runs `flow:updateState` → `update_state.py` (PATCH `System.State`; Reason left to ADO's default) and updates `req.state` in place.
+  - Updating to **Closed** passes `--close-child-tasks`: every child **Task** not already Closed / Removed is set to Closed first (other child types untouched); only if all succeed is the Requirement closed. Result `closedTasks` updates those children in place. A failure leaves already-closed Tasks closed — clicking again skips them.
 
 ## Repos settings
 - All repo settings live in the `repos` section of `data/config.json`:

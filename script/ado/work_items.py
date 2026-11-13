@@ -216,3 +216,32 @@ def update_state(cfg, item_id, state):
     ops = [{"op": "add", "path": "/fields/System.State", "value": state}]
     url = api_url(cfg, f"wit/workitems/{int(item_id)}")
     return api_request(url, cfg["pat"], ops, content_type="application/json-patch+json", method="PATCH")
+
+
+# 關閉子 Task 時略過的狀態（小寫比對）
+CLOSE_SKIP_STATES = {"closed", "removed"}
+
+
+def close_child_tasks(cfg, parent_id, type="Task", state="Closed"):
+    """把 parent 底下尚未 Closed / Removed 的子 Task 逐一改成 state。
+
+    回傳 [被更新的子 Work Item（API 回傳）]；任何一筆失敗即丟出例外（已更新的不會還原，再執行一次會略過）。
+    """
+    found = get_work_items(cfg, [parent_id], relations=True)
+    if not found:
+        raise AdoError(f"[錯誤] 找不到 Work Item #{parent_id}（或沒有權限）")
+    kids = child_ids(found[0])
+    if not kids:
+        return []
+    targets = [
+        k for k in get_work_items(cfg, kids)
+        if k.get("fields", {}).get("System.WorkItemType") == type
+        and str(k.get("fields", {}).get("System.State", "")).lower() not in CLOSE_SKIP_STATES
+    ]
+    updated = []
+    for k in targets:
+        try:
+            updated.append(update_state(cfg, k["id"], state))
+        except AdoError as e:
+            raise AdoError(f"[錯誤] 無法把子 {type} #{k['id']} 改為 {state}：{e}") from e
+    return updated
