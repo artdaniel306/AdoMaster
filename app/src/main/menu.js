@@ -20,7 +20,7 @@ async function openDataFolder() {
  * 、UpAgent 連線設定（upagent-connection-settings-dialog.js）、UpAgent 發佈資料庫設定（upagent-release-db-dialog.js）
  * 與正式環境排程重啟設定（prod-restart-settings-dialog.js），以及「開啟設定資料夾」（main 直接用檔案總管開啟 DATA_DIR），
  * 「佈版」放手動佈版（manual-deploy-dialog.js）、佈版進度（deploy-progress-dialog.js）與正式環境排程重啟（restart-schedule-dialog.js），
- * 「工具」放同步所有 Repository（repo-sync-dialog.js），
+ * 「Git」放同步所有 Repository（repo-sync-dialog.js）與同步 prod 至 feature（prod-sync-dialog.js），
  * 同樣只通知 renderer，
  * 「說明 → 使用手冊」（F1）由 main 直接開獨立視窗（helpWindow.js，內容是 docs/user-guide.md），
  * 「說明 → 關於 AdoMaster」把版本號（package.json version）傳給 renderer，用 app 內的 confirm dialog 顯示，
@@ -62,8 +62,11 @@ function buildMenu() {
       ],
     },
     {
-      label: '工具',
-      submenu: [{ label: '同步所有 Repository…', click: (_item, win) => win?.webContents.send('menu:repoSync') }],
+      label: 'Git',
+      submenu: [
+        { label: '同步所有 Repository…', click: (_item, win) => win?.webContents.send('menu:repoSync') },
+        { label: '同步 prod 至 feature…', click: (_item, win) => win?.webContents.send('menu:prodSync') },
+      ],
     },
     { role: 'editMenu' },
     { role: 'viewMenu' },

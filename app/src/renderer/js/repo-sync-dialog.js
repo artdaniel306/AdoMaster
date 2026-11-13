@@ -13,7 +13,7 @@ const BRANCH_STATUS = {
 };
 
 /**
- * 「工具 → 同步所有 Repository…」：執行 shell/Sync-Repos.ps1（main/services/repoSync.js），
+ * 「Git → 同步所有 Repository…」：執行 shell/Sync-Repos.ps1（main/services/repoSync.js），
  * 對 config.json 的 repos（開發用 clone）與 localDeploy（部署用 clone）git fetch 並快轉落後的 local branch。
  */
 export function createRepoSyncDialog() {

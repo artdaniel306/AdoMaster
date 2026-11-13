@@ -20,6 +20,7 @@ const manualDeploy = require('./services/manualDeploy');
 const customerDeploy = require('./services/customerDeploy');
 const prodRestart = require('./services/prodRestart');
 const repoSync = require('./services/repoSync');
+const prodSync = require('./services/prodSync');
 
 /**
  * IPC channel → service 對照。renderer 只能透過 preload 暴露的 window.api 呼叫這些 channel。
@@ -84,6 +85,8 @@ function registerIpcHandlers() {
     repoSync.runSync((channel, payload) => !e.sender.isDestroyed() && e.sender.send(channel, payload), { fetchOnly: !!fetchOnly })
   );
   ipcMain.handle('repoSync:cancel', () => repoSync.cancelSync());
+  // 手動把 prodBranch 反向 merge 回所有 feature branch（同正式環境佈版後的反向 merge）
+  ipcMain.handle('prodSync:run', (_e, params) => prodSync.syncProdToFeatures(params));
   ipcMain.handle('repos:config', () => repoConfig.loadRepoConfig());
   ipcMain.handle('repos:checkCommit', (_e, params) => gitCommit.checkCommit(params));
   ipcMain.handle('repos:branchGraph', (_e, params) => branchGraph.branchGraph(params));

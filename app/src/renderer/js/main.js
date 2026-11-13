@@ -13,6 +13,7 @@ import { createDeployProgressDialog } from './deploy-progress-dialog.js';
 import { createRestartScheduleDialog } from './restart-schedule-dialog.js';
 import { initProdRestartSettings } from './prod-restart-settings-dialog.js';
 import { createRepoSyncDialog } from './repo-sync-dialog.js';
+import { createProdSyncDialog } from './prod-sync-dialog.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 import { api } from './api.js';
 
@@ -60,7 +61,8 @@ initEnvSettings();
 initUpagentConnectionSettings();
 initUpagentReleaseDbSettings();
 const prodRestartSettings = initProdRestartSettings();
-createRepoSyncDialog(); // 選單「工具 → 同步所有 Repository…」
+createRepoSyncDialog(); // 選單「Git → 同步所有 Repository…」
+createProdSyncDialog(); // 選單「Git → 同步 prod 至 feature…」
 
 // 佈版（選單「佈版」與標題列按鈕）：手動佈版 + 佈版進度
 const progress = createDeployProgressDialog({ openManual: () => manualDeploy.open(), badgeEl: $('deploy-progress-count') });

@@ -666,6 +666,8 @@ td.stage-split { padding: 0; height: 1px; }
 .sy-head { display: flex; gap: 10px; align-items: center; }
 .sy-head .sy-path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
 .sy-head .cc-result { grid-column: auto; }
+.ps-repo { display: flex; gap: 10px; align-items: center; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; }
+.ps-repo .ps-branches { flex: 1; margin: 0; font: 11px Consolas, "Courier New", monospace; word-break: break-all; }
 .sy-branches { list-style: none; margin: 4px 0 0; padding: 0 0 0 12px; display: flex; flex-direction: column; gap: 2px; }
 .sy-branches .cc-result { white-space: normal; }
 .rs-item .cc-result { grid-column: auto; }

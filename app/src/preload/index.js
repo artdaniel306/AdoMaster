@@ -95,8 +95,15 @@ contextBridge.exposeInMainWorld('api', {
   cancelRepoSync: () => ipcRenderer.invoke('repoSync:cancel'),
   /** 同步的即時輸出：cb({ line }) */
   onRepoSyncLog: (cb) => ipcRenderer.on('repoSync:log', (_e, data) => cb(data)),
-  /** 選單「工具 → 同步所有 Repository…」被點擊時呼叫 cb() */
+  /** 選單「Git → 同步所有 Repository…」被點擊時呼叫 cb() */
   onRepoSyncMenu: (cb) => ipcRenderer.on('menu:repoSync', () => cb()),
+  /**
+   * 把 repos（key 陣列）的 prodBranch 反向 merge 回其所有 feature branch。
+   * 回傳 { backMerges: { [repo]: [{ branch, state, message, mergeCommit? }] } }
+   */
+  syncProdToFeatures: (repos) => ipcRenderer.invoke('prodSync:run', { repos }),
+  /** 選單「Git → 同步 prod 至 feature…」被點擊時呼叫 cb() */
+  onProdSyncMenu: (cb) => ipcRenderer.on('menu:prodSync', () => cb()),
   loadRepoConfig:() => ipcRenderer.invoke('repos:config'),
   checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
   branchGraph: (repo, branch, { fetch = false, all = false } = {}) =>

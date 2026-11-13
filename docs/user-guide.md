@@ -275,7 +275,7 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
 
 ## 同步所有 Repository
 
-選單「工具 → 同步所有 Repository…」：把 `data/config.json` 中所有 repository 與雲端同步，按「開始同步」執行。
+選單「Git → 同步所有 Repository…」：把 `data/config.json` 中所有 repository 與雲端同步，按「開始同步」執行。
 
 - 同步對象：Repository 設定的本機路徑（開發用 clone），以及 `localDeploy` 的 `projectDir`（部署用 clone）；相同路徑只做一次。資料夾不存在、不是 git repository 或沒有 remote 的會略過。
 - 每個 repository 先 `git fetch --all`，再檢查每個有追蹤 remote branch 的 local branch：
@@ -285,6 +285,15 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
 - 不會 merge、rebase、push，也不會刪除任何 branch。
 - **只 fetch，不快轉**：只更新 remote branch，並列出可以快轉的 local branch。
 - 執行中可以按「停止」中止。
+
+## 同步 prod 至 feature
+
+選單「Git → 同步 prod 至 feature…」：手動把正式環境 branch（Repository 設定的 `prodBranch`）反向 merge 回該 repository 的所有 feature branch，與正式環境佈版 merge 後自動做的反向 merge 相同。適合在流程外直接改了正式環境 branch（例如 hotfix）之後使用。
+
+- 只列出有設定 `prodBranch` 的 repository；勾選要同步的 repository，按「開始同步」執行。
+- feature branch = Repository 設定的 branches 中，不是測試 / 正式環境 branch 的那些。
+- 一律建立 merge commit 並 push，不動本機工作目錄、不 force push；`backMergeKeepPaths` 同樣適用。
+- 已包含正式版的 branch 不做事；remote 沒有的 branch 略過；有衝突的 branch 不 merge，請手動處理。
 
 ## 匯出 / 匯入本地資料
 

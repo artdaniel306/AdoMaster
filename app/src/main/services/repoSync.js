@@ -5,7 +5,7 @@ const { withPathLock } = require('../pathLock');
 const { readConfig, isObj } = require('./appConfig');
 
 /**
- * 雲端同步所有 repository（選單「工具 → 同步所有 Repository…」）：執行 shell/Sync-Repos.ps1，
+ * 雲端同步所有 repository（選單「Git → 同步所有 Repository…」）：執行 shell/Sync-Repos.ps1，
  * 對 data/config.json 的 repos[].path（開發用 clone）與 localDeploy.repos.<key>.projectDir（部署用 clone）
  * git fetch --all，並把只落後 remote 的 local branch 快轉（分岔、upstream 已刪除的不動）。
  * fetchOnly = 只 fetch 並列出可快轉的 branch。
