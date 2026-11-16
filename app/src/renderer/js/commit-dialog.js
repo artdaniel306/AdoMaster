@@ -17,6 +17,7 @@ export function createCommitDialog() {
   const titleEl = $('cc-title');
   const reqEl = $('cc-req');
   const reposEl = $('cc-repos');
+  const warnEl = $('cc-warn');
   const errorEl = $('cc-error');
   const clearBtn = $('cc-clear');
   const okBtn = $('cc-ok');
@@ -162,8 +163,9 @@ export function createCommitDialog() {
    * @param current 目前已確認的 { repoKey: commit }，未確認時為 undefined
    * @param prefill 未確認時預先填入的 commit（例：Prod deploy 帶入 Test deploy 的 commit）
    * @param saveFn (commits | null) => Promise；null 代表取消確認
+   * @param warning 顯示在 commit 欄位上方的提醒（例：Prod deploy 時測試與檢核有問題備忘）；title 為滑鼠提示
    */
-  function open({ req, stageLabel, repos, current, prefill, saveFn }) {
+  function open({ req, stageLabel, repos, current, prefill, saveFn, warning }) {
     openSeq++;
     onSave = saveFn;
     rows = [];
@@ -171,6 +173,9 @@ export function createCommitDialog() {
     titleEl.textContent = `Confirm Commit · ${stageLabel}`;
     reqEl.textContent = `#${req.id} ${req.title}`;
     clearBtn.hidden = !current;
+    warnEl.hidden = !warning;
+    warnEl.textContent = warning?.text || '';
+    warnEl.title = warning?.title || '';
     const values = current || prefill || {};
     reposEl.replaceChildren(...Object.entries(repos).map(([repo, branch]) => repoRow(repo, branch, values[repo])));
     dialog.showModal();

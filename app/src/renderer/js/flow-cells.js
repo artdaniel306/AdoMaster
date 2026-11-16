@@ -4,6 +4,7 @@ import { createPlanDialog } from './plan-dialog.js';
 import { createCommitDialog } from './commit-dialog.js';
 import { createTaskDialog } from './task-dialog.js';
 import { createTestDialog } from './test-dialog.js';
+import { createTestIssuesDialog } from './test-issues-dialog.js';
 import { createUpagentConnectionDialog, currentUpagentConnection } from './upagent-connection-dialog.js';
 import { workItemLink } from './description-dialog.js';
 import { repoTag } from './repos.js';
@@ -21,6 +22,8 @@ import {
   commitsConfirmed,
   noRepoChange,
   needsUpagentRelease,
+  testIssues,
+  openTestIssues,
 } from '../../shared/flow-rules.js';
 
 /**
@@ -36,6 +39,7 @@ export function createFlowCells(ctx) {
   const commitDialog = createCommitDialog();
   const taskDialog = createTaskDialog();
   const testDialog = createTestDialog();
+  const testIssuesDialog = createTestIssuesDialog();
   const upagentConnDialog = createUpagentConnectionDialog();
 
   /** 儲存後更新本機狀態並重繪該列 */
@@ -117,6 +121,7 @@ export function createFlowCells(ctx) {
             current: commits,
             // Prod deploy 尚未確認時，預設帶入 Test deploy 確認過的 commit
             prefill: stage.key === 'prodDeploy' ? s[commitsKey('testDeploy')] : undefined,
+            warning: stage.key === 'prodDeploy' ? issuesWarning(s) : undefined,
             saveFn: async (c) => saved(req)(await api.setCommits(req.id, stage.key, c)),
           }),
       })
@@ -211,8 +216,44 @@ export function createFlowCells(ctx) {
       btn.addEventListener('click', () => openRecord(false));
       box.append(btn);
     }
+    box.append(testIssuesLink(req));
     if (needsUpagentRelease(s)) box.append(upagentConnection(req));
     return box;
+  }
+
+  /** 問題備忘的滑鼠提示：列出各則（已修正的標 ✓） */
+  const issuesTooltip = (issues) => issues.map((x) => `${x.resolved ? '✓' : '•'} ${x.text}`).join('\n');
+
+  /** 問題備忘：測試與檢核時發現的問題，點擊開啟 dialog 新增 / 標記已修正（不影響勾選與階段） */
+  function testIssuesLink(req) {
+    const s = ctx.checks(req.id);
+    const all = testIssues(s);
+    const open = openTestIssues(s).length;
+    const text = all.length ? `🐞 問題備忘（未修正 ${open} / ${all.length}）` : '🐞 問題備忘';
+    const btn = el('button', `btn-link test-issues-link${open ? ' warn' : ''}`, text);
+    btn.type = 'button';
+    btn.title = all.length ? `${issuesTooltip(all)}\n\n點擊檢視 / 編輯` : '記錄測試時發現的問題';
+    btn.addEventListener('click', () =>
+      testIssuesDialog.open({
+        req,
+        issues: testIssues(ctx.checks(req.id)),
+        saveFn: async (issues) => saved(req)(await api.setTestIssues(req.id, issues)),
+      })
+    );
+    return btn;
+  }
+
+  /** Prod deploy 的 Confirm Commit：測試與檢核有問題備忘時提醒 commit 可能已不是測試環境佈版時的版本 */
+  function issuesWarning(s) {
+    const all = testIssues(s);
+    if (!all.length) return undefined;
+    const open = openTestIssues(s).length;
+    return {
+      text:
+        `⚠ 測試與檢核有 ${all.length} 則問題備忘${open ? `（${open} 則未修正）` : ''}，` +
+        '正式環境的 commit 可能不是測試環境佈版時的 commit',
+      title: issuesTooltip(all),
+    };
   }
 
   /** 規劃含 upagent 時：顯示本機 UpAgent 目前的連線，按鈕開啟「設定 UpAgent 連線」dialog */

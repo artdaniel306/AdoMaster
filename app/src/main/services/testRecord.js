@@ -3,7 +3,14 @@ const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { TEST_RECORDS_DIR } = require('../paths');
 const { loadFlowState, updateRequirementState } = require('./flowState');
-const { TEST_KEY, TEST_RECORD_KEY, TEST_IMAGE_RE } = require('../../shared/flow-rules.js');
+const {
+  TEST_KEY,
+  TEST_RECORD_KEY,
+  TEST_IMAGE_RE,
+  TEST_ISSUES_KEY,
+  TEST_ISSUE_TEXT_MAX,
+  TEST_ISSUES_MAX,
+} = require('../../shared/flow-rules.js');
 
 /**
  * 測試完成時記錄的測試場景：文字存在 data/requirement_flow_state.json 的 testRecord，
@@ -108,4 +115,31 @@ async function loadTestImages({ id } = {}) {
   );
 }
 
-module.exports = { saveTestRecord, loadTestImages };
+const isIsoDate = (v) => typeof v === 'string' && v.length <= 40 && !Number.isNaN(Date.parse(v));
+
+/**
+ * 儲存測試與檢核的問題備忘（整份清單覆蓋；空清單 = 刪除）。
+ * @param issues [{ text, resolved, createdAt?, resolvedAt? }]：新項目沒有 createdAt 時補上現在時間；
+ *   resolved 且沒有 resolvedAt 時補上現在時間，未修正時拿掉 resolvedAt
+ * @returns 該 Requirement 更新後的狀態
+ */
+async function saveTestIssues({ id, issues } = {}) {
+  if (!Number.isInteger(id) || id <= 0 || !Array.isArray(issues)) throw new Error('參數錯誤');
+  if (issues.length > TEST_ISSUES_MAX) throw new Error(`問題備忘最多 ${TEST_ISSUES_MAX} 則`);
+  const now = new Date().toISOString();
+  const clean = issues.map((x) => {
+    if (!x || typeof x.text !== 'string') throw new Error('參數錯誤');
+    const text = x.text.trim();
+    if (!text) throw new Error('問題備忘不能是空白');
+    if (text.length > TEST_ISSUE_TEXT_MAX) throw new Error(`每則問題備忘最多 ${TEST_ISSUE_TEXT_MAX} 字`);
+    const item = { text, resolved: !!x.resolved, createdAt: isIsoDate(x.createdAt) ? x.createdAt : now };
+    if (item.resolved) item.resolvedAt = isIsoDate(x.resolvedAt) ? x.resolvedAt : now;
+    return item;
+  });
+  return updateRequirementState(id, (c) => {
+    if (clean.length) c[TEST_ISSUES_KEY] = clean;
+    else delete c[TEST_ISSUES_KEY];
+  });
+}
+
+module.exports = { saveTestRecord, loadTestImages, saveTestIssues };

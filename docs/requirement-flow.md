@@ -188,6 +188,11 @@ Creating the default Task and updating the Requirement state (closing it also cl
   - `flow:testImages` returns the bytes; the renderer shows `blob:` URLs (CSP `img-src 'self' blob:`).
   - Unchecking keeps the record; the「📝 測試 / 檢核記錄」link edits it without changing the check.
   - `flow:setCheck` refuses the `testRecord` key.
+- **問題備忘** (`test-issues-dialog.js`): the 測試 / 檢核 cell always shows「🐞 問題備忘」(with `未修正 n / total`, highlighted while any is unresolved; tooltip lists them).
+  - Issues found while testing are added one by one, edited inline, marked 已修正 or deleted; 儲存 writes the whole list via `flow:setTestIssues` (`testRecord.saveTestIssues`)
+    as `testIssues: [{ text, resolved, createdAt, resolvedAt? }]` (≤`TEST_ISSUES_MAX` items, ≤`TEST_ISSUE_TEXT_MAX` chars each; main stamps `createdAt` / `resolvedAt`; empty list removes the key).
+  - Independent of the `test` check and of the stage (not part of `computeStage`); `flow:setCheck` refuses the `testIssues` key.
+  - Prod deploy's Confirm Commit dialog shows a warning when there are issues (the prod commit may not be the Test deploy commit it prefills).
 - **設定 UpAgent 連線**: when Plan includes `upagent` (`needsUpagentRelease`), the 測試 / 檢核 cell also shows「🔌 設定 UpAgent 連線」+ the current connection.
   - `upagent-connection-dialog.js` offers the 4 targets `UPAGENT_CONNECTIONS` (Local Test / Local Prod / SaaS Test / SaaS Prod, keys `local_test` …, in `shared/flow-rules.js`)
     → `upagentConnection:switch` (`main/services/upagentConnection.js`) deletes UpAgent's config file(s) `upagentConnection.configFile`

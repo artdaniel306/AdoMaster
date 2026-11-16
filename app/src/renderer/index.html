@@ -181,6 +181,7 @@
       </header>
       <div class="dlg-body">
         <p id="cc-req" class="dlg-req"></p>
+        <p id="cc-warn" class="cc-warn" hidden></p>
         <div id="cc-repos" class="cc-repos"></div>
         <p id="cc-error" class="status error" hidden></p>
       </div>
@@ -236,6 +237,31 @@
         <span class="spacer"></span>
         <button type="button" id="tr-cancel" class="btn-ghost">取消</button>
         <button type="submit" id="tr-ok" class="btn-primary">確認完成</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="test-issues-dialog" class="app-dialog">
+    <form id="ti-form" class="dlg-box" method="dialog">
+      <header class="dlg-head">
+        <h3>問題備忘</h3>
+        <span id="ti-count" class="ti-count"></span>
+        <button type="button" id="ti-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <p id="ti-req" class="dlg-req"></p>
+        <div id="ti-list" class="ti-list"></div>
+        <div class="ti-add-row">
+          <textarea id="ti-new" class="dlg-note" rows="2" maxlength="1000"
+            placeholder="發現的問題…" title="Ctrl + Enter 新增"></textarea>
+          <button type="button" id="ti-add" class="btn-ghost">新增</button>
+        </div>
+        <p id="ti-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" id="ti-cancel" class="btn-ghost">取消</button>
+        <button type="submit" id="ti-ok" class="btn-primary">儲存</button>
       </footer>
     </form>
   </dialog>

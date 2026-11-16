@@ -496,6 +496,26 @@ td.stage-split { padding: 0; height: 1px; }
 }
 .tr-thumb .tr-remove:hover { background: var(--err); }
 .test-record-link { display: block; margin-top: 4px; text-align: left; white-space: pre-line; }
+
+/* 問題備忘（測試與檢核欄）*/
+#test-issues-dialog { width: min(680px, 92vw); max-height: 90vh; }
+#test-issues-dialog .dlg-box { max-height: 90vh; }
+#test-issues-dialog .dlg-body { overflow: auto; }
+.ti-count { margin-left: auto; margin-right: 8px; font-size: 12px; color: var(--muted); }
+.ti-count.warn { color: var(--cur-border); font-weight: 600; }
+.ti-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.ti-empty { padding: 8px 0; }
+.ti-row { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.ti-row.resolved .ti-text { text-decoration: line-through; color: var(--muted); }
+.ti-check { display: flex; gap: 4px; align-items: center; white-space: nowrap; font-size: 12px; padding-top: 4px; }
+.ti-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ti-text { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--fg); }
+.ti-meta { display: flex; gap: 12px; font-size: 11px; color: var(--muted); }
+.ti-add-row { display: flex; gap: 8px; align-items: flex-start; }
+.ti-add-row .dlg-note { flex: 1; margin: 0; }
+.test-issues-link { display: block; margin-top: 4px; text-align: left; white-space: pre-line; }
+.test-issues-link.warn { color: var(--cur-border); font-weight: 600; }
+.cc-warn { margin: 4px 0 8px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--cur-border); color: var(--cur-border); font-size: 12px; white-space: pre-line; }
 #image-viewer { padding: 0; border: 0; background: transparent; max-width: 95vw; max-height: 95vh; cursor: zoom-out; }
 #image-viewer::backdrop { background: rgba(0, 0, 0, .75); }
 #image-viewer img { display: block; max-width: 95vw; max-height: 95vh; object-fit: contain; }
