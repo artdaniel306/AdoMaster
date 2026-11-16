@@ -12,6 +12,7 @@ export function createPlanDialog() {
   const reqEl = $('plan-req');
   const reposEl = $('plan-repos');
   const errorEl = $('plan-error');
+  const warnEl = $('plan-warn');
   const clearBtn = $('plan-clear');
   const okBtn = $('plan-ok');
   const migrationEl = $('plan-migration');
@@ -98,13 +99,16 @@ export function createPlanDialog() {
    * @param req Requirement（顯示標題用）
    * @param current 目前已確認的 { repos: { repoKey: branch }, migration, note }，未確認時為 undefined
    * @param save (repos | null, migration, note) => Promise；repos 為 null 代表取消確認
+   * @param warning 顯示在 repository 清單上方的提醒文字（例：已 Confirm Commit 後編輯規劃）
    */
-  async function open(req, current, saveFn) {
+  async function open(req, current, saveFn, warning) {
     onSave = saveFn;
     rows = [];
     showError('');
     reqEl.textContent = `#${req.id} ${req.title}`;
     clearBtn.hidden = !current;
+    warnEl.hidden = !warning;
+    warnEl.textContent = warning || '';
     migrationEl.checked = !!current?.migration;
     noteEl.value = current?.note || '';
     reposEl.replaceChildren(el('span', 'muted', '讀取 repository 設定中…'));

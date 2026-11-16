@@ -378,6 +378,7 @@ td.stage-split { padding: 0; height: 1px; }
 .commit-check { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px dashed var(--border); }
 .check-summary .repo-commit { font: 11px Consolas, "Courier New", monospace; color: var(--muted); }
 .check-summary .repo-missing { color: var(--err); }
+.edit-link { display: block; margin-top: 4px; text-align: left; }
 .flow-check.disabled { opacity: .55; }
 .flow-check.disabled input { cursor: not-allowed; }
 

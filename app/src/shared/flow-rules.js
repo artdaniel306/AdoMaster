@@ -50,6 +50,8 @@ export const commitsForcedKey = (stage) => `${stage}.commitsForced`;
 
 /** Local 佈版紀錄（勾 Local 時執行 shell/Deploy-Local.ps1；只能由 main/services/localDeploy.js 寫入） */
 export const localDeployKey = (stage) => `${stage}.localDeploy`;
+/** 佈版階段的 SaaS / Local checkbox key（testDeploy.saas、testDeploy.local…） */
+export const deployCheckKeys = (stage) => Object.keys(TARGET_LABEL).map((t) => `${stage}.${t}`);
 /** 佈版階段 → 環境（test / prod；config.json 的 localDeploy.repos.<repo>.<test|prod>、UpAgent 資料庫代號…） */
 export const DEPLOY_ENV = { testDeploy: 'test', prodDeploy: 'prod' };
 /** 環境 → 佈版階段（不是 test / prod 時回傳 null） */
@@ -81,6 +83,16 @@ export const RUN_RESULT_TEXT = { succeeded: '成功', partiallySucceeded: '部�
 export const runText = (run) => (run.active ? RUN_STATUS_TEXT[run.status] || run.status : RUN_RESULT_TEXT[run.result] || run.result || '已結束');
 /** 兩個 commit hash 是否相同（不分大小寫） */
 export const sameCommit = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
+/** 兩組 { repo: commit } 是否為同一批 commit（同一個 commit 的縮寫長度不同也算相同） */
+export function sameCommits(a, b) {
+  const ka = Object.keys(a || {});
+  if (ka.length !== Object.keys(b || {}).length) return false;
+  return ka.every((r) => {
+    const x = String(a[r]).toLowerCase();
+    const y = typeof b[r] === 'string' ? b[r].toLowerCase() : '';
+    return !!x && !!y && (x.startsWith(y) || y.startsWith(x));
+  });
+}
 
 /** commit 縮寫：4～40 個十六進位字元（也避免被 git 當成選項）；比對前先轉小寫 */
 export const COMMIT_RE = /^[0-9a-f]{4,40}$/;

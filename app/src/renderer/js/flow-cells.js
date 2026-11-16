@@ -20,6 +20,8 @@ import {
   commitsForcedKey,
   commitsCover,
   commitsConfirmed,
+  deployCheckKeys,
+  COMMIT_STAGES,
   noRepoChange,
   needsUpagentRelease,
   testIssues,
@@ -48,23 +50,42 @@ export function createFlowCells(ctx) {
     ctx.update(req);
   };
 
+  /** 「✏️ 編輯」連結：已確認的步驟在任何階段都能直接開啟 dialog 修改（不必取消勾選） */
+  function editLink(title, onClick) {
+    const btn = el('button', 'btn-link edit-link', '✏️ 編輯');
+    btn.type = 'button';
+    btn.title = title;
+    btn.addEventListener('click', onClick);
+    return btn;
+  }
+
   /** 規劃：checkbox 本身不直接切換，點擊時開啟 dialog 選擇 repository / feature branch */
   function planCheck(req, stage) {
     const s = ctx.checks(req.id);
+    const openPlan = () => {
+      const current = s[PLAN_KEY]
+        ? { repos: s[PLAN_REPOS_KEY], migration: !!s[PLAN_MIGRATION_KEY], note: s[PLAN_NOTE_KEY] }
+        : undefined;
+      // 已 Confirm Commit 過：新增 / 改 branch 的 repository 要重新 Confirm Commit 並佈版
+      const warning = COMMIT_STAGES.some((k) => s[commitsKey(k)] || s[commitsForcedKey(k)])
+        ? '⚠ 已有 Confirm Commit：新增 repository 或變更 feature branch 後，需重新 Confirm Commit 並佈版'
+        : undefined;
+      planDialog.open(
+        req,
+        current,
+        async (repos, migration, note) => {
+          saved(req)(await api.setPlan(req.id, repos, migration, note));
+        },
+        warning
+      );
+    };
     const lab = ctx.flowCheck(req, {
       stage,
       key: PLAN_KEY,
       text: '已理解需求 / 確認開發 repository',
       checked: !!s[PLAN_KEY],
       title: '點擊選擇要開發的 repository 與 feature branch',
-      normal: () => {
-        const current = s[PLAN_KEY]
-          ? { repos: s[PLAN_REPOS_KEY], migration: !!s[PLAN_MIGRATION_KEY], note: s[PLAN_NOTE_KEY] }
-          : undefined;
-        planDialog.open(req, current, async (repos, migration, note) => {
-          saved(req)(await api.setPlan(req.id, repos, migration, note));
-        });
-      },
+      normal: openPlan,
     });
 
     const box = el('div');
@@ -79,7 +100,7 @@ export function createFlowCells(ctx) {
         list.append(line);
       }
       if (s[PLAN_MIGRATION_KEY]) list.append(el('div', 'repo-line migration', '⚠ 需要 migration'));
-      box.append(list);
+      box.append(list, editLink('修改 repository、feature branch、migration 與註解', openPlan));
     }
     return box;
   }
@@ -91,6 +112,18 @@ export function createFlowCells(ctx) {
     const commits = s[commitsKey(stage.key)];
     const confirmed = commitsConfirmed(s, stage.key);
     const forced = !!s[commitsForcedKey(stage.key)];
+
+    const openCommits = () =>
+      commitDialog.open({
+        req,
+        stageLabel: stage.label,
+        repos,
+        current: commits,
+        // Prod deploy 尚未確認時，預設帶入 Test deploy 確認過的 commit
+        prefill: stage.key === 'prodDeploy' ? s[commitsKey('testDeploy')] : undefined,
+        warning: commitWarning(s, stage.key),
+        saveFn: async (c) => saved(req)(await api.setCommits(req.id, stage.key, c)),
+      });
 
     const box = el('div', 'commit-check');
     // 規劃 沒選 repository（不需修改程式）→ 自動完成，不能點
@@ -113,17 +146,7 @@ export function createFlowCells(ctx) {
         checked: confirmed,
         disabledReason: s[PLAN_KEY] ? '' : '請先完成規劃',
         title: '點擊填入各 repository 測試通過版的 commit',
-        normal: () =>
-          commitDialog.open({
-            req,
-            stageLabel: stage.label,
-            repos,
-            current: commits,
-            // Prod deploy 尚未確認時，預設帶入 Test deploy 確認過的 commit
-            prefill: stage.key === 'prodDeploy' ? s[commitsKey('testDeploy')] : undefined,
-            warning: stage.key === 'prodDeploy' ? issuesWarning(s) : undefined,
-            saveFn: async (c) => saved(req)(await api.setCommits(req.id, stage.key, c)),
-          }),
+        normal: openCommits,
       })
     );
     if (forced && !(s[PLAN_KEY] && commitsCover(s, stage.key))) {
@@ -138,6 +161,9 @@ export function createFlowCells(ctx) {
         list.append(line);
       }
       box.append(list);
+    }
+    if (s[PLAN_KEY] && (commits || forced)) {
+      box.append(editLink('修改此階段各 repository 的 commit（例：測試發現問題、修正後重新佈版）', openCommits));
     }
     return { box, confirmed };
   }
@@ -241,6 +267,26 @@ export function createFlowCells(ctx) {
       })
     );
     return btn;
+  }
+
+  /**
+   * Confirm Commit dialog 的提醒：
+   *   - 此階段已勾 SaaS / Local：變更 commit 後會取消勾選，需重新佈版
+   *   - Prod deploy：測試與檢核有問題備忘時，commit 可能已不是測試環境佈版時的版本
+   */
+  function commitWarning(s, stageKey) {
+    const parts = [];
+    if (s[commitsKey(stageKey)] && deployCheckKeys(stageKey).some((k) => s[k])) {
+      parts.push({ text: '⚠ 變更 commit 後，此階段的 SaaS / Local 會取消勾選，需重新勾選以 merge / 佈版' });
+    }
+    if (stageKey === 'prodDeploy') {
+      const w = issuesWarning(s);
+      if (w) parts.push(w);
+    }
+    if (!parts.length) return undefined;
+    const text = parts.map((p) => p.text).join('\n');
+    const title = parts.map((p) => p.title).filter(Boolean).join('\n');
+    return { text, title };
   }
 
   /** Prod deploy 的 Confirm Commit：測試與檢核有問題備忘時提醒 commit 可能已不是測試環境佈版時的版本 */

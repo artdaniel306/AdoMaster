@@ -22,6 +22,8 @@ const {
   commitsForcedKey,
   commitsCover,
   commitsConfirmed,
+  deployCheckKeys,
+  sameCommits,
   upagentReleasePlan,
   releaseTargetOf,
   UPAGENT_REPO,
@@ -245,6 +247,8 @@ async function setFlowCheck({ id, key, value, force = false } = {}) {
  *   migration = true → planMigration: true（需要 migration）
  *   note = '...'     → planNote: '...'（manager 的註解，空白則不存）
  *   repos = null → 取消確認（全部清除）
+ * 編輯已確認的規劃時，各佈版階段已確認的 commit 只保留 repository 與 feature branch 都沒變的；
+ * 新增 / 改 branch 的 repository 要重新 Confirm Commit（存檔時 commit 有變 → 該階段 SaaS / Local 取消勾選，見 setCommits）。
  */
 async function setPlan({ id, repos, migration, note } = {}) {
   if (!Number.isInteger(id)) throw new Error('參數錯誤');
@@ -264,6 +268,14 @@ async function setPlan({ id, repos, migration, note } = {}) {
   }
   return updateRequirementState(id, (checks) => {
     if (repos) {
+      const oldRepos = checks[PLAN_KEY] ? checks[PLAN_REPOS_KEY] || {} : {};
+      for (const stage of COMMIT_STAGES) {
+        const commits = checks[commitsKey(stage)];
+        if (!commits) continue;
+        checks[commitsKey(stage)] = Object.fromEntries(
+          Object.entries(commits).filter(([repo]) => repos[repo] && repos[repo] === oldRepos[repo])
+        );
+      }
       checks[PLAN_KEY] = true;
       checks[PLAN_REPOS_KEY] = repos;
       if (migration === true) checks[PLAN_MIGRATION_KEY] = true;
@@ -281,6 +293,8 @@ async function setPlan({ id, repos, migration, note } = {}) {
  * 的測試通過版 commit（縮寫即可），存檔前逐一到 repository 確認 commit 存在。
  *   commits = { crmapp: 'abc1234', ... } → `<stage>.commits`: commits
  *   commits = null → 取消確認（連同該階段已勾的 SaaS / Local 一併清除）
+ * 編輯已確認的 commit（例：測試發現問題、修正後要重新佈版）：commit 有變時，該階段的 SaaS / Local 取消勾選，
+ * 重新勾選時再 merge / 佈版（Local 佈版紀錄的 forCommit 不同 → 預設重新佈版）。
  */
 async function setCommits({ id, stage, commits } = {}) {
   if (!Number.isInteger(id) || !COMMIT_STAGES.includes(stage)) throw new Error('參數錯誤');
@@ -313,6 +327,8 @@ async function setCommits({ id, stage, commits } = {}) {
     if (JSON.stringify(checks[PLAN_REPOS_KEY] || {}) !== JSON.stringify(repos)) {
       throw new Error('規劃的 repository 已變更，請重新開啟後再確認');
     }
+    const prev = checks[commitsKey(stage)];
+    if (prev && !sameCommits(prev, normalized)) for (const k of deployCheckKeys(stage)) delete checks[k];
     checks[commitsKey(stage)] = normalized;
     delete checks[commitsForcedKey(stage)]; // 已填入實際 commit，不再是跳階段勾起
   });

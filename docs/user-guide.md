@@ -75,6 +75,9 @@ AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也�
 - **不需修改程式時**（例如只調整 database 資料）可以都不勾：Confirm Commit 會自動完成，兩個佈版階段也會顯示「不需佈版」。
 - 「需要 migration」與「註解」為選填；註解會以 💬 圖示顯示在「規劃」旁，滑鼠移上去可看內容。
 - 「取消確認」會清除規劃。
+- 確認後格子下方會出現「**✏️ 編輯**」，在任何階段都能直接修改規劃（例如開發完才發現還要動另一個 repository、或需要 migration），不必取消勾選：
+  - 新增 repository 或變更某個 repository 的 feature branch 後，該 repository 在已確認的 Confirm Commit 中會顯示「尚未填入」，流程會回到該佈版階段，需重新 Confirm Commit 並佈版。
+  - 移除 repository、只改 migration / 註解，不影響已確認的 commit 與佈版。
 
 ### Confirm Commit 與分支圖
 
@@ -84,6 +87,10 @@ AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也�
 - 也可以展開「**分支圖**」直接點選 commit 帶入（會一併執行檢查）。分支圖顯示 feature branch 與它的 developer branch（`<feature>_<開發者>`）的 commit 關係，預設排除已進正式環境 branch 的 commit，可勾選「包含已進…」顯示；不在 feature branch 上的 commit 會標示「未進 <feature>」。按 ↻ 會從 remote 取得最新的 branch 後重畫。
 - 正式環境佈版的 Confirm Commit 會預先帶入測試環境的 commit。
 - 「取消確認」也會一併清除該階段的 SaaS / Local 勾選。
+- 確認後格子下方會出現「**✏️ 編輯**」，在任何階段都能直接修改 commit（例如測試時發現問題、修正後要重新佈版）：
+  - commit 有變更時，該階段的 SaaS / Local 會自動取消勾選，流程回到該佈版階段；重新勾選即會 merge 新的 commit 並佈版（Local 佈版會預設重新佈版 commit 有變的 repository）。
+  - commit 沒變（例如只是改成較長的縮寫）則不影響勾選。
+  - 其他階段的勾選（例如「測試 / 檢核完成」）不會自動取消，需要重新測試時請自行取消勾選。
 
 ### 佈版前的 merge
 

@@ -66,6 +66,9 @@ Creating the default Task and updating the Requirement state (closing it also cl
   - → Confirm Commit counts as done automatically (`commitsConfirmed`)
   - and both deploy stages' SaaS/Local are omitted (`noRepoChange`; `computeStage` skips them and the cell shows「不需佈版」).
   - Same for a forced Plan (`plan: true` without `planRepos`).
+- **Editing** (`✏️ 編輯` link under the cell, shown whenever plan is checked, in any stage — no jump-stage confirmation): opens the same dialog with the current values; `setPlan` overwrites.
+  - Each stage's `<stage>.commits` keeps only repos still in the plan **with the same feature branch** (key kept even when it becomes `{}`), so added / re-branched repos show「尚未填入」and `commitsConfirmed` turns false → the flow goes back to that deploy stage.
+  - The dialog shows a warning (`#plan-warn`) when any stage already has commits / forced commits.
 - State files from before the rename used `understand*` keys; `flowState.js` migrates them on read.
 
 ## Confirm Commit & branch graph
@@ -75,6 +78,10 @@ Creating the default Task and updating the Requirement state (closing it also cl
 - Saved via `flow:setCommits` as `"<stage>.commits": { repo: commit }`, re-verifying every commit first; clearing it also clears that stage's SaaS/Local.
   - `flow:setCheck` refuses `*.commits` keys and refuses SaaS/Local until commits cover all plan repos.
   - Prod deploy's dialog prefills from Test deploy's commits.
+  - **Editing** (`✏️ 編輯` link under the cell, shown when plan is checked and the stage has commits or is forced, in any stage — e.g. re-deploy after fixing a test issue): opens the dialog with the current commits.
+    - `setCommits`: when the stage already had commits and the new set differs (`sameCommits`: same repos, each pair equal up to abbreviation), the stage's SaaS / Local checks (`deployCheckKeys`) are cleared, so re-checking merges / deploys the new commit.
+      `<stage>.localDeploy` is kept (its `forCommit` no longer matches → deployed again by default); a stale UpAgent release is dropped as before. Other stages' checks (e.g. `test`) are not touched.
+    - The dialog warns about this (`commitWarning` in `flow-cells.js`, combined with Prod deploy's test-issues warning) when the stage has SaaS / Local checked.
 - Each row has a「分支圖」panel (`branch-graph.js`, expanded by default when the input is empty) → `repos:branchGraph` → `branchGraph.js`:
   - `git log --graph --color=always --boundary` over the plan feature branch and its **developer branches** (`<feature>_<developer>`, e.g. `peach_hotfix_max`; remote refs preferred, a name belonging to a longer configured feature branch is excluded),
     excluding commits already in `origin/<prodBranch>` unless「包含已進…」is checked (max 300 commits).
