@@ -14,6 +14,9 @@ Work Item 查詢與轉換。
   - Update Work Item（以 JSON Patch 更新）
       PATCH {base}/{org}/{project}/_apis/wit/workitems/{id}?api-version=7.1
       https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/update?view=azure-devops-rest-7.1
+  - Get Comments（Work Item 的留言，preview API）
+      GET {base}/{org}/{project}/_apis/wit/workItems/{id}/comments?$top=N&order=desc&api-version=7.1-preview.4
+      https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/comments/get-comments?view=azure-devops-rest-7.1
 """
 
 import html
@@ -167,6 +170,35 @@ def to_row(item):
     if not row["parent"] and item.get("relations"):
         row["parent"] = parent_id(item) or ""
     return row
+
+
+def comments_api_version(cfg):
+    """Comments API 只有 preview 版：7.1 → 7.1-preview.4，其他版本（如 7.0 / 6.0）→ {版本}-preview.3。"""
+    version = cfg["api_version"].split("-", 1)[0]
+    return f"{version}-preview.4" if version == "7.1" else f"{version}-preview.3"
+
+
+def get_comments(cfg, item_id, top=3):
+    """取得 Work Item 最新的 top 筆留言（新 → 舊）。
+
+    回傳 { totalCount, comments: [{ id, text（純文字）, createdBy, createdDate, modifiedDate }] }。
+    """
+    url = api_url(cfg, f"wit/workItems/{int(item_id)}/comments",
+                  **{"$top": int(top), "order": "desc", "api-version": comments_api_version(cfg)})
+    data = api_request(url, cfg["pat"]) or {}
+    comments = []
+    for c in data.get("comments", []):
+        if c.get("isDeleted"):
+            continue
+        by = c.get("createdBy") or {}
+        comments.append({
+            "id": c.get("id"),
+            "text": html_to_text(c.get("text") or ""),
+            "createdBy": by.get("displayName") or by.get("uniqueName") or "",
+            "createdDate": c.get("createdDate") or "",
+            "modifiedDate": c.get("modifiedDate") or "",
+        })
+    return {"totalCount": data.get("totalCount", len(comments)), "comments": comments}
 
 
 # ---------------------------------------------------------------- 建立

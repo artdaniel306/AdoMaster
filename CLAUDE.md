@@ -32,6 +32,7 @@ python get_iteration_work_items.py --iteration "Proj\\Sprint 1" [--exact] [--out
 python get_requirement_flow.py --iteration "Proj\\Sprint 1" [--exact] [--type Requirement] [--out path.json]
 python create_task.py --parent 12345 [--description "..." | --description-file f.txt] [--out task.json]
 python update_state.py --id 12345 --state Active [--out item.json]
+python get_comments.py --id 12345 [--top 3] [--out comments.json]                # latest comments, newest first (Comments API is preview-only)
 python get_pipeline_runs.py --pipeline "Folder\name" [--top 30] [--out runs.json]   # needs PAT Build (Read)
 python get_tasks.py [ids/ranges] [--type Bug] [--state Active] [--assigned-to @Me] [--iteration ...] [--json]   # manual CLI only; the app never calls it
 

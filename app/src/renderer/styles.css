@@ -459,8 +459,14 @@ td.stage-split { padding: 0; height: 1px; }
 #desc-dialog .dlg-body { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .ds-body {
   margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg);
-  white-space: pre-wrap; word-break: break-word; overflow: auto; min-height: 80px; max-height: 60vh;
+  white-space: pre-wrap; word-break: break-word; overflow: auto; min-height: 80px; max-height: 40vh;
 }
+.ds-comments-head { margin: 12px 0 0; font-size: 13px; }
+.ds-comments-head .muted-inline { font-weight: normal; font-size: 12px; }
+.ds-comments { overflow: auto; max-height: 30vh; }
+.ds-comment { margin-top: 6px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; }
+.ds-comment .muted { margin: 0 0 4px; }
+.ds-comment-text { white-space: pre-wrap; word-break: break-word; }
 
 /* repository 代表色（data/config.json 的 repos 的 color，以 CSS 變數 --repo-color 帶入） */
 .repo-tag.has-color {

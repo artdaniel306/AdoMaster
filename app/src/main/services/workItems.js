@@ -8,4 +8,11 @@ async function fetchWorkItems({ iterationPath, exact } = {}) {
   return runScriptJson('get_iteration_work_items.py', args);
 }
 
-module.exports = { fetchWorkItems };
+/** 執行 get_comments.py 抓取 Work Item 最新的 top 筆留言（新 → 舊）。 */
+async function fetchComments({ id, top = 3 } = {}) {
+  if (!Number.isInteger(id) || id <= 0) throw new Error('Work Item id 不正確');
+  if (!Number.isInteger(top) || top <= 0) throw new Error('留言筆數不正確');
+  return runScriptJson('get_comments.py', ['--id', String(id), '--top', String(top)]);
+}
+
+module.exports = { fetchWorkItems, fetchComments };

@@ -16,7 +16,7 @@ def _project_base(cfg):
 
 
 def api_url(cfg, path, **params):
-    params["api-version"] = cfg["api_version"]
+    params.setdefault("api-version", cfg["api_version"])  # 個別 API（如 preview 的 Comments）可自行指定
     query = urllib.parse.urlencode(params)
     return f"{_project_base(cfg)}/_apis/{path}?{query}"
 

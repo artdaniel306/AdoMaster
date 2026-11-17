@@ -31,6 +31,7 @@ function registerIpcHandlers() {
   ipcMain.handle('iterations:sync', () => iterations.syncIterations());
 
   ipcMain.handle('workitems:fetch', (_e, params) => workItems.fetchWorkItems(params));
+  ipcMain.handle('workitems:comments', (_e, { id, top } = {}) => workItems.fetchComments({ id, top }));
 
   ipcMain.handle('flow:fetch', (_e, params) => requirementFlow.fetchRequirementFlow(params));
   ipcMain.handle('flow:createTask', (_e, params) => requirementFlow.createDefaultTask(params));

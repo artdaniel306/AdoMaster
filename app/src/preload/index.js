@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('api', {
   loadIterations: () => ipcRenderer.invoke('iterations:load'),
   syncIterations: () => ipcRenderer.invoke('iterations:sync'),
   fetchWorkItems: (iterationPath, exact) => ipcRenderer.invoke('workitems:fetch', { iterationPath, exact }),
+  /** Work Item 最新的 top 筆留言：{ id, totalCount, comments: [{ id, text, createdBy, createdDate }] }（新 → 舊） */
+  fetchComments: (id, top = 3) => ipcRenderer.invoke('workitems:comments', { id, top }),
   fetchRequirementFlow: (iterationPath, exact) => ipcRenderer.invoke('flow:fetch', { iterationPath, exact }),
   createDefaultTask: (id, description) => ipcRenderer.invoke('flow:createTask', { id, description }),
   updateRequirementState: (id, state) => ipcRenderer.invoke('flow:updateState', { id, state }),

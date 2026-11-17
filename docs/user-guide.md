@@ -30,7 +30,7 @@ AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也�
 
 **Work Item 連結**（這裡和流程看板都一樣）：
 
-- 點擊：在 app 內顯示 Description。
+- 點擊：在 app 內顯示 Description，以及最新 3 筆留言（開啟時才向 ADO 抓取）。
 - **Ctrl（⌘）+ 點擊**：在瀏覽器開啟 ADO 頁面。Description 視窗中的「在瀏覽器開啟」也可以。
 
 ## Requirement 流程看板
