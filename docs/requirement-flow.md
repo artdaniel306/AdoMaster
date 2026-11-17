@@ -35,7 +35,8 @@ Read this before changing anything under the flow:
   - Nothing in these steps is written back to ADO.
 
 ## Writes to ADO
-Creating the default Task and updating the Requirement state (closing it also closes its child Tasks) are the **only** actions that write to ADO
+Creating the default Task and updating the Requirement state (closing it also closes its child Tasks) are the **only** flow actions that write to ADO
+(outside the flow, the Description dialog's「提醒 Commit」adds a comment @-mentioning the assignee via `remind_commit.py`; counts per email in `data/commit_reminders.json`, `services/commitReminder.js`)
 (the UpAgent release writes to GitHub / Azure Blob / PostgreSQL; pipelines are only read; deploys are triggered by the git push).
 - **Default Task**: while a Requirement is Pending, its Pending cell shows「安排預設 Task」.
   - A dialog (`task-dialog.js`) asks for a Description, then `flow:createTask` runs `create_task.py` (`ado.work_items.create_child_task`) to create a Task with the **same title** as the Requirement, its Area/Iteration, and a parent link.

@@ -32,6 +32,7 @@ AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也�
 
 - 點擊：在 app 內顯示 Description，以及最新 3 筆留言（開啟時才向 ADO 抓取）。
 - **Ctrl（⌘）+ 點擊**：在瀏覽器開啟 ADO 頁面。Description 視窗中的「在瀏覽器開啟」也可以。
+- Description 視窗的 **提醒 Commit**：確認後在該 Work Item 留言「嗨 @<指派對象>, 請記得在開發完成後附上 repository 中對應的 commit。」（會 @ 提及，對方會收到 ADO 通知），並在本機 `data/commit_reminders.json` 以 email 累計每位開發人員被提醒的次數，按鈕旁顯示「已提醒 N 次」。沒有指派對象時無法使用；PAT 需要 Work Items (Read & Write) 權限。
 
 ## Requirement 流程看板
 
@@ -58,7 +59,7 @@ AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也�
 
 ### 會寫回 ADO 的操作
 
-整個流程只有兩個動作會寫入 ADO，其餘勾選都只存在本機的 `data/requirement_flow_state.json`：
+整個流程只有兩個動作會寫入 ADO，其餘勾選都只存在本機的 `data/requirement_flow_state.json`（另外 Description 視窗的「提醒 Commit」會在 Work Item 新增留言）：
 
 1. **安排預設 Task**：在 Requirement 底下建立一個**同名**的 Task，Area / Iteration 沿用 Requirement；Description 在對話框中填寫。
 2. **更新狀態**：狀態標籤顯示「目前 → 應有狀態」並以醒目色標示時，點擊它會把 ADO 狀態更新成應有狀態（有人被指派 → Active；開發完成 → Resolved；整個流程完成 → Closed）。更新成 Closed 時，會先把底下尚未關閉的子 Task 也一併改成 Closed。
@@ -323,6 +324,6 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
 
 ## 匯出 / 匯入本地資料
 
-選單「檔案 → 匯出本地資料… / 匯入本地資料…」：把不在 git、也無法從 ADO 取回的資料打包成 zip，方便換電腦或備份。內容包含 `data/.env`、`data/config.json`、流程勾選紀錄、測試記錄與圖片，以及畫面上的偏好（固定的 Iteration、目前的 UpAgent 連線等）。
+選單「檔案 → 匯出本地資料… / 匯入本地資料…」：把不在 git、也無法從 ADO 取回的資料打包成 zip，方便換電腦或備份。內容包含 `data/.env`、`data/config.json`、流程勾選紀錄、測試記錄與圖片、提醒 Commit 次數，以及畫面上的偏好（固定的 Iteration、目前的 UpAgent 連線等）。
 
 匯入會覆蓋現有的同名資料，執行前會再確認一次。

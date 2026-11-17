@@ -19,6 +19,7 @@ const FILES = [
   { name: 'data/.env', label: '連線帳號與機密（ADO / Azure / GitHub / 資料庫密碼）' },
   { name: 'data/config.json', label: '本機設定（Repository、UpAgent 發佈…）', validate: (text) => parseConfig(text) },
   { name: 'data/requirement_flow_state.json', label: 'Requirement 流程勾選狀態', validate: (text) => JSON.parse(text) },
+  { name: 'data/commit_reminders.json', label: '提醒 Commit 的次數記錄', validate: (text) => JSON.parse(text) },
   { name: 'feature/restore_workitem/.env', label: 'restore_workitem 腳本設定', devOnly: true },
 ].filter((f) => !(f.devOnly && app.isPackaged));
 // 舊版匯出的設定檔：只接受匯入，不直接寫回原位置，而是經 appConfig.applyLegacy 轉換到 data/config.json / data/.env

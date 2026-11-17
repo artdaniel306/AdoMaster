@@ -1,5 +1,6 @@
 import { api, cleanError } from './api.js';
 import { $, el } from './dom.js';
+import { createConfirmDialog } from './confirm-dialog.js';
 
 /**
  * Work Item Description dialog：
@@ -23,7 +24,11 @@ function createDescriptionDialog() {
   const bodyEl = $('ds-body');
   const commentsEl = $('ds-comments');
   const countEl = $('ds-comments-count');
+  const remindBtn = $('ds-remind');
+  const remindCountEl = $('ds-remind-count');
+  const confirmDialog = createConfirmDialog();
   let url = '';
+  let current = null; // 目前顯示的 Work Item
   let seq = 0; // 每次開啟遞增；舊請求晚回來時不覆蓋目前的內容
 
   function setCommentsMessage(text, cls = 'muted') {
@@ -61,17 +66,59 @@ function createDescriptionDialog() {
     if (url) api.openExternal(url);
   });
 
-  /** @param item Work Item row（id / type / title / state / assignedTo / description / webUrl） */
+  const showRemindCount = (n) => {
+    remindCountEl.textContent = n ? `已提醒 ${n} 次` : '';
+  };
+
+  async function loadRemindCount(item) {
+    showRemindCount(0);
+    if (!item.assignedToEmail) return;
+    try {
+      const n = await api.commitReminderCount(item.assignedToEmail);
+      if (current === item) showRemindCount(n);
+    } catch {
+      /* 次數只是參考資訊，讀不到就不顯示 */
+    }
+  }
+
+  remindBtn.addEventListener('click', async () => {
+    const item = current;
+    if (!item) return;
+    const ok = await confirmDialog.open({
+      title: '提醒 Commit',
+      req: item,
+      message: `要在 #${item.id} 留言提醒 ${item.assignedTo} 附上對應的 commit 嗎？`,
+      okLabel: '留言提醒',
+    });
+    if (!ok || current !== item) return;
+    remindBtn.disabled = true;
+    try {
+      const { count } = await api.remindCommit(Number(item.id));
+      if (current !== item) return;
+      showRemindCount(count);
+      loadComments(item.id);
+    } catch (err) {
+      await confirmDialog.alert('提醒 Commit 失敗', cleanError(err));
+    } finally {
+      if (current === item) remindBtn.disabled = !item.assignedTo;
+    }
+  });
+
+  /** @param item Work Item row（id / type / title / state / assignedTo / assignedToEmail / description / webUrl） */
   function open(item) {
+    current = item;
     url = item.webUrl || '';
     titleEl.textContent = `${item.type || ''} #${item.id} ${item.title || ''}`.trim();
     metaEl.textContent = `狀態：${item.state || '—'} · 指派：${item.assignedTo || '—'}`;
     bodyEl.textContent = item.description || '（沒有 Description）';
     bodyEl.classList.toggle('muted', !item.description);
     $('ds-open').disabled = !url;
+    remindBtn.disabled = !item.assignedTo;
+    remindBtn.title = item.assignedTo ? `留言 @${item.assignedTo}，提醒附上對應的 commit` : '沒有指派對象';
     dialog.showModal();
     bodyEl.scrollTop = 0;
     loadComments(item.id);
+    loadRemindCount(item);
   }
 
   return { open };

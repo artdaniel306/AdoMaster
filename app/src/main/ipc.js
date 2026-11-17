@@ -2,6 +2,7 @@ const { BrowserWindow, ipcMain, shell } = require('electron');
 const localData = require('./services/localData');
 const iterations = require('./services/iterations');
 const workItems = require('./services/workItems');
+const commitReminder = require('./services/commitReminder');
 const requirementFlow = require('./services/requirementFlow');
 const flowState = require('./services/flowState');
 const repoConfig = require('./services/repoConfig');
@@ -32,6 +33,8 @@ function registerIpcHandlers() {
 
   ipcMain.handle('workitems:fetch', (_e, params) => workItems.fetchWorkItems(params));
   ipcMain.handle('workitems:comments', (_e, { id, top } = {}) => workItems.fetchComments({ id, top }));
+  ipcMain.handle('workitems:remindCommit', (_e, { id } = {}) => commitReminder.remindCommit({ id }));
+  ipcMain.handle('workitems:reminderCount', (_e, { email } = {}) => commitReminder.reminderCount({ email }));
 
   ipcMain.handle('flow:fetch', (_e, params) => requirementFlow.fetchRequirementFlow(params));
   ipcMain.handle('flow:createTask', (_e, params) => requirementFlow.createDefaultTask(params));

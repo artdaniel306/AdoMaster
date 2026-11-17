@@ -17,6 +17,9 @@ Work Item 查詢與轉換。
   - Get Comments（Work Item 的留言，preview API）
       GET {base}/{org}/{project}/_apis/wit/workItems/{id}/comments?$top=N&order=desc&api-version=7.1-preview.4
       https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/comments/get-comments?view=azure-devops-rest-7.1
+  - Add Comment（新增 Work Item 留言，preview API）
+      POST {base}/{org}/{project}/_apis/wit/workItems/{id}/comments?format=html&api-version=7.1-preview.4
+      https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/comments/add-work-item-comment?view=azure-devops-rest-7.1
 """
 
 import html
@@ -38,6 +41,7 @@ ROW_FIELDS = [
     ("state", "System.State"),
     ("reason", "System.Reason"),
     ("assignedTo", "System.AssignedTo"),
+    ("assignedToEmail", "System.AssignedTo"),  # identity 的 uniqueName（通常是 email）
     ("parent", "System.Parent"),
     ("areaPath", "System.AreaPath"),
     ("iterationPath", "System.IterationPath"),
@@ -162,7 +166,9 @@ def to_row(item):
     row = {}
     for col, ref in ROW_FIELDS:
         val = item.get("id") if ref == "System.Id" else fields.get(ref, "")
-        if isinstance(val, dict):  # identity 物件（AssignedTo / CreatedBy ...）
+        if col == "assignedToEmail":
+            val = val.get("uniqueName", "") if isinstance(val, dict) else ""
+        elif isinstance(val, dict):  # identity 物件（AssignedTo / CreatedBy ...）
             val = val.get("displayName") or val.get("uniqueName") or json.dumps(val, ensure_ascii=False)
         elif ref == "System.Description" and val:
             val = html_to_text(val)
@@ -199,6 +205,21 @@ def get_comments(cfg, item_id, top=3):
             "modifiedDate": c.get("modifiedDate") or "",
         })
     return {"totalCount": data.get("totalCount", len(comments)), "comments": comments}
+
+
+def mention_html(identity):
+    """identity（如 System.AssignedTo）→ ADO 留言中 @ 提及的 HTML（對方會收到通知）。"""
+    name = html.escape(identity.get("displayName") or identity.get("uniqueName") or "")
+    if not identity.get("id"):
+        return f"@{name}"
+    return f'<a href="#" data-vss-mention="version:2.0,{html.escape(identity["id"])}">@{name}</a>'
+
+
+def add_comment(cfg, item_id, html_text):
+    """在 Work Item 新增一則 HTML 格式的留言，回傳 API 回傳的 Comment。"""
+    url = api_url(cfg, f"wit/workItems/{int(item_id)}/comments",
+                  **{"format": "html", "api-version": comments_api_version(cfg)})
+    return api_request(url, cfg["pat"], {"text": html_text})
 
 
 # ---------------------------------------------------------------- 建立

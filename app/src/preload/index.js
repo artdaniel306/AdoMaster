@@ -7,6 +7,10 @@ contextBridge.exposeInMainWorld('api', {
   fetchWorkItems: (iterationPath, exact) => ipcRenderer.invoke('workitems:fetch', { iterationPath, exact }),
   /** Work Item 最新的 top 筆留言：{ id, totalCount, comments: [{ id, text, createdBy, createdDate }] }（新 → 舊） */
   fetchComments: (id, top = 3) => ipcRenderer.invoke('workitems:comments', { id, top }),
+  /** 留言 @ 指派對象提醒附上 commit 並記錄次數 → { email, name, count } */
+  remindCommit: (id) => ipcRenderer.invoke('workitems:remindCommit', { id }),
+  /** 某位開發人員（email）被「提醒 Commit」的次數 */
+  commitReminderCount: (email) => ipcRenderer.invoke('workitems:reminderCount', { email }),
   fetchRequirementFlow: (iterationPath, exact) => ipcRenderer.invoke('flow:fetch', { iterationPath, exact }),
   createDefaultTask: (id, description) => ipcRenderer.invoke('flow:createTask', { id, description }),
   updateRequirementState: (id, state) => ipcRenderer.invoke('flow:updateState', { id, state }),
