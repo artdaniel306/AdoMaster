@@ -35,8 +35,8 @@ Read this before changing anything under the flow:
   - Nothing in these steps is written back to ADO.
 
 ## Writes to ADO
-Creating the default Task and updating the Requirement state (closing it also closes its child Tasks) are the **only** flow actions that write to ADO
-(outside the flow, the Description dialog's「提醒 Commit」adds a comment @-mentioning the assignee via `remind_commit.py`; each reminder is logged as an event in `data/reminders.json` by `services/reminders.js`, listed in menu「開發指標 → 流程提醒…」)
+Creating the default Task, updating the Requirement state (closing it also closes its child Tasks) and 記錄問題 (creating a Bug, see Test record) are the **only** flow actions that write to ADO
+(outside the flow, the Work Item content dialog's「提醒 Commit」adds a comment @-mentioning the assignee via `remind_commit.py`; each reminder is logged as an event in `data/reminders.json` by `services/reminders.js`, listed in menu「開發指標 → 流程提醒…」)
 (the UpAgent release writes to GitHub / Azure Blob / PostgreSQL; pipelines are only read; deploys are triggered by the git push).
 - **Default Task**: while a Requirement is Pending, its Pending cell shows「安排預設 Task」.
   - A dialog (`task-dialog.js`) asks for a Description, then `flow:createTask` runs `create_task.py` (`ado.work_items.create_child_task`) to create a Task with the **same title** as the Requirement, its Area/Iteration, and a parent link.
@@ -196,11 +196,13 @@ Creating the default Task and updating the Requirement state (closing it also cl
   - `flow:testImages` returns the bytes; the renderer shows `blob:` URLs (CSP `img-src 'self' blob:`).
   - Unchecking keeps the record; the「📝 測試 / 檢核記錄」link edits it without changing the check.
   - `flow:setCheck` refuses the `testRecord` key.
-- **問題備忘** (`test-issues-dialog.js`): the 測試 / 檢核 cell always shows「🐞 問題備忘」(with `未修正 n / total`, highlighted while any is unresolved; tooltip lists them).
-  - Issues found while testing are added one by one, edited inline, marked 已修正 or deleted; 儲存 writes the whole list via `flow:setTestIssues` (`testRecord.saveTestIssues`)
-    as `testIssues: [{ text, resolved, createdAt, resolvedAt? }]` (≤`TEST_ISSUES_MAX` items, ≤`TEST_ISSUE_TEXT_MAX` chars each; main stamps `createdAt` / `resolvedAt`; empty list removes the key).
-  - Independent of the `test` check and of the stage (not part of `computeStage`); `flow:setCheck` refuses the `testIssues` key.
-  - Prod deploy's Confirm Commit dialog shows a warning when there are issues (the prod commit may not be the Test deploy commit it prefills).
+- **記錄問題** (`bug-dialog.js`): the 測試 / 檢核 cell always shows「🐞 記錄問題」(tooltip lists the Requirement's existing Bugs). It creates a **Bug in ADO** under the Requirement — nothing is stored in the flow state.
+  - Dialog fields: title (≤`BUG_TITLE_MAX`), assignee, Repro Steps text (≤`BUG_REPRO_MAX`) and images (same paste / drag-drop / picker and limits as the test record; shared `image-attachments.js`, limits `IMAGE_*` in `shared/flow-rules.js`).
+  - Assignee options = distinct `assignedToEmail` of the Requirement's non-Removed child **Tasks** (one → preselected and required; none → unassigned). `create_bug.py` re-checks that the email is a child Task's assignee.
+  - `flow:createBug` (`services/bugReport.js`) writes the text and images to a temp folder and runs `create_bug.py` (`ado.work_items.create_child_bug`): images are uploaded as ADO attachments (`wit/attachments`) and embedded as `<img>` after the text in `Microsoft.VSTS.TCM.ReproSteps`; Area / Iteration from the Requirement; parent link.
+  - The new Bug is appended to `req.children` (no refetch), so it shows in 開發 and — while not Resolved/Closed — puts the Requirement back in Implement (`computeStage`).
+  - Prod deploy's Confirm Commit dialog warns when the Requirement has Bugs (the prod commit may not be the Test deploy commit it prefills).
+  - Replaces the old local 問題備忘 list; existing `testIssues` entries in the state file are no longer shown or written.
 - **設定 UpAgent 連線**: when Plan includes `upagent` (`needsUpagentRelease`), the 測試 / 檢核 cell also shows「🔌 設定 UpAgent 連線」+ the current connection.
   - `upagent-connection-dialog.js` offers the 4 targets `UPAGENT_CONNECTIONS` (Local Test / Local Prod / SaaS Test / SaaS Prod, keys `local_test` …, in `shared/flow-rules.js`)
     → `upagentConnection:switch` (`main/services/upagentConnection.js`) deletes UpAgent's config file(s) `upagentConnection.configFile`

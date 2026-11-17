@@ -12,6 +12,7 @@ const branchGraph = require('./services/branchGraph');
 const pipelines = require('./services/pipelines');
 const afterDeploy = require('./services/afterDeploy');
 const testRecord = require('./services/testRecord');
+const bugReport = require('./services/bugReport');
 const upagentRelease = require('./services/upagentRelease');
 const localDeploy = require('./services/localDeploy');
 const upagentConnection = require('./services/upagentConnection');
@@ -46,7 +47,7 @@ function registerIpcHandlers() {
   ipcMain.handle('flow:setCommits', (_e, params) => requirementFlow.setCommits(params));
   ipcMain.handle('flow:setTestRecord', (_e, params) => testRecord.saveTestRecord(params));
   ipcMain.handle('flow:testImages', (_e, params) => testRecord.loadTestImages(params));
-  ipcMain.handle('flow:setTestIssues', (_e, params) => testRecord.saveTestIssues(params));
+  ipcMain.handle('flow:createBug', (_e, params) => bugReport.createBug(params));
   ipcMain.handle('flow:mergeStatus', (_e, { id, stage } = {}) => requirementFlow.deployMergeStatus({ id, stage }));
   ipcMain.handle('flow:mergeDeploy', (_e, { id, stage } = {}) => requirementFlow.mergeDeploy({ id, stage }));
   ipcMain.handle('flow:pipelineRuns', (_e, { id, stage } = {}) => pipelines.deployPipelineRuns({ id, stage }));

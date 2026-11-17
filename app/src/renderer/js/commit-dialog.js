@@ -163,7 +163,7 @@ export function createCommitDialog() {
    * @param current 目前已確認的 { repoKey: commit }，未確認時為 undefined
    * @param prefill 未確認時預先填入的 commit（例：Prod deploy 帶入 Test deploy 的 commit）
    * @param saveFn (commits | null) => Promise；null 代表取消確認
-   * @param warning 顯示在 commit 欄位上方的提醒（例：Prod deploy 時測試與檢核有問題備忘）；title 為滑鼠提示
+   * @param warning 顯示在 commit 欄位上方的提醒（例：Prod deploy 時 Requirement 底下有 Bug）；title 為滑鼠提示
    */
   function open({ req, stageLabel, repos, current, prefill, saveFn, warning }) {
     openSeq++;

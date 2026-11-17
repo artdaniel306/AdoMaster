@@ -4,7 +4,7 @@ import { createPlanDialog } from './plan-dialog.js';
 import { createCommitDialog } from './commit-dialog.js';
 import { createTaskDialog } from './task-dialog.js';
 import { createTestDialog } from './test-dialog.js';
-import { createTestIssuesDialog } from './test-issues-dialog.js';
+import { createBugDialog } from './bug-dialog.js';
 import { createUpagentConnectionDialog, currentUpagentConnection } from './upagent-connection-dialog.js';
 import { workItemLink } from './description-dialog.js';
 import { repoTag } from './repos.js';
@@ -24,8 +24,6 @@ import {
   COMMIT_STAGES,
   noRepoChange,
   needsUpagentRelease,
-  testIssues,
-  openTestIssues,
 } from '../../shared/flow-rules.js';
 
 /**
@@ -41,7 +39,7 @@ export function createFlowCells(ctx) {
   const commitDialog = createCommitDialog();
   const taskDialog = createTaskDialog();
   const testDialog = createTestDialog();
-  const testIssuesDialog = createTestIssuesDialog();
+  const bugDialog = createBugDialog();
   const upagentConnDialog = createUpagentConnectionDialog();
 
   /** 儲存後更新本機狀態並重繪該列 */
@@ -121,7 +119,7 @@ export function createFlowCells(ctx) {
         current: commits,
         // Prod deploy 尚未確認時，預設帶入 Test deploy 確認過的 commit
         prefill: stage.key === 'prodDeploy' ? s[commitsKey('testDeploy')] : undefined,
-        warning: commitWarning(s, stage.key),
+        warning: commitWarning(req, s, stage.key),
         saveFn: async (c) => saved(req)(await api.setCommits(req.id, stage.key, c)),
       });
 
@@ -242,28 +240,29 @@ export function createFlowCells(ctx) {
       btn.addEventListener('click', () => openRecord(false));
       box.append(btn);
     }
-    box.append(testIssuesLink(req));
+    box.append(bugLink(req));
     if (needsUpagentRelease(s)) box.append(upagentConnection(req));
     return box;
   }
 
-  /** 問題備忘的滑鼠提示：列出各則（已修正的標 ✓） */
-  const issuesTooltip = (issues) => issues.map((x) => `${x.resolved ? '✓' : '•'} ${x.text}`).join('\n');
+  /** Requirement 底下（未 Removed 的）Bug */
+  const bugsOf = (req) => activeKids(req).filter((c) => c.type === 'Bug');
+  /** Bug 清單的滑鼠提示（已完成開發的標 ✓） */
+  const bugsTooltip = (bugs) => bugs.map((b) => `${isDevDone(b) ? '✓' : '•'} #${b.id} ${b.title}（${b.state}）`).join('\n');
 
-  /** 問題備忘：測試與檢核時發現的問題，點擊開啟 dialog 新增 / 標記已修正（不影響勾選與階段） */
-  function testIssuesLink(req) {
-    const s = ctx.checks(req.id);
-    const all = testIssues(s);
-    const open = openTestIssues(s).length;
-    const text = all.length ? `🐞 問題備忘（未修正 ${open} / ${all.length}）` : '🐞 問題備忘';
-    const btn = el('button', `btn-link test-issues-link${open ? ' warn' : ''}`, text);
+  /** 記錄問題：開啟 dialog 輸入敘述 / 圖片並指派開發人員，在 ADO 的 Requirement 底下建立 Bug（不影響勾選與階段） */
+  function bugLink(req) {
+    const bugs = bugsOf(req);
+    const btn = el('button', 'btn-link bug-link', '🐞 記錄問題');
     btn.type = 'button';
-    btn.title = all.length ? `${issuesTooltip(all)}\n\n點擊檢視 / 編輯` : '記錄測試時發現的問題';
+    btn.title = bugs.length ? `在此 Requirement 底下建立 Bug\n\n已有 Bug：\n${bugsTooltip(bugs)}` : '在此 Requirement 底下建立 Bug';
     btn.addEventListener('click', () =>
-      testIssuesDialog.open({
-        req,
-        issues: testIssues(ctx.checks(req.id)),
-        saveFn: async (issues) => saved(req)(await api.setTestIssues(req.id, issues)),
+      bugDialog.open(req, async (data) => {
+        const bug = await api.createBug(req.id, data);
+        req.children = [...req.children, bug];
+        ctx.update(req);
+        statusEl.className = 'status';
+        statusEl.textContent = `已建立 Bug #${bug.id}：${bug.title}${bug.assignedTo ? `（指派給 ${bug.assignedTo}）` : ''}`;
       })
     );
     return btn;
@@ -272,15 +271,15 @@ export function createFlowCells(ctx) {
   /**
    * Confirm Commit dialog 的提醒：
    *   - 此階段已勾 SaaS / Local：變更 commit 後會取消勾選，需重新佈版
-   *   - Prod deploy：測試與檢核有問題備忘時，commit 可能已不是測試環境佈版時的版本
+   *   - Prod deploy：Requirement 底下有 Bug 時，commit 可能已不是測試環境佈版時的版本
    */
-  function commitWarning(s, stageKey) {
+  function commitWarning(req, s, stageKey) {
     const parts = [];
     if (s[commitsKey(stageKey)] && deployCheckKeys(stageKey).some((k) => s[k])) {
       parts.push({ text: '⚠ 變更 commit 後，此階段的 SaaS / Local 會取消勾選，需重新勾選以 merge / 佈版' });
     }
     if (stageKey === 'prodDeploy') {
-      const w = issuesWarning(s);
+      const w = bugsWarning(req);
       if (w) parts.push(w);
     }
     if (!parts.length) return undefined;
@@ -289,16 +288,16 @@ export function createFlowCells(ctx) {
     return { text, title };
   }
 
-  /** Prod deploy 的 Confirm Commit：測試與檢核有問題備忘時提醒 commit 可能已不是測試環境佈版時的版本 */
-  function issuesWarning(s) {
-    const all = testIssues(s);
-    if (!all.length) return undefined;
-    const open = openTestIssues(s).length;
+  /** Prod deploy 的 Confirm Commit：Requirement 底下有 Bug 時提醒 commit 可能已不是測試環境佈版時的版本 */
+  function bugsWarning(req) {
+    const bugs = bugsOf(req);
+    if (!bugs.length) return undefined;
+    const open = bugs.filter((b) => !isDevDone(b)).length;
     return {
       text:
-        `⚠ 測試與檢核有 ${all.length} 則問題備忘${open ? `（${open} 則未修正）` : ''}，` +
+        `⚠ 此 Requirement 有 ${bugs.length} 個 Bug${open ? `（${open} 個未完成）` : ''}，` +
         '正式環境的 commit 可能不是測試環境佈版時的 commit',
-      title: issuesTooltip(all),
+      title: bugsTooltip(bugs),
     };
   }
 

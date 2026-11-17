@@ -30,9 +30,9 @@ AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也�
 
 **Work Item 連結**（這裡和流程看板都一樣）：
 
-- 點擊：在 app 內顯示 Description，以及最新 3 筆留言（開啟時才向 ADO 抓取）。
-- **Ctrl（⌘）+ 點擊**：在瀏覽器開啟 ADO 頁面。Description 視窗中的「在瀏覽器開啟」也可以。
-- Description 視窗的 **提醒 Commit**：確認後在該 Work Item 留言「嗨 @<指派對象>, 請記得在開發完成後附上 repository 中對應的 commit。」（會 @ 提及，對方會收到 ADO 通知），並記錄在本機 `data/reminders.json`。提醒次數與紀錄可在選單「開發指標 → 流程提醒…」查看。沒有指派對象時無法使用；PAT 需要 Work Items (Read & Write) 權限。
+- 點擊：在 app 內顯示內容，以及最新 3 筆留言（開啟時才向 ADO 抓取）。內容依類型而定：**Bug 顯示 Repro Steps**，其他（Task、Requirement…）顯示 Description；其中的圖片以「[圖片]」表示，要看圖請在瀏覽器開啟。
+- **Ctrl（⌘）+ 點擊**：在瀏覽器開啟 ADO 頁面。內容視窗中的「在瀏覽器開啟」也可以。
+- 內容視窗的 **提醒 Commit**：確認後在該 Work Item 留言「嗨 @<指派對象>, 請記得在開發完成後附上 repository 中對應的 commit。」（會 @ 提及，對方會收到 ADO 通知），並記錄在本機 `data/reminders.json`。提醒次數與紀錄可在選單「開發指標 → 流程提醒…」查看。沒有指派對象時無法使用；PAT 需要 Work Items (Read & Write) 權限。
 
 ## Requirement 流程看板
 
@@ -59,10 +59,11 @@ AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也�
 
 ### 會寫回 ADO 的操作
 
-整個流程只有兩個動作會寫入 ADO，其餘勾選都只存在本機的 `data/requirement_flow_state.json`（另外 Description 視窗的「提醒 Commit」會在 Work Item 新增留言）：
+整個流程只有三個動作會寫入 ADO，其餘勾選都只存在本機的 `data/requirement_flow_state.json`（另外內容視窗的「提醒 Commit」會在 Work Item 新增留言）：
 
 1. **安排預設 Task**：在 Requirement 底下建立一個**同名**的 Task，Area / Iteration 沿用 Requirement；Description 在對話框中填寫。
 2. **更新狀態**：狀態標籤顯示「目前 → 應有狀態」並以醒目色標示時，點擊它會把 ADO 狀態更新成應有狀態（有人被指派 → Active；開發完成 → Resolved；整個流程完成 → Closed）。更新成 Closed 時，會先把底下尚未關閉的子 Task 也一併改成 Closed。
+3. **記錄問題**：測試與檢核欄的「🐞 記錄問題」在 Requirement 底下建立 Bug（見下方「記錄問題」）。
 
 ### 開發欄
 
@@ -192,15 +193,18 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
 
 取消勾選不會刪除記錄；「📝 測試 / 檢核記錄」連結可以修改記錄而不改變勾選狀態。
 
-#### 問題備忘
+#### 記錄問題
 
-測試時發現需要修正的問題，可以先在測試與檢核欄的「🐞 問題備忘」記下來：
+測試時發現需要修正的問題，按測試與檢核欄的「🐞 記錄問題」，會直接在 ADO 的 Requirement 底下**建立一個 Bug**：
 
-- 在下方輸入框寫下問題後按「新增」（或 **Ctrl + Enter**），可以一次記多則；已記的內容可直接修改，按 ✕ 刪除。
-- 修好後勾「已修正」；要按「**儲存**」才會存檔。
-- 有未修正的問題時，連結會以醒目顏色顯示「未修正 n / 總數」，滑鼠停在上面可以看到清單。
-- 備忘不影響「測試 / 檢核完成」的勾選與階段，任何階段都可以記。
-- 正式環境佈版的 Confirm Commit 會預設帶入測試環境佈版的 commit；有問題備忘時視窗上方會出現提醒——修正後的 commit 通常比測試環境佈版時更新，記得改成修正後的 commit。
+- **標題**：Bug 的標題（必填）。
+- **指派**：從 Requirement 底下 Task 的指派對象（負責開發的人員）中選擇；只有一位時會自動選好。底下沒有已指派的 Task 時不指派。
+- **Repro Steps**：問題敘述、重現步驟。
+- **圖片**：和測試記錄一樣，**Ctrl + V** 貼上截圖、拖曳圖片到對話框，或按「上傳圖片…」（png / jpeg / gif / webp / bmp，每張 10 MB 以內，最多 30 張）。圖片會上傳成 ADO 附件並放在 Repro Steps 的敘述後面。
+- 按「建立 Bug」後 Bug 會出現在開發欄；Area / Iteration 沿用 Requirement。PAT 需要 Work Items (Read & Write) 權限。
+- 記錄問題不影響「測試 / 檢核完成」的勾選，任何階段都可以記；但新的 Bug 會讓開發欄變成未完成，Requirement 會回到開發階段，直到 Bug 修好（Resolved / Closed）。
+- 滑鼠停在「🐞 記錄問題」上可以看到這個 Requirement 已有的 Bug。
+- 正式環境佈版的 Confirm Commit 會預設帶入測試環境佈版的 commit；Requirement 底下有 Bug 時視窗上方會出現提醒——修正後的 commit 通常比測試環境佈版時更新，記得改成修正後的 commit。
 
 ### 切換 UpAgent 連線
 

@@ -242,27 +242,35 @@
     </form>
   </dialog>
 
-  <dialog id="test-issues-dialog" class="app-dialog">
-    <form id="ti-form" class="dlg-box" method="dialog">
+  <dialog id="bug-dialog" class="app-dialog">
+    <form id="bg-form" class="dlg-box" method="dialog">
       <header class="dlg-head">
-        <h3>問題備忘</h3>
-        <span id="ti-count" class="ti-count"></span>
-        <button type="button" id="ti-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+        <h3>記錄問題</h3>
+        <button type="button" id="bg-close" class="btn-icon" title="關閉 (Esc)">✕</button>
       </header>
       <div class="dlg-body">
-        <p id="ti-req" class="dlg-req"></p>
-        <div id="ti-list" class="ti-list"></div>
-        <div class="ti-add-row">
-          <textarea id="ti-new" class="dlg-note" rows="2" maxlength="1000"
-            placeholder="發現的問題…" title="Ctrl + Enter 新增"></textarea>
-          <button type="button" id="ti-add" class="btn-ghost">新增</button>
+        <p id="bg-req" class="dlg-req"></p>
+        <div class="bg-grid">
+          <label for="bg-title">標題</label>
+          <input id="bg-title" type="text" required />
+          <label for="bg-assign">指派</label>
+          <select id="bg-assign"></select>
         </div>
-        <p id="ti-error" class="status error" hidden></p>
+        <label class="dlg-note-label" for="bg-repro">Repro Steps</label>
+        <textarea id="bg-repro" class="dlg-note" rows="7" placeholder="問題敘述、重現步驟…"></textarea>
+        <div class="dlg-note-label tr-images-head">
+          <span>圖片</span>
+          <span class="spacer"></span>
+          <button type="button" id="bg-upload" class="btn-ghost">上傳圖片…</button>
+          <input id="bg-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" multiple hidden />
+        </div>
+        <div id="bg-images" class="tr-images"></div>
+        <p id="bg-error" class="status error" hidden></p>
       </div>
       <footer class="dlg-foot">
         <span class="spacer"></span>
-        <button type="button" id="ti-cancel" class="btn-ghost">取消</button>
-        <button type="submit" id="ti-ok" class="btn-primary">儲存</button>
+        <button type="button" id="bg-cancel" class="btn-ghost">取消</button>
+        <button type="submit" id="bg-ok" class="btn-primary">建立 Bug</button>
       </footer>
     </form>
   </dialog>
@@ -303,7 +311,7 @@
   <dialog id="desc-dialog" class="app-dialog">
     <div class="dlg-box">
       <header class="dlg-head">
-        <h3>Description</h3>
+        <h3 id="ds-heading">Description</h3>
         <button type="button" id="ds-close" class="btn-icon" title="關閉 (Esc)">✕</button>
       </header>
       <div class="dlg-body">

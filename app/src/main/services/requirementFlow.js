@@ -12,7 +12,6 @@ const {
   PLAN_NOTE_KEY,
   PLAN_KEYS,
   TEST_RECORD_KEY,
-  TEST_ISSUES_KEY,
   UPAGENT_RELEASE_KEY,
   UPAGENT_RELEASE_HISTORY_KEY,
   COMMIT_STAGES,
@@ -210,7 +209,7 @@ async function setFlowCheck({ id, key, value, force = false } = {}) {
       }
     });
   }
-  if (key.startsWith(PLAN_KEY) || key.endsWith('.commits') || key.endsWith('.localDeploy') || forcedStage || key === TEST_RECORD_KEY || key === TEST_ISSUES_KEY || key === UPAGENT_RELEASE_KEY || key === UPAGENT_RELEASE_HISTORY_KEY) throw new Error('參數錯誤');
+  if (key.startsWith(PLAN_KEY) || key.endsWith('.commits') || key.endsWith('.localDeploy') || forcedStage || key === TEST_RECORD_KEY || key === UPAGENT_RELEASE_KEY || key === UPAGENT_RELEASE_HISTORY_KEY) throw new Error('參數錯誤');
   if (force) {
     return updateRequirementState(id, (checks) => {
       if (value) checks[key] = true;

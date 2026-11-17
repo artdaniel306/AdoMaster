@@ -24,8 +24,9 @@ contextBridge.exposeInMainWorld('api', {
   setTestRecord: (id, { note, keep, images, check }) =>
     ipcRenderer.invoke('flow:setTestRecord', { id, note, keep, images, check }),
   loadTestImages: (id) => ipcRenderer.invoke('flow:testImages', { id }),
-  /** issues: [{ text, resolved, createdAt? , resolvedAt? }]（整份清單覆蓋） */
-  setTestIssues: (id, issues) => ipcRenderer.invoke('flow:setTestIssues', { id, issues }),
+  /** 記錄問題：在 Requirement 底下建立 Bug（images: [{ type, data: Uint8Array }] 嵌入 Repro Steps）→ 新 Bug（欄位同 children） */
+  createBug: (id, { title, assignedTo, repro, images }) =>
+    ipcRenderer.invoke('flow:createBug', { id, title, assignedTo, repro, images }),
   deployMergeStatus: (id, stage) => ipcRenderer.invoke('flow:mergeStatus', { id, stage }),
   mergeDeploy: (id, stage) => ipcRenderer.invoke('flow:mergeDeploy', { id, stage }),
   deployPipelineRuns: (id, stage) => ipcRenderer.invoke('flow:pipelineRuns', { id, stage }),

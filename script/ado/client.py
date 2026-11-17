@@ -64,19 +64,29 @@ def http_request(url, headers=None, data=None, method=None, not_json_hint=""):
         raise AdoError(f"[錯誤] 無法連線：{e.reason}\nURL: {url}") from None
 
 
+PAT_HINT = "，請確認 PAT 是否正確、是否過期，以及是否有 Work Items (Read) 權限。"
+
+
+def _auth_headers(pat):
+    token = base64.b64encode(f":{pat}".encode("utf-8")).decode("ascii")
+    return {"Authorization": f"Basic {token}"}
+
+
 def api_request(url, pat, payload=None, content_type="application/json", method=None):
     """Azure DevOps API：payload 為 None 時送 GET，否則以 JSON body 送 POST（可用 method 指定，如更新 Work Item 用 PATCH）。
 
     建立 / 更新 Work Item 時 content_type 需為 application/json-patch+json。
     """
-    token = base64.b64encode(f":{pat}".encode("utf-8")).decode("ascii")
-    headers = {"Authorization": f"Basic {token}"}
+    headers = _auth_headers(pat)
     data = None
     if payload is not None:
         data = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = content_type
     # PAT 無效時 Azure DevOps 常回 203 + HTML 登入頁
-    return http_request(
-        url, headers, data, method,
-        not_json_hint="，請確認 PAT 是否正確、是否過期，以及是否有 Work Items (Read) 權限。",
-    )
+    return http_request(url, headers, data, method, not_json_hint=PAT_HINT)
+
+
+def api_upload(url, pat, data):
+    """Azure DevOps API：以 application/octet-stream POST 原始 bytes（如上傳 Work Item 附件）。"""
+    headers = {**_auth_headers(pat), "Content-Type": "application/octet-stream"}
+    return http_request(url, headers, data, "POST", not_json_hint=PAT_HINT)

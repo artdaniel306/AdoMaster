@@ -10,7 +10,6 @@
  *   <stage>.commits: { repoKey: commit }   Confirm Commit 的 commit
  *   <stage>.commitsForced: true            跳階段直接勾起 Confirm Commit（沒有實際填 commit）
  *   testRecord: { note, images, updatedAt } 測試完成時記錄的測試場景（images 為 data/test_records/<id>/ 下的檔名）
- *   testIssues: [{ text, resolved, createdAt, resolvedAt? }]  測試與檢核時發現的問題備忘（只能由 main/services/testRecord.js 寫入）
  *   upagentRelease: { version, bump, remark, completed, publishedAt, db: { test_saas, test_local, prod_saas, prod_local } }
  *                                          UpAgent 發佈進度（completed = 最後完成的發佈步驟；db 為各環境 SaaS / Local 寫入資料庫的時間）
  *                                          adoptedFrom = 沿用的版本是哪張 Requirement 發佈的（Confirm Commit 已包含在已發佈的版本中，
@@ -34,13 +33,19 @@ export const TEST_KEY = 'test';
 export const TEST_RECORD_KEY = 'testRecord';
 /** 測試記錄圖片的檔名（只允許這種格式，避免路徑穿越） */
 export const TEST_IMAGE_RE = /^[\w-]+\.(png|jpe?g|gif|webp|bmp)$/i;
-/** 測試與檢核的問題備忘 */
-export const TEST_ISSUES_KEY = 'testIssues';
-export const TEST_ISSUE_TEXT_MAX = 1000;
-export const TEST_ISSUES_MAX = 100;
-/** 問題備忘清單（沒有時為 []）與其中尚未修正的項目 */
-export const testIssues = (checks) => (Array.isArray(checks?.[TEST_ISSUES_KEY]) ? checks[TEST_ISSUES_KEY] : []);
-export const openTestIssues = (checks) => testIssues(checks).filter((x) => !x.resolved);
+/** 測試記錄 / 記錄問題（Bug 的 Repro Steps）可附的圖片：MIME type → 副檔名、單張上限、張數上限 */
+export const IMAGE_EXT_BY_TYPE = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/bmp': 'bmp',
+};
+export const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+export const IMAGES_MAX = 30;
+/** 記錄問題（在 Requirement 底下建立 Bug）的標題 / Repro Steps 敘述長度上限 */
+export const BUG_TITLE_MAX = 255;
+export const BUG_REPRO_MAX = 8000;
 
 /** 佈版前要先 Confirm Commit 的階段 */
 export const COMMIT_STAGES = ['testDeploy', 'prodDeploy'];

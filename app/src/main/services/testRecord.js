@@ -7,9 +7,9 @@ const {
   TEST_KEY,
   TEST_RECORD_KEY,
   TEST_IMAGE_RE,
-  TEST_ISSUES_KEY,
-  TEST_ISSUE_TEXT_MAX,
-  TEST_ISSUES_MAX,
+  IMAGE_EXT_BY_TYPE: EXT_BY_TYPE,
+  IMAGE_MAX_BYTES,
+  IMAGES_MAX,
 } = require('../../shared/flow-rules.js');
 
 /**
@@ -17,19 +17,23 @@ const {
  * 圖片存成檔案 data/test_records/<requirementId>/<檔名>（state 只記檔名）。
  */
 const NOTE_MAX = 4000;
-const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
-const IMAGES_MAX = 30;
-const EXT_BY_TYPE = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-  'image/bmp': 'bmp',
-};
 const TYPE_BY_EXT = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' };
 
 const recordDir = (id) => path.join(TEST_RECORDS_DIR, String(id));
 const typeOf = (name) => TYPE_BY_EXT[path.extname(name).slice(1).toLowerCase()];
+
+/**
+ * 檢查 renderer 傳來的新圖片 [{ type, data: Uint8Array }]（格式、大小、張數；existing = 已有的張數）。
+ * 測試記錄與記錄問題（Bug 的 Repro Steps）共用。
+ */
+function checkImages(images, existing = 0) {
+  if (!Array.isArray(images)) throw new Error('參數錯誤');
+  if (existing + images.length > IMAGES_MAX) throw new Error(`圖片最多 ${IMAGES_MAX} 張`);
+  for (const img of images) {
+    if (!img || !EXT_BY_TYPE[img.type] || !(img.data instanceof Uint8Array)) throw new Error('不支援的圖片格式');
+    if (img.data.byteLength > IMAGE_MAX_BYTES) throw new Error(`單張圖片最大 ${IMAGE_MAX_BYTES / 1024 / 1024} MB`);
+  }
+}
 
 /**
  * 儲存測試記錄。
@@ -47,11 +51,7 @@ async function saveTestRecord({ id, note, keep = [], images = [], check = false 
   if (!Array.isArray(images)) throw new Error('參數錯誤');
   note = (note || '').trim();
   if (note.length > NOTE_MAX) throw new Error(`測試記錄最多 ${NOTE_MAX} 字`);
-  if (keep.length + images.length > IMAGES_MAX) throw new Error(`圖片最多 ${IMAGES_MAX} 張`);
-  for (const img of images) {
-    if (!img || !EXT_BY_TYPE[img.type] || !(img.data instanceof Uint8Array)) throw new Error('不支援的圖片格式');
-    if (img.data.byteLength > IMAGE_MAX_BYTES) throw new Error(`單張圖片最大 ${IMAGE_MAX_BYTES / 1024 / 1024} MB`);
-  }
+  checkImages(images, keep.length);
 
   // 先寫新圖片，state 存檔成功後才刪掉不再使用的舊圖片
   const dir = recordDir(id);
@@ -115,31 +115,4 @@ async function loadTestImages({ id } = {}) {
   );
 }
 
-const isIsoDate = (v) => typeof v === 'string' && v.length <= 40 && !Number.isNaN(Date.parse(v));
-
-/**
- * 儲存測試與檢核的問題備忘（整份清單覆蓋；空清單 = 刪除）。
- * @param issues [{ text, resolved, createdAt?, resolvedAt? }]：新項目沒有 createdAt 時補上現在時間；
- *   resolved 且沒有 resolvedAt 時補上現在時間，未修正時拿掉 resolvedAt
- * @returns 該 Requirement 更新後的狀態
- */
-async function saveTestIssues({ id, issues } = {}) {
-  if (!Number.isInteger(id) || id <= 0 || !Array.isArray(issues)) throw new Error('參數錯誤');
-  if (issues.length > TEST_ISSUES_MAX) throw new Error(`問題備忘最多 ${TEST_ISSUES_MAX} 則`);
-  const now = new Date().toISOString();
-  const clean = issues.map((x) => {
-    if (!x || typeof x.text !== 'string') throw new Error('參數錯誤');
-    const text = x.text.trim();
-    if (!text) throw new Error('問題備忘不能是空白');
-    if (text.length > TEST_ISSUE_TEXT_MAX) throw new Error(`每則問題備忘最多 ${TEST_ISSUE_TEXT_MAX} 字`);
-    const item = { text, resolved: !!x.resolved, createdAt: isIsoDate(x.createdAt) ? x.createdAt : now };
-    if (item.resolved) item.resolvedAt = isIsoDate(x.resolvedAt) ? x.resolvedAt : now;
-    return item;
-  });
-  return updateRequirementState(id, (c) => {
-    if (clean.length) c[TEST_ISSUES_KEY] = clean;
-    else delete c[TEST_ISSUES_KEY];
-  });
-}
-
-module.exports = { saveTestRecord, loadTestImages, saveTestIssues };
+module.exports = { saveTestRecord, loadTestImages, checkImages };

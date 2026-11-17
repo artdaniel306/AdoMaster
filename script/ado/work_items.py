@@ -14,6 +14,9 @@ Work Item 查詢與轉換。
   - Update Work Item（以 JSON Patch 更新）
       PATCH {base}/{org}/{project}/_apis/wit/workitems/{id}?api-version=7.1
       https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/update?view=azure-devops-rest-7.1
+  - Create Attachment（上傳附件，回傳可嵌入 HTML 欄位的 url）
+      POST {base}/{org}/{project}/_apis/wit/attachments?fileName={name}&api-version=7.1
+      https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/attachments/create?view=azure-devops-rest-7.1
   - Get Comments（Work Item 的留言，preview API）
       GET {base}/{org}/{project}/_apis/wit/workItems/{id}/comments?$top=N&order=desc&api-version=7.1-preview.4
       https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/comments/get-comments?view=azure-devops-rest-7.1
@@ -24,11 +27,12 @@ Work Item 查詢與轉換。
 
 import html
 import json
+import os
 import re
 
 import urllib.parse
 
-from .client import api_request, api_url
+from .client import api_request, api_upload, api_url
 from .errors import AdoError
 
 BATCH_SIZE = 200  # workitemsbatch 單次上限
@@ -59,7 +63,9 @@ ROW_FIELDS = [
     ("changedDate", "System.ChangedDate"),
     ("closedDate", "Microsoft.VSTS.Common.ClosedDate"),
     ("description", "System.Description"),
+    ("reproSteps", "Microsoft.VSTS.TCM.ReproSteps"),  # Bug 的主要敘述（Bug 通常不填 Description）
 ]
+HTML_FIELDS = {"System.Description", "Microsoft.VSTS.TCM.ReproSteps"}
 ROW_COLUMNS = [c for c, _ in ROW_FIELDS]
 
 
@@ -154,7 +160,8 @@ def parent_id(item):
 # ---------------------------------------------------------------- 轉換
 
 def html_to_text(value):
-    text = re.sub(r"<br\s*/?>|</(p|div|li|h\d)>", "\n", value, flags=re.I)
+    text = re.sub(r"<img\b[^>]*>", "[圖片]", value, flags=re.I)
+    text = re.sub(r"<br\s*/?>|</(p|div|li|h\d)>", "\n", text, flags=re.I)
     text = re.sub(r"<[^>]+>", "", text)
     text = html.unescape(text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
@@ -170,7 +177,7 @@ def to_row(item):
             val = val.get("uniqueName", "") if isinstance(val, dict) else ""
         elif isinstance(val, dict):  # identity 物件（AssignedTo / CreatedBy ...）
             val = val.get("displayName") or val.get("uniqueName") or json.dumps(val, ensure_ascii=False)
-        elif ref == "System.Description" and val:
+        elif ref in HTML_FIELDS and val:
             val = html_to_text(val)
         row[col] = "" if val is None else val
     if not row["parent"] and item.get("relations"):
@@ -229,34 +236,98 @@ def text_to_html(value):
     return "<br>".join(html.escape(line) for line in value.splitlines())
 
 
+def _add(path, value):
+    return {"op": "add", "path": path, "value": value}
+
+
+def _get_parent(cfg, parent_id, relations=False):
+    found = get_work_items(cfg, [parent_id], relations=relations)
+    if not found:
+        raise AdoError(f"[錯誤] 找不到 Work Item #{parent_id}（或沒有權限）")
+    return found[0]
+
+
+def _create_child(cfg, parent, type, ops):
+    """在 parent（Work Item）底下建立 type 的子項目：Area / Iteration 沿用 parent，ops 為其餘欄位的 JSON Patch。"""
+    fields = parent.get("fields", {})
+    ops = [
+        *ops,
+        _add("/fields/System.AreaPath", fields.get("System.AreaPath", "")),
+        _add("/fields/System.IterationPath", fields.get("System.IterationPath", "")),
+        _add("/relations/-", {
+            "rel": HIERARCHY_REVERSE,
+            "url": parent.get("url") or api_url(cfg, f"wit/workItems/{parent['id']}").split("?", 1)[0],
+        }),
+    ]
+    url = api_url(cfg, f"wit/workitems/${urllib.parse.quote(type)}")
+    return api_request(url, cfg["pat"], ops, content_type="application/json-patch+json")
+
+
 def create_child_task(cfg, parent_id, description="", type="Task"):
     """在 parent 底下建立一個子 Work Item：標題與 parent 相同，Area / Iteration 沿用 parent。
 
     回傳 API 回傳的新 Work Item（含 relations）。
     """
-    found = get_work_items(cfg, [parent_id])
-    if not found:
-        raise AdoError(f"[錯誤] 找不到 Work Item #{parent_id}（或沒有權限）")
-    parent = found[0]
-    fields = parent.get("fields", {})
-
-    def add(path, value):
-        return {"op": "add", "path": path, "value": value}
-
-    ops = [
-        add("/fields/System.Title", fields.get("System.Title", "")),
-        add("/fields/System.AreaPath", fields.get("System.AreaPath", "")),
-        add("/fields/System.IterationPath", fields.get("System.IterationPath", "")),
-        add("/relations/-", {
-            "rel": HIERARCHY_REVERSE,
-            "url": parent.get("url") or api_url(cfg, f"wit/workItems/{parent_id}").split("?", 1)[0],
-        }),
-    ]
+    parent = _get_parent(cfg, parent_id)
+    ops = [_add("/fields/System.Title", parent.get("fields", {}).get("System.Title", ""))]
     if description:
-        ops.append(add("/fields/System.Description", text_to_html(description)))
+        ops.append(_add("/fields/System.Description", text_to_html(description)))
+    return _create_child(cfg, parent, type, ops)
 
-    url = api_url(cfg, f"wit/workitems/${urllib.parse.quote(type)}")
-    return api_request(url, cfg["pat"], ops, content_type="application/json-patch+json")
+
+def upload_attachment(cfg, file_path):
+    """上傳檔案成為 Work Item 附件，回傳 API 回傳的 { id, url }（url 可嵌入 HTML 欄位的 <img>）。"""
+    try:
+        with open(file_path, "rb") as f:
+            data = f.read()
+    except OSError as e:
+        raise AdoError(f"[錯誤] 無法讀取附件檔案：{e}") from None
+    url = api_url(cfg, "wit/attachments", fileName=os.path.basename(file_path))
+    result = api_upload(url, cfg["pat"], data)
+    if not isinstance(result, dict) or not result.get("url"):
+        raise AdoError("[錯誤] 上傳附件失敗：回應沒有 url")
+    return result
+
+
+def child_assignees(cfg, parent_id, type="Task"):
+    """parent 底下 type（預設 Task）子項目的指派對象：{ uniqueName（小寫）: identity }。"""
+    kids = child_ids(_get_parent(cfg, parent_id, relations=True))
+    result = {}
+    for k in get_work_items(cfg, kids) if kids else []:
+        f = k.get("fields", {})
+        who = f.get("System.AssignedTo")
+        if f.get("System.WorkItemType") == type and isinstance(who, dict) and who.get("uniqueName"):
+            result.setdefault(who["uniqueName"].lower(), who)
+    return result
+
+
+def create_child_bug(cfg, parent_id, title, repro_text="", images=(), assigned_to=""):
+    """在 parent（Requirement）底下建立 Bug：Area / Iteration 沿用 parent。
+
+    repro_text（純文字）與 images（本機圖片檔路徑，上傳成附件後以 <img> 嵌入）組成 Repro Steps；
+    assigned_to 為 email（uniqueName），必須是 parent 底下某個 Task 的指派對象。
+    回傳 API 回傳的新 Work Item。
+    """
+    title = " ".join(title.split())
+    if not title:
+        raise AdoError("[錯誤] Bug 標題不能是空白")
+    parent = _get_parent(cfg, parent_id)
+
+    ops = [_add("/fields/System.Title", title)]
+    if assigned_to:
+        who = child_assignees(cfg, parent_id).get(assigned_to.lower())
+        if not who:
+            raise AdoError(f"[錯誤] {assigned_to} 不是 #{parent_id} 底下 Task 的指派對象")
+        ops.append(_add("/fields/System.AssignedTo", who["uniqueName"]))
+
+    parts = [text_to_html(repro_text)] if repro_text else []
+    for i, path in enumerate(images, 1):
+        print(f"上傳圖片 {i}/{len(images)}…", flush=True)
+        att = upload_attachment(cfg, path)
+        parts.append(f'<img src="{html.escape(att["url"])}" alt="{html.escape(os.path.basename(path))}">')
+    if parts:
+        ops.append(_add("/fields/Microsoft.VSTS.TCM.ReproSteps", "<br><br>".join(parts)))
+    return _create_child(cfg, parent, "Bug", ops)
 
 
 # ---------------------------------------------------------------- 更新

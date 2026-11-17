@@ -3,12 +3,19 @@ import { $, el } from './dom.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 
 /**
- * Work Item Description dialog：
- * 點擊 Work Item id 時在 app 內顯示 Description 與最新 3 筆留言；Ctrl（macOS 為 ⌘）+ 點擊才用瀏覽器開啟。
+ * Work Item 內容 dialog：
+ * 點擊 Work Item id 時在 app 內顯示主要敘述與最新 3 筆留言；Ctrl（macOS 為 ⌘）+ 點擊才用瀏覽器開啟。
+ * 主要敘述依類型而定：Bug 為 Repro Steps，其他（Task、Requirement…）為 Description。
  */
 let instance = null;
 
 const COMMENT_COUNT = 3;
+
+/** 各類型的主要敘述欄位（未列出的類型用 Description） */
+const BODY_FIELD = {
+  Bug: { key: 'reproSteps', label: 'Repro Steps' },
+};
+const DEFAULT_BODY_FIELD = { key: 'description', label: 'Description' };
 
 /** ISO 時間 → 本地時間 yyyy/MM/dd HH:mm */
 function formatDate(iso) {
@@ -19,6 +26,7 @@ function formatDate(iso) {
 
 function createDescriptionDialog() {
   const dialog = $('desc-dialog');
+  const headingEl = $('ds-heading');
   const titleEl = $('ds-title');
   const metaEl = $('ds-meta');
   const bodyEl = $('ds-body');
@@ -86,14 +94,17 @@ function createDescriptionDialog() {
     }
   });
 
-  /** @param item Work Item row（id / type / title / state / assignedTo / assignedToEmail / description / webUrl） */
+  /** @param item Work Item row（id / type / title / state / assignedTo / assignedToEmail / description / reproSteps / webUrl） */
   function open(item) {
     current = item;
     url = item.webUrl || '';
     titleEl.textContent = `${item.type || ''} #${item.id} ${item.title || ''}`.trim();
     metaEl.textContent = `狀態：${item.state || '—'} · 指派：${item.assignedTo || '—'}`;
-    bodyEl.textContent = item.description || '（沒有 Description）';
-    bodyEl.classList.toggle('muted', !item.description);
+    const field = BODY_FIELD[item.type] || DEFAULT_BODY_FIELD;
+    const body = item[field.key];
+    headingEl.textContent = field.label;
+    bodyEl.textContent = body || `（沒有 ${field.label}）`;
+    bodyEl.classList.toggle('muted', !body);
     $('ds-open').disabled = !url;
     remindBtn.disabled = !item.assignedTo;
     remindBtn.title = item.assignedTo ? `留言 @${item.assignedTo}，提醒附上對應的 commit` : '沒有指派對象';
@@ -105,11 +116,11 @@ function createDescriptionDialog() {
   return { open };
 }
 
-/** Work Item id 連結：點擊顯示 Description dialog，Ctrl + 點擊在瀏覽器開啟 */
+/** Work Item id 連結：點擊顯示內容 dialog（Description / Bug 的 Repro Steps），Ctrl + 點擊在瀏覽器開啟 */
 export function workItemLink(text, item, cls = 'link') {
   const a = el('a', cls, text);
   a.href = '#';
-  a.title = '點擊顯示 Description；Ctrl + 點擊在瀏覽器開啟';
+  a.title = `點擊顯示 ${(BODY_FIELD[item.type] || DEFAULT_BODY_FIELD).label}；Ctrl + 點擊在瀏覽器開啟`;
   a.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
