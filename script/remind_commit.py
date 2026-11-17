@@ -22,7 +22,11 @@ from ado.errors import AdoError
 from ado.output import write_json
 from ado.work_items import add_comment, get_work_items, mention_html
 
-MESSAGE = "嗨 {mention}, 請記得在開發完成後附上 repository 中對應的 commit。"
+# 留言內容是 HTML（mention 是 <a> 標籤），換行用 <br>
+MESSAGE = (
+    "嗨 {mention}, 請記得在開發完成後附上 repository 中對應的 commit。<br>"
+    "如果 crmapp 中有 migration 也請特別註記下來。"
+)
 
 
 def main():

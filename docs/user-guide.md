@@ -32,7 +32,7 @@ AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也�
 
 - 點擊：在 app 內顯示內容，以及最新 3 筆留言（開啟時才向 ADO 抓取）。內容依類型而定：**Bug 顯示 Repro Steps**，其他（Task、Requirement…）顯示 Description；其中的圖片以「[圖片]」表示，要看圖請在瀏覽器開啟。
 - **Ctrl（⌘）+ 點擊**：在瀏覽器開啟 ADO 頁面。內容視窗中的「在瀏覽器開啟」也可以。
-- 內容視窗的 **提醒 Commit**：確認後在該 Work Item 留言「嗨 @<指派對象>, 請記得在開發完成後附上 repository 中對應的 commit。」（會 @ 提及，對方會收到 ADO 通知），並記錄在本機 `data/reminders.json`。提醒次數與紀錄可在選單「開發指標 → 流程提醒…」查看。沒有指派對象時無法使用；PAT 需要 Work Items (Read & Write) 權限。
+- 內容視窗的 **提醒 Commit**：確認後在該 Work Item 留言「嗨 @<指派對象>, 請記得在開發完成後附上 repository 中對應的 commit。」並換行加上「如果 crmapp 中有 migration 也請特別註記下來。」（會 @ 提及，對方會收到 ADO 通知），並記錄在本機 `data/reminders.json`。提醒次數與紀錄可在選單「開發指標 → 流程提醒…」查看。沒有指派對象時無法使用；PAT 需要 Work Items (Read & Write) 權限。
 
 ## Requirement 流程看板
 
