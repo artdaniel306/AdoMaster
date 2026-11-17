@@ -25,7 +25,6 @@ function createDescriptionDialog() {
   const commentsEl = $('ds-comments');
   const countEl = $('ds-comments-count');
   const remindBtn = $('ds-remind');
-  const remindCountEl = $('ds-remind-count');
   const confirmDialog = createConfirmDialog();
   let url = '';
   let current = null; // 目前顯示的 Work Item
@@ -66,21 +65,6 @@ function createDescriptionDialog() {
     if (url) api.openExternal(url);
   });
 
-  const showRemindCount = (n) => {
-    remindCountEl.textContent = n ? `已提醒 ${n} 次` : '';
-  };
-
-  async function loadRemindCount(item) {
-    showRemindCount(0);
-    if (!item.assignedToEmail) return;
-    try {
-      const n = await api.reminderCount(item.assignedToEmail, 'commit');
-      if (current === item) showRemindCount(n);
-    } catch {
-      /* 次數只是參考資訊，讀不到就不顯示 */
-    }
-  }
-
   remindBtn.addEventListener('click', async () => {
     const item = current;
     if (!item) return;
@@ -93,10 +77,8 @@ function createDescriptionDialog() {
     if (!ok || current !== item) return;
     remindBtn.disabled = true;
     try {
-      const { count } = await api.remindCommit(Number(item.id));
-      if (current !== item) return;
-      showRemindCount(count);
-      loadComments(item.id);
+      await api.remindCommit(Number(item.id));
+      if (current === item) loadComments(item.id);
     } catch (err) {
       await confirmDialog.alert('提醒 Commit 失敗', cleanError(err));
     } finally {
@@ -118,7 +100,6 @@ function createDescriptionDialog() {
     dialog.showModal();
     bodyEl.scrollTop = 0;
     loadComments(item.id);
-    loadRemindCount(item);
   }
 
   return { open };

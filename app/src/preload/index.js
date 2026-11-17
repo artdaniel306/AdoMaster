@@ -10,7 +10,6 @@ contextBridge.exposeInMainWorld('api', {
   /** 留言 @ 指派對象提醒附上 commit 並記錄 → { email, name, count } */
   remindCommit: (id) => ipcRenderer.invoke('reminders:remindCommit', { id }),
   /** 某位開發人員（email）被某類型（REMINDER_TYPES 的 key）提醒的次數 */
-  reminderCount: (email, type) => ipcRenderer.invoke('reminders:count', { email, type }),
   /** 依人員 × 類型彙整：[{ email, name, type, count, lastAt, workItems: [{ id, url, count }] }] */
   reminderSummary: () => ipcRenderer.invoke('reminders:summary'),
   fetchRequirementFlow: (iterationPath, exact) => ipcRenderer.invoke('flow:fetch', { iterationPath, exact }),

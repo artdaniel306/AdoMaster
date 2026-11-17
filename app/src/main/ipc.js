@@ -35,7 +35,6 @@ function registerIpcHandlers() {
   ipcMain.handle('workitems:comments', (_e, { id, top } = {}) => workItems.fetchComments({ id, top }));
   // 開發流程提醒（Description 視窗的「提醒 Commit」；選單「開發指標 → 流程提醒…」）
   ipcMain.handle('reminders:remindCommit', (_e, { id } = {}) => reminders.remindCommit({ id }));
-  ipcMain.handle('reminders:count', (_e, { email, type } = {}) => reminders.reminderCount({ email, type }));
   ipcMain.handle('reminders:summary', () => reminders.reminderSummary());
 
   ipcMain.handle('flow:fetch', (_e, params) => requirementFlow.fetchRequirementFlow(params));
