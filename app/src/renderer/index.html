@@ -630,6 +630,33 @@
     </div>
   </dialog>
 
+  <dialog id="reminders-dialog" class="app-dialog">
+    <div class="dlg-box">
+      <header class="dlg-head">
+        <h3>流程提醒</h3>
+        <button type="button" id="rm-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <div class="rm-toolbar">
+          <select id="rm-type" title="提醒類型"></select>
+        </div>
+        <table class="rm-table">
+          <thead>
+            <tr><th>人員</th><th>類型</th><th class="num">次數</th><th>Task</th><th>最後提醒</th></tr>
+          </thead>
+          <tbody id="rm-rows"></tbody>
+        </table>
+        <p id="rm-empty" class="muted"></p>
+        <p id="rm-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" id="rm-reload" class="btn-ghost">重新整理</button>
+        <span class="spacer"></span>
+        <button type="button" id="rm-ok" class="btn-primary">關閉</button>
+      </footer>
+    </div>
+  </dialog>
+
   <dialog id="deploy-progress-dialog" class="app-dialog">
     <div class="dlg-box">
       <header class="dlg-head">

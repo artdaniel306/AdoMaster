@@ -219,3 +219,8 @@ export const restartSlotLabel = (time) => RESTART_SLOTS.find((s) => s.time === t
 export const runbookParamFields = (values) => [
   ...new Set(values.flatMap((v) => [...String(v ?? '').matchAll(/\{(\w+)\}/g)].map((m) => m[1]))),
 ].filter((f) => f !== 'repo');
+
+// ---------------------------------------------------------------- 開發流程提醒
+/** 提醒類型（data/reminders.json 事件的 type）→ 顯示名稱；新增類型時加在這裡 */
+export const REMINDER_TYPES = { commit: '提醒 Commit' };
+export const reminderTypeLabel = (type) => REMINDER_TYPES[type] || type;

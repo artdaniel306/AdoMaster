@@ -7,10 +7,12 @@ contextBridge.exposeInMainWorld('api', {
   fetchWorkItems: (iterationPath, exact) => ipcRenderer.invoke('workitems:fetch', { iterationPath, exact }),
   /** Work Item 最新的 top 筆留言：{ id, totalCount, comments: [{ id, text, createdBy, createdDate }] }（新 → 舊） */
   fetchComments: (id, top = 3) => ipcRenderer.invoke('workitems:comments', { id, top }),
-  /** 留言 @ 指派對象提醒附上 commit 並記錄次數 → { email, name, count } */
-  remindCommit: (id) => ipcRenderer.invoke('workitems:remindCommit', { id }),
-  /** 某位開發人員（email）被「提醒 Commit」的次數 */
-  commitReminderCount: (email) => ipcRenderer.invoke('workitems:reminderCount', { email }),
+  /** 留言 @ 指派對象提醒附上 commit 並記錄 → { email, name, count } */
+  remindCommit: (id) => ipcRenderer.invoke('reminders:remindCommit', { id }),
+  /** 某位開發人員（email）被某類型（REMINDER_TYPES 的 key）提醒的次數 */
+  reminderCount: (email, type) => ipcRenderer.invoke('reminders:count', { email, type }),
+  /** 依人員 × 類型彙整：[{ email, name, type, count, lastAt, workItems: [{ id, url, count }] }] */
+  reminderSummary: () => ipcRenderer.invoke('reminders:summary'),
   fetchRequirementFlow: (iterationPath, exact) => ipcRenderer.invoke('flow:fetch', { iterationPath, exact }),
   createDefaultTask: (id, description) => ipcRenderer.invoke('flow:createTask', { id, description }),
   updateRequirementState: (id, state) => ipcRenderer.invoke('flow:updateState', { id, state }),
@@ -116,6 +118,8 @@ contextBridge.exposeInMainWorld('api', {
   syncProdToFeatures: (repos) => ipcRenderer.invoke('prodSync:run', { repos }),
   /** 選單「Git → 同步 prod 至 feature…」被點擊時呼叫 cb() */
   onProdSyncMenu: (cb) => ipcRenderer.on('menu:prodSync', () => cb()),
+  /** 選單「開發指標」：cb(action)，action = 'reminders' */
+  onMetricsMenu: (cb) => ipcRenderer.on('menu:metrics', (_e, action) => cb(action)),
   loadRepoConfig:() => ipcRenderer.invoke('repos:config'),
   checkCommit: (repo, commit, branch) => ipcRenderer.invoke('repos:checkCommit', { repo, commit, branch }),
   branchGraph: (repo, branch, { fetch = false, all = false } = {}) =>

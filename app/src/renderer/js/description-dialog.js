@@ -74,7 +74,7 @@ function createDescriptionDialog() {
     showRemindCount(0);
     if (!item.assignedToEmail) return;
     try {
-      const n = await api.commitReminderCount(item.assignedToEmail);
+      const n = await api.reminderCount(item.assignedToEmail, 'commit');
       if (current === item) showRemindCount(n);
     } catch {
       /* 次數只是參考資訊，讀不到就不顯示 */

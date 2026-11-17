@@ -5,8 +5,8 @@
   python remind_commit.py --id 12345 [--out result.json]
 
 輸出（有指定 --out 時）:
-  { id, commentId, assignee: { email, displayName } }
-（提醒次數由 app 記在 data/commit_reminders.json，這支腳本只負責留言）
+  { id, webUrl, commentId, assignee: { email, displayName } }
+（提醒紀錄由 app 記在 data/reminders.json，這支腳本只負責留言）
 
 進度訊息輸出在 stdout，錯誤訊息輸出在 stderr（exit code 1）。
 設定沿用 data/.env，只使用 Python 標準函式庫。需要 PAT 的 Work Items (Read & Write) 權限。
@@ -16,6 +16,7 @@ import argparse
 import os
 
 from ado.cli import run
+from ado.client import web_url
 from ado.config import get_config
 from ado.errors import AdoError
 from ado.output import write_json
@@ -43,6 +44,7 @@ def main():
     comment = add_comment(cfg, args.id, MESSAGE.format(mention=mention_html(assignee)))
     result = {
         "id": args.id,
+        "webUrl": web_url(cfg, args.id),
         "commentId": (comment or {}).get("id"),
         "assignee": {"email": assignee["uniqueName"], "displayName": assignee.get("displayName", "")},
     }

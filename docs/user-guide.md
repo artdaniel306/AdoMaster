@@ -32,7 +32,7 @@ AdoMaster 是 Azure DevOps（ADO）的 Iteration / Work Item 檢視工具，也�
 
 - 點擊：在 app 內顯示 Description，以及最新 3 筆留言（開啟時才向 ADO 抓取）。
 - **Ctrl（⌘）+ 點擊**：在瀏覽器開啟 ADO 頁面。Description 視窗中的「在瀏覽器開啟」也可以。
-- Description 視窗的 **提醒 Commit**：確認後在該 Work Item 留言「嗨 @<指派對象>, 請記得在開發完成後附上 repository 中對應的 commit。」（會 @ 提及，對方會收到 ADO 通知），並在本機 `data/commit_reminders.json` 以 email 累計每位開發人員被提醒的次數，按鈕旁顯示「已提醒 N 次」。沒有指派對象時無法使用；PAT 需要 Work Items (Read & Write) 權限。
+- Description 視窗的 **提醒 Commit**：確認後在該 Work Item 留言「嗨 @<指派對象>, 請記得在開發完成後附上 repository 中對應的 commit。」（會 @ 提及，對方會收到 ADO 通知），並記錄在本機 `data/reminders.json`，按鈕旁顯示這位開發人員累計「已提醒 N 次」（以 email 計算）。所有提醒紀錄可在選單「開發指標 → 流程提醒…」查看。沒有指派對象時無法使用；PAT 需要 Work Items (Read & Write) 權限。
 
 ## Requirement 流程看板
 
@@ -321,6 +321,12 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
 - feature branch = Repository 設定的 branches 中，不是測試 / 正式環境 branch 的那些。
 - 一律建立 merge commit 並 push，不動本機工作目錄、不 force push；`backMergeKeepPaths` 同樣適用。
 - 已包含正式版的 branch 不做事；remote 沒有的 branch 略過；有衝突的 branch 不 merge，請手動處理。
+
+## 開發指標
+
+### 流程提醒
+
+選單「開發指標 → 流程提醒…」：列出曾被提醒過的開發人員，每列是「人員 × 提醒類型」，顯示被提醒的次數、被提醒的 Task（點擊 id 在瀏覽器開啟；同一個 Task 提醒多次會顯示 ×N）與最後一次提醒的時間。上方可依提醒類型篩選。目前的提醒類型只有 Description 視窗的「提醒 Commit」。
 
 ## 匯出 / 匯入本地資料
 

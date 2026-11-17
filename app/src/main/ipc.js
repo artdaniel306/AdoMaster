@@ -2,7 +2,7 @@ const { BrowserWindow, ipcMain, shell } = require('electron');
 const localData = require('./services/localData');
 const iterations = require('./services/iterations');
 const workItems = require('./services/workItems');
-const commitReminder = require('./services/commitReminder');
+const reminders = require('./services/reminders');
 const requirementFlow = require('./services/requirementFlow');
 const flowState = require('./services/flowState');
 const repoConfig = require('./services/repoConfig');
@@ -33,8 +33,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle('workitems:fetch', (_e, params) => workItems.fetchWorkItems(params));
   ipcMain.handle('workitems:comments', (_e, { id, top } = {}) => workItems.fetchComments({ id, top }));
-  ipcMain.handle('workitems:remindCommit', (_e, { id } = {}) => commitReminder.remindCommit({ id }));
-  ipcMain.handle('workitems:reminderCount', (_e, { email } = {}) => commitReminder.reminderCount({ email }));
+  // 開發流程提醒（Description 視窗的「提醒 Commit」；選單「開發指標 → 流程提醒…」）
+  ipcMain.handle('reminders:remindCommit', (_e, { id } = {}) => reminders.remindCommit({ id }));
+  ipcMain.handle('reminders:count', (_e, { email, type } = {}) => reminders.reminderCount({ email, type }));
+  ipcMain.handle('reminders:summary', () => reminders.reminderSummary());
 
   ipcMain.handle('flow:fetch', (_e, params) => requirementFlow.fetchRequirementFlow(params));
   ipcMain.handle('flow:createTask', (_e, params) => requirementFlow.createDefaultTask(params));

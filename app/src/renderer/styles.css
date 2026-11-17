@@ -641,3 +641,11 @@ td.stage-split { padding: 0; height: 1px; }
 .rs-when { font-variant-numeric: tabular-nums; }
 .rs-desc { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rs-info { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 1px solid var(--border); border-radius: 50%; font-size: 11px; color: var(--muted); cursor: help; user-select: none; }
+
+/* 開發指標 → 流程提醒 */
+#reminders-dialog { width: min(820px, 92vw); }
+#reminders-dialog .dlg-box { max-height: 85vh; }
+#reminders-dialog .dlg-body { overflow: auto; }
+.rm-toolbar { display: flex; gap: 8px; margin-bottom: 8px; }
+.rm-table td .muted { margin: 0; }
+.rm-items { display: flex; flex-wrap: wrap; gap: 4px 10px; }

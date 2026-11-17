@@ -15,6 +15,7 @@ import { createSaasMonitorDialog } from './saas-monitor-dialog.js';
 import { initProdRestartSettings } from './prod-restart-settings-dialog.js';
 import { createRepoSyncDialog } from './repo-sync-dialog.js';
 import { createProdSyncDialog } from './prod-sync-dialog.js';
+import { createRemindersDialog } from './reminders-dialog.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 import { api } from './api.js';
 
@@ -64,6 +65,7 @@ initUpagentReleaseDbSettings();
 const prodRestartSettings = initProdRestartSettings();
 createRepoSyncDialog(); // 選單「Git → 同步所有 Repository…」
 createProdSyncDialog(); // 選單「Git → 同步 prod 至 feature…」
+createRemindersDialog(); // 選單「開發指標 → 流程提醒…」
 
 // 佈版（選單「佈版」與標題列按鈕）：手動佈版 + 佈版進度
 const progress = createDeployProgressDialog({ openManual: () => manualDeploy.open(), badgeEl: $('deploy-progress-count') });
