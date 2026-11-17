@@ -79,7 +79,7 @@ contextBridge.exposeInMainWorld('api', {
   loadProdRestartSettings: () => ipcRenderer.invoke('prodRestart:loadSettings'),
   /** settings { subscription, resourceGroup, … }；parameters [{ name, value }]；repos [{ key, appService, resourceGroup }] */
   saveProdRestartSettings: (settings, parameters, repos) => ipcRenderer.invoke('prodRestart:saveSettings', { settings, parameters, repos }),
-  /** 選單「佈版 → 手動佈版… / 佈版進度… / 正式環境排程重啟…」被點擊時呼叫 cb('manual' | 'progress' | 'restart') */
+  /** 選單「版本控制 → 手動佈版… / 佈版進度… / 正式環境排程重啟…」被點擊時呼叫 cb('manual' | 'progress' | 'restart') */
   onDeployMenu: (cb) => ipcRenderer.on('menu:deploy', (_e, action) => cb(action)),
   /** 監視 SaaS 佈版狀態：{ pipelines: [{ repo, stage, name, pipeline?, runs, error?, appService }] } */
   monitorPipelineRuns: () => ipcRenderer.invoke('saasMonitor:runs'),
@@ -109,14 +109,14 @@ contextBridge.exposeInMainWorld('api', {
   cancelRepoSync: () => ipcRenderer.invoke('repoSync:cancel'),
   /** 同步的即時輸出：cb({ line }) */
   onRepoSyncLog: (cb) => ipcRenderer.on('repoSync:log', (_e, data) => cb(data)),
-  /** 選單「Git → 同步所有 Repository…」被點擊時呼叫 cb() */
+  /** 選單「版本控制 → 同步所有 Repository…」被點擊時呼叫 cb() */
   onRepoSyncMenu: (cb) => ipcRenderer.on('menu:repoSync', () => cb()),
   /**
    * 把 repos（key 陣列）的 prodBranch 反向 merge 回其所有 feature branch。
    * 回傳 { backMerges: { [repo]: [{ branch, state, message, mergeCommit? }] } }
    */
   syncProdToFeatures: (repos) => ipcRenderer.invoke('prodSync:run', { repos }),
-  /** 選單「Git → 同步 prod 至 feature…」被點擊時呼叫 cb() */
+  /** 選單「版本控制 → 同步 prod 至 feature…」被點擊時呼叫 cb() */
   onProdSyncMenu: (cb) => ipcRenderer.on('menu:prodSync', () => cb()),
   /** 選單「開發指標」：cb(action)，action = 'reminders' */
   onMetricsMenu: (cb) => ipcRenderer.on('menu:metrics', (_e, action) => cb(action)),
@@ -136,7 +136,7 @@ contextBridge.exposeInMainWorld('api', {
   exportLocalData: (localStorageItems) => ipcRenderer.invoke('localData:export', localStorageItems),
   pickImportZip: () => ipcRenderer.invoke('localData:pickImport'),
   applyImport: () => ipcRenderer.invoke('localData:applyImport'),
-  /** 選單「檔案 → 匯出 / 匯入本地資料」被點擊時呼叫 cb('export' | 'import') */
+  /** 選單「設定 → 匯出 / 匯入本地資料」被點擊時呼叫 cb('export' | 'import') */
   onLocalDataMenu: (cb) => ipcRenderer.on('menu:localData', (_e, action) => cb(action)),
   /** 選單「設定 → Repository 設定…」被點擊時呼叫 cb() */
   onRepoSettingsMenu: (cb) => ipcRenderer.on('menu:repoSettings', () => cb()),

@@ -2,7 +2,7 @@ const { requireRepo } = require('./repoConfig');
 const { mergeBackToFeatures } = require('./deployMerge');
 
 /**
- * 選單「Git → 同步 prod 至 feature…」：手動把各 repository 的 origin/<prodBranch> 反向 merge 回其所有 feature branch，
+ * 選單「版本控制 → 同步 prod 至 feature…」：手動把各 repository 的 origin/<prodBranch> 反向 merge 回其所有 feature branch，
  * 與正式環境佈版 merge 後做的事相同（deployMerge.mergeBackToFeatures：一律建立 merge commit、不動 working tree、
  * 不 --force push、有衝突就略過該 branch；backMergeKeepPaths 同樣適用）。
  * 不同 repository 並行處理（同一個 clone 的 git 指令由 pathLock 排隊）；個別 repository 失敗不丟錯，記在結果裡。

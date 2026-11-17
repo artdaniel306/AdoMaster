@@ -15,7 +15,7 @@ function runTime(run) {
 }
 
 /**
- * 「佈版 → 監視 SaaS 佈版狀態…」：列出所有 repository 測試 / 正式環境 Pipeline 最新的 Run（main/services/pipelines.monitorPipelineRuns），
+ * 「版本控制 → 監視 SaaS 佈版狀態…」：列出所有 repository 測試 / 正式環境 Pipeline 最新的 Run（main/services/pipelines.monitorPipelineRuns），
  * 只讀，不 merge、不自動重啟。有進行中的 Run 時每 15 秒（PIPELINE_POLL_MS）自動更新，dialog 關閉即停止。
  *   - 測試環境：有設定 testAppService 的 repository 可手動「重啟 App Service」（afterDeploy.restartTestAppService）
  *   - 正式環境：不提供立即重啟，按鈕導向「正式環境排程重啟」dialog

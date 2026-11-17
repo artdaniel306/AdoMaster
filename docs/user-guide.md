@@ -123,7 +123,7 @@ push 環境 branch 會觸發 ADO Pipeline 自動佈版（在 Repository 設定�
 
 ### 監視 SaaS 佈版狀態
 
-選單「佈版 → 監視 SaaS 佈版狀態…」：列出所有 repository 在 Repository 設定中填寫的測試 / 正式環境 Pipeline，以及各自**最新的 Run** 與狀態。這裡只看狀態，不會 merge，也不會自動重啟。
+選單「版本控制 → 監視 SaaS 佈版狀態…」：列出所有 repository 在 Repository 設定中填寫的測試 / 正式環境 Pipeline，以及各自**最新的 Run** 與狀態。這裡只看狀態，不會 merge，也不會自動重啟。
 
 - 點 Run 編號會在瀏覽器開啟該 Run。
 - 有進行中的 Run 時每 15 秒自動更新；也可以按「重新整理」。關閉視窗就停止更新。
@@ -137,7 +137,7 @@ push 環境 branch 會觸發 ADO Pipeline 自動佈版（在 Repository 設定�
 - **Prod deploy 勾 SaaS**：佈版視窗的確認畫面有「正式環境排程重啟」，先選日期再選時段。預設是「不排程重啟」。這個區塊只會列出這次要 merge、而且有設定 Pipeline 的 repository，同時會列出這些 repository 在 Automation 中尚未執行的排程。
   - 排程不是馬上建立，要等 push 觸發的 Run **成功後**才建立。如果到那時選的時段已經過了，或距離現在不到 6 分鐘，就會建立失敗，佈版結果會顯示「佈版後動作失敗」。這時可以選「仍然勾起」，再從選單補排程。
 - **手動佈版**：選「正式環境」加「SaaS」時，同樣可以選擇日期與時段。
-- **選單「佈版 → 正式環境排程重啟…」**：
+- **選單「版本控制 → 正式環境排程重啟…」**：
   - 會列出 Automation 中的重啟排程，勾「含已執行」可以看到已經執行過的排程。
   - 可以選 repository、日期和時段來新增排程，也可以刪除排程。
   - 滑鼠移到說明上，可以看到 Schedule 名稱、Runbook 參數和建立時間。
@@ -162,7 +162,7 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
 
 ### 手動佈版的客戶環境
 
-選單「佈版 → 手動佈版…」的「環境」選「**客戶環境**」：不 merge、不佈版，只把 image build 成 tar 檔，交給客戶自行載入（`docker load -i <檔案>`）。
+選單「版本控制 → 手動佈版…」的「環境」選「**客戶環境**」：不 merge、不佈版，只把 image build 成 tar 檔，交給客戶自行載入（`docker load -i <檔案>`）。
 
 - **客戶**：依「目標」（SaaS / Local）列出 `data/config.json` 的 `customerDeploy.saas` / `customerDeploy.local` 中設定的客戶（範例見 `templates/config_example.json`）。
 - **Commit**：預設帶入正式環境 branch 最新的 commit，可以改成其他 commit，但必須已經在正式環境 branch 中。upagent 不支援客戶環境。
@@ -302,7 +302,7 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
 
 ## 同步所有 Repository
 
-選單「Git → 同步所有 Repository…」：把 `data/config.json` 中所有 repository 與雲端同步，按「開始同步」執行。
+選單「版本控制 → 同步所有 Repository…」：把 `data/config.json` 中所有 repository 與雲端同步，按「開始同步」執行。
 
 - 同步對象：Repository 設定的本機路徑（開發用 clone），以及 `localDeploy` 的 `projectDir`（部署用 clone）；相同路徑只做一次。資料夾不存在、不是 git repository 或沒有 remote 的會略過。
 - 每個 repository 先 `git fetch --all`，再檢查每個有追蹤 remote branch 的 local branch：
@@ -315,7 +315,7 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
 
 ## 同步 prod 至 feature
 
-選單「Git → 同步 prod 至 feature…」：手動把正式環境 branch（Repository 設定的 `prodBranch`）反向 merge 回該 repository 的所有 feature branch，與正式環境佈版 merge 後自動做的反向 merge 相同。適合在流程外直接改了正式環境 branch（例如 hotfix）之後使用。
+選單「版本控制 → 同步 prod 至 feature…」：手動把正式環境 branch（Repository 設定的 `prodBranch`）反向 merge 回該 repository 的所有 feature branch，與正式環境佈版 merge 後自動做的反向 merge 相同。適合在流程外直接改了正式環境 branch（例如 hotfix）之後使用。
 
 - 只列出有設定 `prodBranch` 的 repository；勾選要同步的 repository，按「開始同步」執行。
 - feature branch = Repository 設定的 branches 中，不是測試 / 正式環境 branch 的那些。
@@ -330,6 +330,6 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
 
 ## 匯出 / 匯入本地資料
 
-選單「檔案 → 匯出本地資料… / 匯入本地資料…」：把不在 git、也無法從 ADO 取回的資料打包成 zip，方便換電腦或備份。內容包含 `data/.env`、`data/config.json`、流程勾選紀錄、測試記錄與圖片、提醒 Commit 次數，以及畫面上的偏好（固定的 Iteration、目前的 UpAgent 連線等）。
+選單「設定 → 匯出本地資料… / 匯入本地資料…」：把不在 git、也無法從 ADO 取回的資料打包成 zip，方便換電腦或備份。內容包含 `data/.env`、`data/config.json`、流程勾選紀錄、測試記錄與圖片、提醒 Commit 次數，以及畫面上的偏好（固定的 Iteration、目前的 UpAgent 連線等）。
 
 匯入會覆蓋現有的同名資料，執行前會再確認一次。

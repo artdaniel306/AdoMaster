@@ -63,11 +63,11 @@ initEnvSettings();
 initUpagentConnectionSettings();
 initUpagentReleaseDbSettings();
 const prodRestartSettings = initProdRestartSettings();
-createRepoSyncDialog(); // 選單「Git → 同步所有 Repository…」
-createProdSyncDialog(); // 選單「Git → 同步 prod 至 feature…」
+createRepoSyncDialog(); // 選單「版本控制 → 同步所有 Repository…」
+createProdSyncDialog(); // 選單「版本控制 → 同步 prod 至 feature…」
 createRemindersDialog(); // 選單「開發指標 → 流程提醒…」
 
-// 佈版（選單「佈版」與標題列按鈕）：手動佈版 + 佈版進度
+// 佈版（選單「版本控制」與標題列按鈕）：手動佈版 + 佈版進度
 const progress = createDeployProgressDialog({ openManual: () => manualDeploy.open(), badgeEl: $('deploy-progress-count') });
 const manualDeploy = createManualDeployDialog({ onStarted: (job) => progress.started(job) });
 $('manual-deploy-btn').addEventListener('click', () => manualDeploy.open());

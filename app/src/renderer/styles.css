@@ -539,7 +539,7 @@ td.stage-split { padding: 0; height: 1px; }
 .uc-code { flex: 1; font: 14px Consolas, "Courier New", monospace; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--hover); color: var(--fg); }
 .upagent-conn { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px; font-size: 12px; }
 
-/* ---- 手動佈版 / 佈版進度（選單「佈版」、標題列按鈕）---- */
+/* ---- 手動佈版 / 佈版進度（選單「版本控制」、標題列按鈕）---- */
 .deploy-actions { display: flex; gap: 6px; }
 .pg-count {
   display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px;

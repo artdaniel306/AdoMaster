@@ -55,7 +55,7 @@ async function repoPipelineRuns(repo, stage) {
 const MONITOR_TOP = 5;
 
 /**
- * 選單「佈版 → 監視 SaaS 佈版狀態…」：所有 repository 有設定的測試 / 正式環境 Pipeline 最近的 Run（只讀，不 merge、不重啟）。
+ * 選單「版本控制 → 監視 SaaS 佈版狀態…」：所有 repository 有設定的測試 / 正式環境 Pipeline 最近的 Run（只讀，不 merge、不重啟）。
  * 個別 Pipeline 查詢失敗不影響其他的，錯誤放在該筆的 error。
  * @returns {{ pipelines: [{ repo, stage, name, pipeline?, runs, error?, appService }] }}
  *   appService：測試環境有設定 testAppService 時為其名稱（可手動重啟），否則為 ''

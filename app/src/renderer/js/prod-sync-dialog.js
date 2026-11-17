@@ -4,7 +4,7 @@ import { loadRepos, repoTag } from './repos.js';
 import { backMergeRows, backMergeProblems } from './back-merge.js';
 
 /**
- * 「Git → 同步 prod 至 feature…」：勾選 repository，把其 prodBranch 反向 merge 回所有 feature branch
+ * 「版本控制 → 同步 prod 至 feature…」：勾選 repository，把其 prodBranch 反向 merge 回所有 feature branch
  * （main/services/prodSync.js；同正式環境佈版後的反向 merge），結果以 back-merge.js 顯示。
  * 只列出有設定 prodBranch 的 repository；feature branch = branches 中不是環境 branch 的。
  */

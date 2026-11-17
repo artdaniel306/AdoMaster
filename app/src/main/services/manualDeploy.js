@@ -35,7 +35,7 @@ const {
 } = require('../../shared/flow-rules.js');
 
 /**
- * 手動佈版（選單「佈版 → 手動佈版…」）：不經 Requirement 流程，直接把某個 repository 的某個 commit
+ * 手動佈版（選單「版本控制 → 手動佈版…」）：不經 Requirement 流程，直接把某個 repository 的某個 commit
  * 佈版到 測試 / 正式 環境的 SaaS 或 Local。重用流程的佈版動作，順序與勾 SaaS / Local 時相同：
  *   SaaS：（有 Pipeline）等待進行中的 Run → merge 進環境 branch 並 push（觸發 Pipeline）→ 監看 push 觸發的 Run → 佈版後動作
  *         （測試環境重啟 App Service；正式環境不立即重啟，After-ProdDeploy.ps1 依選擇的日期 / 時段在 Azure Automation 排程重啟）

@@ -269,7 +269,7 @@ Scripts: `shell/Release-UpAgent.ps1` + child scripts `1-Get-BlobArtifacts.ps1` /
   - Only one release at a time; renderer job state is lost on reload (main keeps running).
 
 ## 手動佈版 / 佈版進度
-Menu「佈版」(also the 🛠 / 🚀 buttons in the content header) — deploy without a Requirement, reusing the same actions as checking SaaS / Local.
+Menu「版本控制」(also the 🛠 / 🚀 buttons in the content header) — deploy without a Requirement, reusing the same actions as checking SaaS / Local.
 
 ### 手動佈版
 - **手動佈版** (`manual-deploy-dialog.js` → `manualDeploy:preview` / `:start`, `main/services/manualDeploy.js`; job list / broadcast / steps in `jobs.js`, customer environment checks in `customerDeploy.js`): pick SaaS / Local, test / prod, a repo from `repos`, and a commit.
@@ -337,5 +337,5 @@ Menu「佈版」(also the 🛠 / 🚀 buttons in the content header) — deploy 
   - Delete only accepts names with the prefix and removes linked Job Schedules first.
 - Entry points:
   - prod SaaS after-deploy (flow deploy dialog / manual deploy, created only after the triggered Run succeeds — a slot that has passed by then fails the after-deploy)
-  - and menu「佈版 → 正式環境排程重啟…」(`restart-schedule-dialog.js`; `prodRestart:options` / `:list` / `:create` / `:delete`): list (pending; 「含已執行」 shows expired), create for several repos at once, delete.
+  - and menu「版本控制 → 正式環境排程重啟…」(`restart-schedule-dialog.js`; `prodRestart:options` / `:list` / `:create` / `:delete`): list (pending; 「含已執行」 shows expired), create for several repos at once, delete.
   - The picker lists the repos' pending schedules and flags a same-time duplicate.

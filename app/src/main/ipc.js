@@ -65,7 +65,7 @@ function registerIpcHandlers() {
     localDeploy.runLocalDeploy((channel, payload) => !e.sender.isDestroyed() && e.sender.send(channel, payload), params)
   );
   ipcMain.handle('localDeploy:cancel', () => localDeploy.cancelLocalDeploy());
-  // 手動佈版（選單「佈版」）：進度以 manualDeploy:update / manualDeploy:log 廣播給所有視窗
+  // 手動佈版（選單「版本控制」）：進度以 manualDeploy:update / manualDeploy:log 廣播給所有視窗
   ipcMain.handle('manualDeploy:preview', (_e, params) => manualDeploy.preview(params));
   ipcMain.handle('manualDeploy:start', (_e, params) => manualDeploy.start(params));
   ipcMain.handle('manualDeploy:cancel', (_e, { id } = {}) => manualDeploy.cancel({ id }));

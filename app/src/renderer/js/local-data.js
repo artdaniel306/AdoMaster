@@ -2,7 +2,7 @@ import { api, cleanError } from './api.js';
 import { createConfirmDialog } from './confirm-dialog.js';
 
 /**
- * 選單「檔案 → 匯出 / 匯入本地資料」：選檔與讀寫 zip 在 main（services/localData.js），
+ * 選單「設定 → 匯出 / 匯入本地資料」：選檔與讀寫 zip 在 main（services/localData.js），
  * 確認與結果通知用 app 內的 confirm dialog；localStorage 由這裡讀出 / 寫回。
  */
 export function initLocalData() {

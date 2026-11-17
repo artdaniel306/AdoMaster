@@ -19,7 +19,7 @@ function noteText(description) {
 }
 
 /**
- * 「佈版 → 正式環境排程重啟…」：查看 Azure Automation 中的重啟排程（prodRestart:list），
+ * 「版本控制 → 正式環境排程重啟…」：查看 Azure Automation 中的重啟排程（prodRestart:list），
  * 為選擇的 repository 新增排程（prodRestart:create，同一時間已排程的不會重複建立），或刪除排程（prodRestart:delete）。
  * 設定在 data/config.json 的 prodRestart（main/services/prodRestart.js）；「設定…」開啟設定 dialog，儲存後重新讀取。
  * @param openSettings (onSaved) => void，開啟「正式環境排程重啟設定」dialog

@@ -9,7 +9,7 @@ const STEP_ICON = { pending: '○', running: '▶', done: '✔', skipped: '–',
 const time = (iso) => (iso ? new Date(iso).toLocaleString('zh-TW', { hour12: false }) : '');
 
 /**
- * 佈版進度 dialog（選單「佈版 → 佈版進度…」/ 標題列按鈕）：
+ * 佈版進度 dialog（選單「版本控制 → 佈版進度…」/ 標題列按鈕）：
  *   - 手動佈版：main process 的工作（manualDeploy.js），即時顯示步驟、Pipeline Run、輸出，可停止 / 重試 / 移除
  *   - Requirement 流程：在背景執行中的 SaaS 自動佈版 / Local 佈版 / UpAgent 發佈（deploy-jobs.js），按「開啟」回到原本的視窗
  * 手動佈版結束時跳出通知（視窗不在前景時用系統通知；沒有其他 dialog 開著時開啟此 dialog）。

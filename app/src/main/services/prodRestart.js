@@ -11,7 +11,7 @@ const { RESTART_DATE_RE, restartSlot, runbookParamFields } = require('../../shar
  * 同一 repo 同一時間不會重複建立。
  *
  * 呼叫點：佈版後動作（afterDeploy.js → After-ProdDeploy.ps1 -RestartDate -RestartTime）與
- * 選單「佈版 → 正式環境排程重啟…」（restart-schedule-dialog.js）。
+ * 選單「版本控制 → 正式環境排程重啟…」（restart-schedule-dialog.js）。
  * 設定畫面：選單「設定 → 正式環境排程重啟設定…」（prod-restart-settings-dialog.js → loadSettings / saveSettings）。
  */
 

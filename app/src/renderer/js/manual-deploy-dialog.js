@@ -7,7 +7,7 @@ import { RELEASE_STEPS, RELEASE_STEP_TEXT as STEP_TEXT, UPAGENT_REPO, ENV_LABEL,
 
 
 /**
- * 手動佈版 dialog（選單「佈版 → 手動佈版…」/ 標題列按鈕）：選 SaaS / Local、測試 / 正式、repository 與 commit
+ * 手動佈版 dialog（選單「版本控制 → 手動佈版…」/ 標題列按鈕）：選 SaaS / Local、測試 / 正式、repository 與 commit
  * （upagent 另選完整發佈或接續），按「檢查」由 main 確認 merge 狀態與要做的步驟（manualDeploy:preview），
  * 再按「開始佈版」交給 main 在背景執行（manualDeploy:start），進度在「佈版進度」dialog 查看。
  * 客戶環境：選 config.json customerDeploy.<saas|local> 中的客戶，commit 預設帶入正式環境 branch 最新的 commit，只 build image tar。
