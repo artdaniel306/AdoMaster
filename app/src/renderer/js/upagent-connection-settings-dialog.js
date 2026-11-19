@@ -4,9 +4,9 @@ import { bindFormDialog, fieldRow, textInput } from './form-dialog.js';
 
 /**
  * 選單「設定 → UpAgent 連線設定…」：在 App 內編輯 config.json 的 upagentConnection
- * （切換連線時要刪除的 UpAgent 設定檔路徑 + 各環境的 Activation Code）。
- * 設定檔路徑只能用檔案選擇器選（不能手動輸入）；main 會把使用者資料夾換回 %APPDATA% 等，匯出 / 匯入到別台電腦仍有效。
- * 讀寫都在 main（services/upagentConnection.js 的 loadConnectionSettings / saveConnectionSettings / pickConfigFile）；
+ * （切換連線時要刪除的 UpAgent 設定檔路徑 + 自動關閉 / 重新開啟用的 UpAgent 執行檔 + 各環境的 Activation Code）。
+ * 設定檔與執行檔路徑只能用檔案選擇器選（不能手動輸入）；main 會把使用者資料夾換回 %APPDATA% 等，匯出 / 匯入到別台電腦仍有效。
+ * 讀寫都在 main（services/upagentConnection.js 的 loadConnectionSettings / saveConnectionSettings / pickConfigFile / pickExeFile）；
  * 「設定 UpAgent 連線」dialog 也可以從這裡開啟後再重新讀取。
  */
 let instance = null;
@@ -19,9 +19,30 @@ export function initUpagentConnectionSettings() {
   const pathsEl = $('ucs-paths');
   const addBtn = $('ucs-add');
   const codesEl = $('ucs-codes');
+  const exeEl = $('ucs-exe');
+  const exePickBtn = $('ucs-exe-pick');
+  const exeClearBtn = $('ucs-exe-clear');
 
   let codeInputs = []; // [{ key, input }]
   let paths = []; // 設定檔路徑（可含 %VAR%）
+
+  /** 執行檔路徑（可含 %VAR%）；'' = 不自動關閉 / 重新開啟 */
+  function setExe(p) {
+    exeEl.value = p;
+    exeEl.title = p;
+    exeClearBtn.disabled = !p;
+  }
+
+  async function pickExe() {
+    if (isBusy()) return;
+    showError('');
+    try {
+      const picked = await api.pickUpagentExe(exeEl.value);
+      if (picked) setExe(picked);
+    } catch (err) {
+      showError(`選擇檔案失敗：${cleanError(err)}`);
+    }
+  }
 
   /** 開啟檔案選擇器；index = 要取代的那一列（省略 = 新增）。多選時第一個取代、其餘加在後面 */
   async function pick(index) {
@@ -81,6 +102,7 @@ export function initUpagentConnectionSettings() {
     // 尚未設定時先帶入預設路徑（檔案不存在也可以，切換時會略過）
     paths = s.configFile.length ? [...s.configFile] : [s.defaultConfigFile];
     renderPaths();
+    setExe(s.exePath);
     codeInputs = [];
     codesEl.replaceChildren(...s.targets.map(codeRow));
   }
@@ -91,6 +113,7 @@ export function initUpagentConnectionSettings() {
     reset() {
       codeInputs = [];
       paths = [];
+      setExe('');
       fileEl.textContent = '';
       pathsEl.replaceChildren();
       codesEl.replaceChildren(el('span', 'muted', '讀取設定中…'));
@@ -99,10 +122,14 @@ export function initUpagentConnectionSettings() {
     loadFailed: () => codesEl.replaceChildren(),
     focus: () => codeInputs[0]?.input,
     validate: () => (paths.length ? null : { message: '請至少選擇一個 UpAgent 設定檔', focus: addBtn }),
-    save: () => api.saveUpagentConnectionSettings([...paths], Object.fromEntries(codeInputs.map(({ key, input }) => [key, input.value.trim()]))),
+    save: () => api.saveUpagentConnectionSettings([...paths], exeEl.value, Object.fromEntries(codeInputs.map(({ key, input }) => [key, input.value.trim()]))),
   });
 
   addBtn.addEventListener('click', () => pick());
+  exePickBtn.addEventListener('click', pickExe);
+  exeClearBtn.addEventListener('click', () => {
+    if (!isBusy()) setExe('');
+  });
 
   api.onUpagentConnectionSettingsMenu(() => open());
   instance = { open };

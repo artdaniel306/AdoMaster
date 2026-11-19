@@ -92,6 +92,7 @@ function registerIpcHandlers() {
   ipcMain.handle('upagentConnection:loadSettings', () => upagentConnection.loadConnectionSettings());
   ipcMain.handle('upagentConnection:saveSettings', (_e, params) => upagentConnection.saveConnectionSettings(params));
   ipcMain.handle('upagentConnection:pickFile', (e, current) => upagentConnection.pickConfigFile(BrowserWindow.fromWebContents(e.sender), current));
+  ipcMain.handle('upagentConnection:pickExe', (e, current) => upagentConnection.pickExeFile(BrowserWindow.fromWebContents(e.sender), current));
   ipcMain.handle('upagentReleaseDb:loadSettings', () => upagentReleaseDb.loadReleaseDbSettings());
   ipcMain.handle('upagentReleaseDb:saveSettings', (_e, params) => upagentReleaseDb.saveReleaseDbSettings(params));
   ipcMain.handle('upagentReleaseDb:pickPsql', (e, current) => upagentReleaseDb.pickPsql(BrowserWindow.fromWebContents(e.sender), current));

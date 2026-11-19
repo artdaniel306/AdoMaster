@@ -41,6 +41,7 @@ Every settings dialog uses `renderer/js/form-dialog.js`: `bindFormDialog({ dialo
 - Also reachable from the switch dialog's 「編輯設定…」.
 - Config file paths are chosen only with a file picker; `pickConfigFile` folds the user folders back to `%APPDATA%` / `%LOCALAPPDATA%` / `%USERPROFILE%` so the setting still works on another machine / account.
 - `configFile` is stored as a string when there is one path, an array when there are several.
+- `exePath` (optional; file picker only via `pickExeFile`, folded like `configFile`): set = switching closes UpAgent (`shell/Stop-UpAgent.ps1`), deletes the config files, then relaunches it; cleared = saved as `""` (delete only). When the key is absent and `%LOCALAPPDATA%\Programs\UpAgent\UpAgent.exe` exists, the dialog prefills it.
 - Activation codes are not secrets and stay in `config.json`; codes for keys not in `UPAGENT_CONNECTIONS` are kept.
 
 ### UpAgent 發佈資料庫設定（`upagentRelease.db.<test|prod>_<saas|local>`）

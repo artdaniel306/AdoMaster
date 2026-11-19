@@ -222,6 +222,7 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
 規劃中包含 `upagent` 時，測試與檢核欄會出現「🔌 設定 UpAgent 連線」與目前連線。
 
 - 選擇要連到的環境（Local Test / Local Prod / SaaS Test / SaaS Prod）後按「切換連線」：會**刪除 UpAgent 的設定檔**，並顯示該環境的 Activation Code（可按「複製」）。
+- 有設定 UpAgent 執行檔時，切換會自動：關閉正在執行的 UpAgent（等它完全結束；20 秒內沒結束會強制關閉）→ 刪除設定檔 → 重新開啟 UpAgent。沒設定時請自己關閉並重新開啟 UpAgent。
 - 重新開啟 UpAgent 後會要求輸入 Activation Code，輸入後即自動連線到對應的環境。
 - 沒有設定 Activation Code 的環境無法選擇，請按「編輯設定…」填入。
 
@@ -303,6 +304,7 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
 編輯 `data/config.json` 的 `upagentConnection`（也可從「設定 UpAgent 連線」視窗的「編輯設定…」開啟）。
 
 - **UpAgent 設定檔**：切換連線時要刪除的檔案。只能用檔案選擇器選**既有的檔案**；若剛切換過連線（設定檔已被刪除），請先開啟 UpAgent 讓它重新產生。
+- **UpAgent 執行檔**：選填，用「選擇…」選 `UpAgent.exe`（一般在 `%LOCALAPPDATA%\Programs\UpAgent\UpAgent.exe`；尚未設定過且該位置有檔案時會自動帶入）。設定後切換連線會自動關閉並重新開啟 UpAgent；按 🗑 清除 = 不自動關閉 / 重新開啟。只會關閉這個路徑的 UpAgent，不影響其他同名程式。
 - **Activation Code**：重新開啟 UpAgent 後輸入的代碼，決定連到哪個環境；空白 = 該環境無法切換。
 
 ### UpAgent 發佈資料庫設定

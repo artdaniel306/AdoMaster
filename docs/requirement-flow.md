@@ -205,10 +205,14 @@ Creating the default Task, updating the Requirement state (closing it also close
   - Replaces the old local 問題備忘 list; existing `testIssues` entries in the state file are no longer shown or written.
 - **設定 UpAgent 連線**: when Plan includes `upagent` (`needsUpagentRelease`), the 測試 / 檢核 cell also shows「🔌 設定 UpAgent 連線」+ the current connection.
   - `upagent-connection-dialog.js` offers the 4 targets `UPAGENT_CONNECTIONS` (Local Test / Local Prod / SaaS Test / SaaS Prod, keys `local_test` …, in `shared/flow-rules.js`)
-    → `upagentConnection:switch` (`main/services/upagentConnection.js`) deletes UpAgent's config file(s) `upagentConnection.configFile`
+    → `upagentConnection:switch` (`main/services/upagentConnection.js`):
+    with `upagentConnection.exePath` set, first closes UpAgent via `shell/Stop-UpAgent.ps1` (processes matched by full `ExecutablePath`; `CloseMainWindow`, wait ≤ 20 s, then `Stop-Process -Force`; returns only after every process has exited, because UpAgent may write its config on exit),
+    then deletes UpAgent's config file(s) `upagentConnection.configFile`
     (string or array in `data/config.json`; `%VAR%` / leading `~` expanded, must be absolute; missing file = skipped; `unlink` only, never a folder)
     and returns `upagentConnection.activationCodes.<key>`, shown in the dialog with a copy button
-    (UpAgent asks for the code after its config is gone and connects to that code's environment).
+    (UpAgent asks for the code after its config is gone and connects to that code's environment);
+    with `exePath` set it then relaunches UpAgent (`spawn` detached, `cwd` = exe folder, `ELECTRON_*` env vars stripped). A relaunch failure is returned as `app.startError`, not thrown (the files are already deleted, so the code must still be shown).
+  - A configured `exePath` that doesn't exist fails the switch before anything is closed or deleted.
   - A target without a code can't be chosen (nothing is deleted).
   - The current connection is machine-wide, so it lives in renderer `localStorage` (`upagentConnection`), not in the flow state; nothing is written to ADO.
   - The paths and codes are edited in-app via 「設定 → UpAgent 連線設定…」 or the dialog's 「編輯設定…」 (`upagent-connection-settings-dialog.js` → `loadConnectionSettings` / `saveConnectionSettings`):

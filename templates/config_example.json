@@ -123,6 +123,7 @@
   },
   "upagentConnection": {
     "configFile": "%APPDATA%\\upagent\\config.json",
+    "exePath": "%LOCALAPPDATA%\\Programs\\UpAgent\\UpAgent.exe",
     "activationCodes": {
       "local_test": "",
       "local_prod": "",

@@ -5,7 +5,8 @@ import { initUpagentConnectionSettings } from './upagent-connection-settings-dia
 
 /**
  * 設定 UpAgent 連線 dialog（測試 / 檢核階段，規劃含 upagent 時）：
- * 選 Local Test / Local Prod / SaaS Test / SaaS Prod → main 刪掉 UpAgent 設定檔 → 顯示該目標的 Activation Code 供複製。
+ * 選 Local Test / Local Prod / SaaS Test / SaaS Prod → main 關閉 UpAgent、刪掉 UpAgent 設定檔、重新開啟 UpAgent（有設定執行檔時）
+ * → 顯示該目標的 Activation Code 供複製。
  * 目前連線記在 localStorage（整台電腦只有一個 UpAgent，與 Requirement 無關）。
  */
 const STORAGE_KEY = 'upagentConnection';
@@ -87,7 +88,14 @@ export function createUpagentConnectionDialog() {
       const r = await api.switchUpagentConnection(target);
       try { localStorage.setItem(STORAGE_KEY, r.target); } catch { /* 忽略 */ }
       const lines = r.files.map((f) => (f.deleted ? `已刪除：${f.path}` : `檔案不存在（略過）：${f.path}`));
-      resultMsg.textContent = `已切換到 ${r.label}。\n${lines.join('\n')}\n\n請重新開啟 UpAgent，並輸入以下 Activation Code：`;
+      const app = r.app;
+      if (app) lines.unshift(!app.running ? 'UpAgent 未在執行' : app.forced ? 'UpAgent 未正常結束，已強制關閉' : '已關閉 UpAgent');
+      const next = !app
+        ? '請重新開啟 UpAgent，並輸入以下 Activation Code：'
+        : app.started
+          ? '已重新開啟 UpAgent，請輸入以下 Activation Code：'
+          : `重新開啟 UpAgent 失敗：${app.startError}\n請手動開啟 UpAgent，並輸入以下 Activation Code：`;
+      resultMsg.textContent = `已切換到 ${r.label}。\n${lines.join('\n')}\n\n${next}`;
       codeEl.value = r.activationCode;
       resultEl.hidden = false;
       copyBtn.textContent = '複製';
@@ -142,9 +150,9 @@ export function createUpagentConnectionDialog() {
     okBtn.disabled = true;
     try {
       const status = await api.upagentConnectionStatus();
-      filesEl.textContent = status.files
-        .map((f) => `要刪除的設定檔：${f.path}${f.exists ? '' : '（目前不存在）'}`)
-        .join('\n');
+      const lines = status.files.map((f) => `要刪除的設定檔：${f.path}${f.exists ? '' : '（目前不存在）'}`);
+      if (status.exe) lines.unshift(`自動關閉 / 重新開啟：${status.exe.path}${status.exe.exists ? '' : '（找不到執行檔）'}`);
+      filesEl.textContent = lines.join('\n');
       targets = status.targets;
       renderTargets();
     } catch (err) {

@@ -90,16 +90,18 @@ contextBridge.exposeInMainWorld('api', {
   monitorPipelineRuns: () => ipcRenderer.invoke('saasMonitor:runs'),
   /** 手動重啟某 repository 的測試環境 App Service，回傳 { action, message, result } */
   restartTestAppService: (repo) => ipcRenderer.invoke('saasMonitor:restartTest', { repo }),
-  /** UpAgent 連線：要刪除的設定檔與各目標是否有 Activation Code */
+  /** UpAgent 連線：要刪除的設定檔、UpAgent 執行檔（沒設定 = null）與各目標是否有 Activation Code */
   upagentConnectionStatus: () => ipcRenderer.invoke('upagentConnection:status'),
-  /** 切換 UpAgent 連線（刪掉 UpAgent 設定檔），回傳 { target, label, activationCode, files } */
+  /** 切換 UpAgent 連線（關閉 UpAgent → 刪掉設定檔 → 重新開啟），回傳 { target, label, activationCode, files, app } */
   switchUpagentConnection: (target) => ipcRenderer.invoke('upagentConnection:switch', { target }),
   /** 「UpAgent 連線設定」dialog：config.json 的 upagentConnection */
   loadUpagentConnectionSettings: () => ipcRenderer.invoke('upagentConnection:loadSettings'),
-  /** configFile: string[]，codes: { local_test: '...', ... }（空白 = 刪除） */
-  saveUpagentConnectionSettings: (configFile, codes) => ipcRenderer.invoke('upagentConnection:saveSettings', { configFile, codes }),
+  /** configFile: string[]，exePath: string（空白 = 不自動關閉 / 重新開啟），codes: { local_test: '...', ... }（空白 = 刪除） */
+  saveUpagentConnectionSettings: (configFile, exePath, codes) => ipcRenderer.invoke('upagentConnection:saveSettings', { configFile, exePath, codes }),
   /** 選擇 UpAgent 設定檔（可多選）；回傳路徑陣列（使用者資料夾換回 %APPDATA% 等），取消 = null */
   pickUpagentConfigFile: (current) => ipcRenderer.invoke('upagentConnection:pickFile', current),
+  /** 選擇 UpAgent 執行檔；回傳路徑（使用者資料夾換回 %LOCALAPPDATA% 等），取消 = null */
+  pickUpagentExe: (current) => ipcRenderer.invoke('upagentConnection:pickExe', current),
   /** 「UpAgent 發佈資料庫設定」dialog：config.json upagentRelease.db + .env 的 UPAGENT_DB_*_PASSWORD */
   loadUpagentReleaseDbSettings: () => ipcRenderer.invoke('upagentReleaseDb:loadSettings'),
   /** dbs: { test_saas: { psql, host, port, dbname, user, sslmode, password }, ... }（空白 = 刪除該欄位 / 改用預設） */
