@@ -51,14 +51,14 @@ function buildMenu() {
     {
       label: '版本控制',
       submenu: [
+        { label: '同步所有 Repository…', click: (_item, win) => win?.webContents.send('menu:repoSync') },
+        { label: '同步 prod 至 feature…', click: (_item, win) => win?.webContents.send('menu:prodSync') },
+        { type: 'separator' },
         { label: '手動佈版…', click: (_item, win) => win?.webContents.send('menu:deploy', 'manual') },
         { label: '佈版進度…', click: (_item, win) => win?.webContents.send('menu:deploy', 'progress') },
         { label: '監視 SaaS 佈版狀態…', click: (_item, win) => win?.webContents.send('menu:deploy', 'saasMonitor') },
         { type: 'separator' },
         { label: '正式環境排程重啟…', click: (_item, win) => win?.webContents.send('menu:deploy', 'restart') },
-        { type: 'separator' },
-        { label: '同步所有 Repository…', click: (_item, win) => win?.webContents.send('menu:repoSync') },
-        { label: '同步 prod 至 feature…', click: (_item, win) => win?.webContents.send('menu:prodSync') },
       ],
     },
     {
