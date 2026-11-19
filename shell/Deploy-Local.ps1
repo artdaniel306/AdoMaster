@@ -319,6 +319,7 @@ try {
     Write-Host "目前版本：$short（$(if ($isCustomer) { "在 origin/$Branch 中" } else { "origin/$Branch" })）"
 
     # docker tag 只能小寫
+    # 客戶環境 tar 的檔名格式也被 app 的「查看客戶發佈版本」解析（main/services/customerImages.js），改格式時要一起改
     $tag = if ($isCustomer) { "$Customer-$short".ToLowerInvariant() } else { "$Environment-$short" }
     if ($envHash) { $tag += "-$envHash" }
     # tar 內的 image 名稱不含 registry：改了 pushRegistry 也能沿用已 build 的 tar

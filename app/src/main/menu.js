@@ -20,7 +20,7 @@ async function openDataFolder() {
  * 、UpAgent 連線設定（upagent-connection-settings-dialog.js）、UpAgent 發佈資料庫設定（upagent-release-db-dialog.js）
  * 與正式環境排程重啟設定（prod-restart-settings-dialog.js）；分隔線後是匯出 / 匯入本地資料（只通知 renderer，流程與 dialog 在 renderer 的 local-data.js），
  * 再一條分隔線後是「開啟設定資料夾」（main 直接用檔案總管開啟 DATA_DIR），
- * 「版本控制」放手動佈版（manual-deploy-dialog.js）、佈版進度（deploy-progress-dialog.js）、監視 SaaS 佈版狀態（saas-monitor-dialog.js），
+ * 「版本控制」放手動佈版（manual-deploy-dialog.js）、佈版進度（deploy-progress-dialog.js）、監視 SaaS 佈版狀態（saas-monitor-dialog.js）、查看客戶發佈版本（customer-images-dialog.js），
  * 分隔線後是正式環境排程重啟（restart-schedule-dialog.js），再一條分隔線後是 Git：同步所有 Repository（repo-sync-dialog.js）與同步 prod 至 feature（prod-sync-dialog.js），
  * 「開發指標」放流程提醒（reminders-dialog.js：誰被提醒過、幾次、哪些 Task），
  * 同樣只通知 renderer，
@@ -57,6 +57,7 @@ function buildMenu() {
         { label: '手動佈版…', click: (_item, win) => win?.webContents.send('menu:deploy', 'manual') },
         { label: '佈版進度…', click: (_item, win) => win?.webContents.send('menu:deploy', 'progress') },
         { label: '監視 SaaS 佈版狀態…', click: (_item, win) => win?.webContents.send('menu:deploy', 'saasMonitor') },
+        { label: '查看客戶發佈版本…', click: (_item, win) => win?.webContents.send('menu:deploy', 'customerImages') },
         { type: 'separator' },
         { label: '正式環境排程重啟…', click: (_item, win) => win?.webContents.send('menu:deploy', 'restart') },
       ],

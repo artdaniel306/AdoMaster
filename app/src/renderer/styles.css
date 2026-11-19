@@ -641,3 +641,9 @@ td.stage-split { padding: 0; height: 1px; }
 .rm-toolbar { display: flex; gap: 8px; margin-bottom: 8px; }
 .rm-table td .muted { margin: 0; }
 .rm-items { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+#customer-images-dialog { width: min(1000px, 94vw); }
+#customer-images-dialog .dlg-box { max-height: 85vh; }
+#customer-images-dialog .dlg-body { overflow: auto; }
+#customer-images-dialog [hidden] { display: none !important; }
+.ci-mono { font: 12px Consolas, "Courier New", monospace; }
+.ci-subject { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

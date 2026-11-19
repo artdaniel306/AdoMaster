@@ -20,6 +20,7 @@ const upagentReleaseDb = require('./services/upagentReleaseDb');
 const userGuide = require('./services/userGuide');
 const manualDeploy = require('./services/manualDeploy');
 const customerDeploy = require('./services/customerDeploy');
+const customerImages = require('./services/customerImages');
 const prodRestart = require('./services/prodRestart');
 const repoSync = require('./services/repoSync');
 const prodSync = require('./services/prodSync');
@@ -75,6 +76,10 @@ function registerIpcHandlers() {
   ipcMain.handle('manualDeploy:showOutput', (_e, { id } = {}) => manualDeploy.showOutput({ id }));
   ipcMain.handle('manualDeploy:customers', () => customerDeploy.customers());
   ipcMain.handle('manualDeploy:prodHead', (_e, { repo } = {}) => customerDeploy.prodHead({ repo }));
+  // 查看客戶發佈版本：客戶環境 build 過的 image tar 與對應的 commit（只讀）
+  ipcMain.handle('customerImages:customers', () => customerImages.listCustomers());
+  ipcMain.handle('customerImages:list', (_e, { target, customer } = {}) => customerImages.listImages({ target, customer }));
+  ipcMain.handle('customerImages:reveal', (_e, { target, customer, repo, file } = {}) => customerImages.revealImage({ target, customer, repo, file }));
   // 正式環境排程重啟（Azure Automation Schedule + Runbook）
   ipcMain.handle('prodRestart:options', () => prodRestart.restartOptions());
   ipcMain.handle('prodRestart:list', () => prodRestart.listSchedules());

@@ -65,6 +65,11 @@ contextBridge.exposeInMainWorld('api', {
   manualDeployShowOutput: (id) => ipcRenderer.invoke('manualDeploy:showOutput', { id }),
   manualDeployCustomers: () => ipcRenderer.invoke('manualDeploy:customers'),
   manualDeployProdHead: (repo) => ipcRenderer.invoke('manualDeploy:prodHead', { repo }),
+  /** 查看客戶發佈版本：可選的客戶 { saas: [{ key, label, configured }], local: [...] } */
+  customerImageCustomers: () => ipcRenderer.invoke('customerImages:customers'),
+  /** 某客戶的 image tar：{ dir, images: [{ repo, repoLabel, file, size, builtAt, appName, envHash, commit, commitInfo }] } */
+  customerImages: (target, customer) => ipcRenderer.invoke('customerImages:list', { target, customer }),
+  revealCustomerImage: (target, customer, repo, file) => ipcRenderer.invoke('customerImages:reveal', { target, customer, repo, file }),
   /** 手動佈版工作的快照：cb(job)（job.removed = 已從清單移除）；輸出：cb({ id, line }) */
   onManualDeployUpdate: (cb) => ipcRenderer.on('manualDeploy:update', (_e, data) => cb(data)),
   onManualDeployLog: (cb) => ipcRenderer.on('manualDeploy:log', (_e, data) => cb(data)),
@@ -79,7 +84,7 @@ contextBridge.exposeInMainWorld('api', {
   loadProdRestartSettings: () => ipcRenderer.invoke('prodRestart:loadSettings'),
   /** settings { subscription, resourceGroup, … }；parameters [{ name, value }]；repos [{ key, appService, resourceGroup }] */
   saveProdRestartSettings: (settings, parameters, repos) => ipcRenderer.invoke('prodRestart:saveSettings', { settings, parameters, repos }),
-  /** 選單「版本控制 → 手動佈版… / 佈版進度… / 正式環境排程重啟…」被點擊時呼叫 cb('manual' | 'progress' | 'restart') */
+  /** 選單「版本控制 → 手動佈版… / 佈版進度… / 正式環境排程重啟…」被點擊時呼叫 cb('manual' | 'progress' | 'restart' | 'saasMonitor' | 'customerImages') */
   onDeployMenu: (cb) => ipcRenderer.on('menu:deploy', (_e, action) => cb(action)),
   /** 監視 SaaS 佈版狀態：{ pipelines: [{ repo, stage, name, pipeline?, runs, error?, appService }] } */
   monitorPipelineRuns: () => ipcRenderer.invoke('saasMonitor:runs'),

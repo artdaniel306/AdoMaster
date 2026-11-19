@@ -30,6 +30,8 @@ module.exports = {
   REMINDERS_FILE: path.join(DATA_DIR, 'reminders.json'),
   // Local 佈版各環境的 env 檔（localDeploy.repos.<repo>.<test|prod>.envFile 的相對路徑基準）
   LOCAL_DEPLOY_ENV_DIR: path.join(DATA_DIR, 'local_deploy_env'),
+  // 客戶環境 build 的 image tar：customer_build/<saas|local>/<客戶 key>/<repo>/<appName>_<tag>.tar（shell/Deploy-Local.ps1）
+  CUSTOMER_BUILD_DIR: path.join(DATA_DIR, 'customer_build'),
   // 本機設定（見 services/appConfig.js）
   CONFIG_FILE: path.join(DATA_DIR, 'config.json'),
   ENV_FILE: path.join(DATA_DIR, '.env'),

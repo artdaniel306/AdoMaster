@@ -175,6 +175,17 @@ Local 佈版（含客戶環境的 build）與 UpAgent 發佈同一時間各只�
   - build 結束後會還原部署用 clone 原本的檔案，不影響之後的測試 / 正式環境 Local 佈版。
 - **輸出**：`data/customer_build/<saas|local>/<客戶>/<repo>/` 下的 tar 檔（每個客戶 / repository 保留最新 3 個）。完成後在「佈版進度」按「**開啟資料夾**」。同一個 commit 與 env 已 build 過時直接沿用，需要重新 build 請勾「重新 build」。
 
+### 查看客戶發佈版本
+
+選單「版本控制 → 查看客戶發佈版本…」：選擇客戶（依 SaaS / Local 分組），列出該客戶在 `data/customer_build/` 中已 build 的 image tar。只讀，不會 build 或 fetch。
+
+- **Build 時間**：tar 檔完成輸出的時間（檔案修改時間）。
+- **Commit**：由檔名 `<appName>_<客戶>-<commit 前 10 碼>[-<env 雜湊>].tar` 取出，並在本機的開發用 clone（找不到時再查部署用 clone）查出作者、標題與 **Commit 時間**。顯示「本機 clone 找不到此 commit」時，先執行「同步所有 Repository」再重新整理。
+- 滑鼠停在檔名上可看到 env 雜湊（同一個 commit 換了 env 檔會產生不同的 tar）；停在 Commit 時間上，若作者時間不同會一併顯示。
+- **顯示檔案**：在檔案總管中選取該 tar 檔。
+- 客戶已從設定中刪除、但資料夾還在時，會標示「已不在設定中」。
+- 每個客戶 / repository 只保留最新 3 個 tar，更早的版本不會出現在這裡。
+
 ### 測試與檢核
 
 在進行中的階段勾選「測試 / 檢核完成」會開啟記錄視窗。記下這次的測試場景或驗證方式，之後才能回想起當時的狀況。可以從以下面向記錄：

@@ -637,6 +637,33 @@
     </div>
   </dialog>
 
+  <dialog id="customer-images-dialog" class="app-dialog">
+    <div class="dlg-box">
+      <header class="dlg-head">
+        <h3>客戶發佈版本</h3>
+        <button type="button" id="ci-close" class="btn-icon" title="關閉 (Esc)">✕</button>
+      </header>
+      <div class="dlg-body">
+        <div class="rm-toolbar">
+          <select id="ci-customer" title="客戶"></select>
+        </div>
+        <table class="rm-table">
+          <thead>
+            <tr><th>Repository</th><th>Image</th><th>Build 時間</th><th>Commit</th><th>Commit 時間</th><th></th></tr>
+          </thead>
+          <tbody id="ci-rows"></tbody>
+        </table>
+        <p id="ci-empty" class="muted"></p>
+        <p id="ci-error" class="status error" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" id="ci-reload" class="btn-ghost">重新整理</button>
+        <span class="spacer"></span>
+        <button type="button" id="ci-ok" class="btn-primary">關閉</button>
+      </footer>
+    </div>
+  </dialog>
+
   <dialog id="reminders-dialog" class="app-dialog">
     <div class="dlg-box">
       <header class="dlg-head">

@@ -305,6 +305,11 @@ Menu「版本控制」(also the 🛠 / 🚀 buttons in the content header) — d
     → `data/customer_build/<target>/<key>/<repo>/<appName>_<key>-<commit10>-<envhash>.tar` (latest 3 kept; reused unless 「重新 build」).
   - Shares the Local one-at-a-time lock (queues like a manual Local deploy).
   - The finished job has「開啟資料夾」(`manualDeploy:showOutput`, path taken from the job in main).
+  - 「版本控制 → 查看客戶發佈版本…」(`customer-images-dialog.js` → `services/customerImages.js`, read-only, no fetch):
+    customers = `customerDeploy` ∪ folders under `data/customer_build/<target>/`; per tar: build time = file mtime,
+    commit parsed from the file name (`<appName>_<key lower>-<commit10>[-<envhash8>].tar`; the tag format lives in `Deploy-Local.ps1` — change both together),
+    commit info (`%cI` commit date, author, subject) looked up in the dev clone, then the deploy clone (`projectDir`).
+    「顯示檔案」= `customerImages:reveal` (every path segment validated, `.tar` only).
 
 ### Jobs & 佈版進度
 - Manual deploys **write nothing to the flow state** — except that a finished UpAgent Database step marks every flow record of that version as written (`markDbWritten({ version })`), so the flow won't insert it again.

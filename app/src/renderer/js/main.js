@@ -12,6 +12,7 @@ import { createManualDeployDialog } from './manual-deploy-dialog.js';
 import { createDeployProgressDialog } from './deploy-progress-dialog.js';
 import { createRestartScheduleDialog } from './restart-schedule-dialog.js';
 import { createSaasMonitorDialog } from './saas-monitor-dialog.js';
+import { createCustomerImagesDialog } from './customer-images-dialog.js';
 import { initProdRestartSettings } from './prod-restart-settings-dialog.js';
 import { createRepoSyncDialog } from './repo-sync-dialog.js';
 import { createProdSyncDialog } from './prod-sync-dialog.js';
@@ -74,7 +75,8 @@ $('manual-deploy-btn').addEventListener('click', () => manualDeploy.open());
 $('deploy-progress-btn').addEventListener('click', () => progress.open());
 const restartSchedule = createRestartScheduleDialog({ openSettings: (onSaved) => prodRestartSettings.open(onSaved) });
 const saasMonitor = createSaasMonitorDialog({ openRestartSchedule: () => restartSchedule.open() });
-const DEPLOY_MENU = { manual: manualDeploy, restart: restartSchedule, saasMonitor, progress };
+const customerImages = createCustomerImagesDialog();
+const DEPLOY_MENU = { manual: manualDeploy, restart: restartSchedule, saasMonitor, customerImages, progress };
 api.onDeployMenu((action) => (DEPLOY_MENU[action] || progress).open());
 
 tree.load();
